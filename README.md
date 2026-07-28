@@ -2,9 +2,9 @@
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
-![Version](https://img.shields.io/badge/version-0.15.0-blue)
-![Lua](https://img.shields.io/badge/Lua-5.0-red)
-![WoW](https://img.shields.io/badge/WoW-1.12.1-purple)
+[![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/Hr66t25vE7)
+[![Client](https://img.shields.io/badge/client-WoW%201.12%20(vanilla)-c79c6e?style=flat-square)](https://turtle-wow.org)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
 A comprehensive buff management addon for Turtle WoW that extends PallyPower's Paladin-focused toolkit to all nine classes. Coordinate raid buffs, totems, debuffs, and interrupts across your entire group with shared assignment tracking, test-mode previews, and zero network traffic (unless you're coordinating).
 
