@@ -59,6 +59,14 @@ is in.
   CHUNK (multi-message) based on serialized size. Receiver handles both formats
   identically to ensure zero-impact forward compatibility.
 
+### Changed (`/rpc slots` says when it isn't testing sync)
+- The diagnostic now flags **test mode** ("these are preview slots - nothing is
+  sent or received") and **solo** ("not grouped"). Test mode is a local sandbox
+  — tank slots live in a separate preview store, `RawSend` suppresses every RPCX
+  message, and `ApplyTankSlots` ignores incoming ones — so slot output there
+  says nothing about whether sync works. Without the note it reads like a
+  passing two-client test when no message ever left the client.
+
 ### Fixed (Roles tab: tank dropdown overflow in a full raid)
 - The **Main Tank / Off-Tank dropdowns** now list only tank-capable classes
   (Warrior, Paladin, Druid, Shaman — Turtle WoW has a tanking shaman spec). In a

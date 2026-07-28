@@ -1894,6 +1894,17 @@ SlashCmdList["AEGISRP"] = function(msg)
             DEFAULT_CHAT_FRAME:AddMessage("  " .. labels[i] .. ": "
                 .. (A.GetTankSlot(i) or "|cff777777-|r"))
         end
+        -- Test mode is a local sandbox: these are the PREVIEW slots, and RPCX
+        -- neither sends nor applies while it's on. Say so, so this output is
+        -- never mistaken for a passing two-client sync test.
+        if AegisRP.IsTestMode() then
+            DEFAULT_CHAT_FRAME:AddMessage("  |cffff8800[test mode]|r these are preview "
+                .. "slots - nothing is sent or received. Turn test mode off "
+                .. "(/rpc test) to check sync against a second client.")
+        elseif GetNumRaidMembers() == 0 and GetNumPartyMembers() == 0 then
+            DEFAULT_CHAT_FRAME:AddMessage("  |cffff8800[solo]|r not grouped, so "
+                .. "nothing is being synced right now.")
+        end
         return
     end
 
