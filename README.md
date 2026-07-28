@@ -125,9 +125,16 @@ Aegis_RallyPower\
   PallyPower-ResizeGrip.tga     (referenced by absolute path — stays at root)
   Core\
     Aegis_Core.lua       (the class-independent engine)
+    Aegis_CastWatch.lua  (shared SuperWoW cast observation, one handler)
+    Aegis_Strip.lua      (the reusable strip engine every class bar is built on)
+    Aegis_Assign.lua     (the shared assignment data model)
+    Aegis_Options.lua    (the tabbed options frame)
+    Aegis_AssignPanel.lua(the "Who Covers What" assignment panel)
+    Aegis_Sync.lua       (the RPCX sync protocol)
     Aegis_Popout.lua     (the PallyPower buff-bar player pop-out)
   Classes\
-    Class_Priest.lua  Class_Mage.lua  Class_Druid.lua  Class_Warrior.lua
+    Class_Priest.lua  Class_Mage.lua    Class_Druid.lua   Class_Warrior.lua
+    Class_Shaman.lua  Class_Hunter.lua  Class_Warlock.lua Class_Rogue.lua
   PallyPower\                   (the original PallyPower engine, untouched)
     PallyPower.lua  PallyPower.xml  PallyPowerManaCost.lua
     MinimapButton.lua  MinimapButton.xml
@@ -139,6 +146,11 @@ Aegis_RallyPower\
   and slash commands. It knows nothing about specific classes.
 - **`Classes\Class_<Name>.lua`** — one module per class. Each registers with
   `AegisRP:NewClass("TOKEN")` and supplies only its data.
+- **`Core\Aegis_CastWatch.lua`** — the addon's single `UNIT_CASTEVENT` handler
+  (SuperWoW). Consumers call
+  `AegisRP.CastWatch.Subscribe(function(caster, target, spell, id, evt) … end)`
+  instead of registering their own frame; this is what lets the addon time buffs
+  *other* people cast, and what feeds the Kick tab's interrupt cooldowns.
 - **`Core\Aegis_Popout.lua`** — attaches the player pop-out to the
   PallyPower buff bar. Reads PallyPower's own per-button data without modifying
   the engine.
@@ -172,8 +184,11 @@ player's buffs on the 1.12 client.
 
 ## Known limitations
 
-- On the 1.12 client there is no way to read how much time is left on another
-  player's buff, so non-self timers count down from your own casts.
+- On the 1.12 client there is no way to *read* how much time is left on another
+  player's buff. With **SuperWoW** the addon works around this by watching casts
+  as they happen (`UNIT_CASTEVENT`), so a buff someone *else* applies is timed
+  too — turn it off with *Options → Behaviour → "Time other players' buffs"*.
+  Without SuperWoW, non-self timers count down from your own casts only.
 - "In range" uses the game's visibility check, which is a wider radius than buff
   range; an out-of-range cast cancels cleanly and the next click moves on.
 

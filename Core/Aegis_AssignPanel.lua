@@ -1532,49 +1532,22 @@ local KICK_ORDER = { "WARRIOR", "ROGUE", "SHAMAN", "MAGE", "WARLOCK" }
 -- observed cooldowns for OTHER players: [name] = GetTime() when ready again.
 local kickReady = {}
 
-local function SpellNameFromId(id)
-    if not id or not SpellInfo then return nil end
-    local ok, nm = pcall(SpellInfo, id)
-    if ok then return nm end
-    return nil
-end
-
--- SuperWoW cast observation (best-effort; guarded so a wrong signature just
--- yields no data, degrading others to "ready"). Always-on so the timers are
--- warm whether or not the panel is open.
-if SUPERWOW_VERSION then
-    local ke = CreateFrame("Frame")
-    ke:RegisterEvent("UNIT_CASTEVENT")
-    ke:SetScript("OnEvent", function()
-        -- `/rpc castdbg` dumps raw args so we can confirm the event fires and
-        -- learn the real arg layout on Turtle (skips melee-swing spam).
-        if AegisRP_Settings._castDbg and arg3 ~= "MAINHAND" and arg3 ~= "OFFHAND" then
-            local ok, line = pcall(function()
-                return "castdbg: name=" .. tostring(UnitName(arg1))
-                    .. " evt=" .. tostring(arg3) .. " sid=" .. tostring(arg4)
-                    .. " spell=" .. tostring(SpellNameFromId(arg4))
-            end)
-            DEFAULT_CHAT_FRAME:AddMessage("|cff88ccff" .. (ok and line
-                or ("castdbg err: " .. tostring(line))) .. "|r")
-        end
-        pcall(function()
-            -- SuperWoW UNIT_CASTEVENT: arg1 casterGUID, arg2 targetGUID,
-            -- arg3 eventType, arg4 spellID
-            if arg3 ~= "CAST" and arg3 ~= "START" then return end
-            local nm = UnitName(arg1)                 -- SuperWoW accepts a GUID
-            if not nm or nm == UnitName("player") then return end
-            local _, tok = UnitClass(arg1)
-            local info = tok and INTERRUPTS[tok]
-            if not info then return end
-            local sname = SpellNameFromId(arg4)
-            if not sname then return end
-            for i = 1, table.getn(info.names) do
-                if info.names[i] == sname then
-                    kickReady[nm] = GetTime() + info.cd
-                    return
-                end
+-- Observe OTHER players' interrupts through the shared cast watcher
+-- (Core\Aegis_CastWatch.lua owns the single UNIT_CASTEVENT handler). Confirmed
+-- working on Turtle 1.18.1. Always-on, so the timers stay warm whether or not
+-- the panel is open; without SuperWoW this never fires and others show "ready".
+if AegisRP.CastWatch then
+    AegisRP.CastWatch.Subscribe(function(caster, target, spell, id, evt)
+        if evt ~= "CAST" and evt ~= "START" then return end
+        if not spell or caster == Me() then return end
+        local info = INTERRUPTS[MemberClass(caster)]
+        if not info then return end
+        for i = 1, table.getn(info.names) do
+            if info.names[i] == spell then
+                kickReady[caster] = GetTime() + info.cd
+                return
             end
-        end)
+        end
     end)
 end
 

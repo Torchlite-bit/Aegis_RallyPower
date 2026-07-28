@@ -13,6 +13,36 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 ---
 
 ## [Unreleased]
+### Added (Cast-exact shared timers — validated on Turtle)
+The `UNIT_CASTEVENT` observation was confirmed working in-game on Turtle 1.18.1
+(the event fires, GUIDs resolve to names via `UnitName`, spell ids resolve via
+`SpellInfo`, and `evt` is `CAST` on a completed cast), so the feature it gated
+is in.
+- **Other players' buffs are now timed.** Previously `expiry[]` only ever held
+  *your own* casts, so a buff another priest put up showed as "covered" with no
+  timer, and never triggered the expiry ding. The addon now watches other
+  casters and records the same deadline it would for your own cast. Because the
+  coverage scan, the player pop-out, the strip and smart-targeting all already
+  read the one shared `expiry[]` store, **they all gain raid-wide timers from
+  this single hook** — no per-consumer wiring.
+- **New `Core/Aegis_CastWatch.lua`** — one `UNIT_CASTEVENT` handler for the whole
+  addon, with a `Subscribe(fn(caster, target, spell, id, evt))` API, memoised
+  spell-id→name resolution, and pcall-isolated watchers so one erroring consumer
+  can't blind the others. The Kick tab's private handler moved onto it (same
+  behaviour, one event registration instead of two).
+- **Only completed casts count** (`CAST`, not `START`), so an interrupted cast
+  can't leave a phantom timer; and the coverage scan still self-corrects,
+  clearing a recorded deadline the moment the buff isn't actually on the unit.
+- **New setting** — *Options → Buttons → Behaviour → "Time other players'
+  buffs"* (default on; the tooltip reports whether SuperWoW was detected).
+  Without SuperWoW nothing changes: timers stay limited to your own casts.
+- **Limitation:** durations come from the buff catalog, not the wire, so a
+  non-default-rank cast is timed at the catalog duration (all the tracked raid
+  buffs are single-duration across ranks in Vanilla, so this is only a concern
+  if Turtle changes one).
+- `/rpc castdbg` now logs the target as well as the caster, and reports through
+  the shared watcher.
+
 ### Added (Mage Scorch debuff tracking)
 - **Mage Scorch button** added to the class-buff strip as a debuff-tracking
   button alongside Intellect/Brilliance. The button shows your target's Scorch
@@ -41,8 +71,9 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
   tank.)
 
 ### Planned / under consideration
-- **Cast-exact shared timers** via SuperWoW `UNIT_CASTEVENT`, so the panel and
-  strips show what is *actually up* across the raid, not just your own casts.
+- **Raid-wide interrupt timers** — the Kick tab observes others' kicks locally
+  via the cast watcher; broadcasting them over RPCX would make them exact for
+  members out of observation range.
 
 ---
 

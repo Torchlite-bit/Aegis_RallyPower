@@ -483,6 +483,74 @@ local function RecordGroupExpiry(unit, b, dur)
     end
 end
 
+--=============================================================================
+-- OBSERVED CASTS: other players' buffs, timed exactly (SuperWoW).
+--
+-- expiry[] used to hold only OUR OWN casts, so a buff another priest put up
+-- read as "covered, no timer" - and the expiry ding never fired for it. The
+-- shared cast watcher (Core\Aegis_CastWatch.lua) tells us who cast what on
+-- whom, so we record exactly the deadline we would have recorded had we cast
+-- it ourselves. Every consumer - the coverage scan, the player pop-out, the
+-- strip and smart-targeting - already reads expiry[], so they all gain
+-- raid-wide timers from this one hook.
+--
+-- Only completed casts ("CAST") count: a "START" that gets interrupted would
+-- otherwise leave a phantom timer. The coverage scan self-corrects anyway - it
+-- clears a recorded deadline the moment the buff isn't actually on the unit.
+--=============================================================================
+
+-- [spellName] = { buff = <entry>, group = <bool> } for the active class's
+-- catalog; rebuilt on Activate (ACTIVE_BUFFS only changes there).
+local castIndex
+local castWatchHooked = false    -- Activate can re-run; only subscribe once
+
+local function BuildCastIndex()
+    castIndex = {}
+    if not ACTIVE_BUFFS then return end
+    for i = 1, table.getn(ACTIVE_BUFFS) do
+        local b = ACTIVE_BUFFS[i]
+        if b.name  then castIndex[b.name]  = { buff = b, group = false } end
+        if b.group then castIndex[b.group] = { buff = b, group = true  } end
+    end
+end
+
+-- raid/party unit token for a player name, or nil when they aren't grouped
+-- with us. In a raid everyone (including us) is a raidN token, which is what
+-- RecordGroupExpiry needs to find the target's subgroup.
+local function UnitForName(name)
+    if not name then return nil end
+    local n = GetNumRaidMembers()
+    if n > 0 then
+        for i = 1, n do
+            if UnitName("raid" .. i) == name then return "raid" .. i end
+        end
+        return nil
+    end
+    if name == UnitName("player") then return "player" end
+    for i = 1, GetNumPartyMembers() do
+        if UnitName("party" .. i) == name then return "party" .. i end
+    end
+    return nil
+end
+
+local function OnObservedCast(caster, target, spell, spellID, evt)
+    if evt ~= "CAST" then return end
+    if not spell or not castIndex then return end
+    if AegisRP_Settings.observeCasts == false then return end
+    local hit = castIndex[spell]
+    if not hit then return end
+    if caster == UnitName("player") then return end   -- our own casts self-record
+    local unit = UnitForName(target)
+    if not unit then return end                       -- not someone we track
+    local b = hit.buff
+    if hit.group then
+        RecordGroupExpiry(unit, b, b.gdur or b.dur)
+    else
+        RecordExpiry(unit, b, b.dur)
+    end
+    auraDirty = true                                  -- fold into the next scan
+end
+
 -- Announce a cast in green, exactly like the Paladin module. Reuses
 -- PallyPower_ShowFeedback so it honours the user's chat-vs-UIErrors feedback
 -- setting and the [Aegis] prefix; falls back to green chat text.
@@ -1501,6 +1569,13 @@ local function Activate()
     -- the strip's per-class need counts, timers and pop-out.
     BuildIconLookups()
     RebuildKnownSpells()
+    -- Cast-exact shared timers: learn other players' casts of the buffs we
+    -- track. Subscribed once (Activate can re-run on a class re-detect).
+    BuildCastIndex()
+    if AegisRP.CastWatch and not castWatchHooked then
+        castWatchHooked = true
+        AegisRP.CastWatch.Subscribe(OnObservedCast)
+    end
     local ok, err = pcall(function()
         BuildClassPresence()
         if classStrip then classStrip:Reflow() end
@@ -1788,19 +1863,19 @@ SlashCmdList["AEGISRP"] = function(msg)
         return
     end
 
-    -- Diagnostics (for validating the SuperWoW cast observation the Kick tab
-    -- uses). Toggle raw UNIT_CASTEVENT logging; verbose, meant for a short
-    -- controlled test, then toggle off.
+    -- Diagnostics: dump every cast the shared watcher sees (caster, target,
+    -- event, spell id + resolved name). Verbose - meant for a short controlled
+    -- test, then toggle off.
     if msg == "castdbg" then
-        if not SUPERWOW_VERSION then
+        if not (AegisRP.CastWatch and AegisRP.CastWatch.Available()) then
             DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r cast debug needs SuperWoW "
-                .. "(so do other players' kick timers).")
+                .. "(so do other players' buff and kick timers).")
             return
         end
         AegisRP_Settings._castDbg = not AegisRP_Settings._castDbg
         DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r cast debug "
             .. (AegisRP_Settings._castDbg
-                and "|cff5be07aON|r - trigger some interrupts, then /rpc castdbg to stop (verbose)."
+                and "|cff5be07aON|r - have someone cast, then /rpc castdbg to stop (verbose)."
                 or "off."))
         return
     end
