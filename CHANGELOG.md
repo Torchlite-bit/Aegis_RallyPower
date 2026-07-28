@@ -42,6 +42,11 @@ is in.
   if Turtle changes one).
 - `/rpc castdbg` now logs the target as well as the caster, and reports through
   the shared watcher.
+- **Range note (confirmed in testing):** `UNIT_CASTEVENT` only reaches you for
+  units the client can currently see, so a caster has to come into range *once*
+  before their casts register. After that the timer runs locally and keeps
+  counting no matter how far apart you get — it's the first sighting that needs
+  proximity, not the tracking.
 
 ### Added (Mage Scorch debuff tracking)
 - **Mage Scorch button** added to the class-buff strip as a debuff-tracking
@@ -59,13 +64,17 @@ is in.
   CHUNK (multi-message) based on serialized size. Receiver handles both formats
   identically to ensure zero-impact forward compatibility.
 
-### Changed (`/rpc slots` says when it isn't testing sync)
-- The diagnostic now flags **test mode** ("these are preview slots - nothing is
-  sent or received") and **solo** ("not grouped"). Test mode is a local sandbox
-  — tank slots live in a separate preview store, `RawSend` suppresses every RPCX
+### Changed (`/rpc slots` now shows whether sync is actually flowing)
+- The diagnostic flags **test mode** ("these are preview slots - nothing is sent
+  or received") and **solo** ("not grouped"). Test mode is a local sandbox —
+  tank slots live in a separate preview store, `RawSend` suppresses every RPCX
   message, and `ApplyTankSlots` ignores incoming ones — so slot output there
   says nothing about whether sync works. Without the note it reads like a
   passing two-client test when no message ever left the client.
+- When you *are* grouped it adds **wire telemetry**: when the tank order was
+  last sent and last received (and from whom), plus a count of all RPCX messages
+  received. One client's output now shows whether sync is live, instead of
+  needing two side by side and a guess.
 
 ### Fixed (Roles tab: tank dropdown overflow in a full raid)
 - The **Main Tank / Off-Tank dropdowns** now list only tank-capable classes

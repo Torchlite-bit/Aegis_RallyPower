@@ -42,6 +42,12 @@ local flushAccum = 0
 local lastReq = -100
 local chunks = {}               -- reassembly buffer: [caster][seq] = { chunks, expire_time }
 
+-- Wire telemetry for /rpc slots. Verifying sync used to need two clients side
+-- by side and a guess about whether anything crossed the wire at all; these let
+-- ONE client's output show whether it is sending, receiving, and from whom.
+local stat = { tsSent = nil, tsRecv = nil, tsFrom = nil, rx = 0, rxFrom = nil }
+function AegisRP_SyncStats() return stat end
+
 --------------------------------------------------------------------------
 -- helpers + lazy catalog reverse maps (catalogs register at class-module
 -- load, which is before this file, but building lazily is robust either way)
@@ -333,6 +339,7 @@ local function Flush()
     -- tank-slot order (leader only; shares the raid's MT/OT plan)
     if tsDirty and A.IAmLead() then
         RawSend(PROTO_V .. " TS " .. table.concat(A.EncodeTankSlots(), " "))
+        if not (AegisRP.IsTestMode and AegisRP.IsTestMode()) then stat.tsSent = GetTime() end
     end
     tsDirty = false
     local any = false
@@ -351,6 +358,8 @@ end
 
 local function Receive(sender, msg)
     if sender == Me() then return end            -- our own echo
+    stat.rx = stat.rx + 1                        -- any RPCX traffic at all
+    stat.rxFrom = sender
     local tok = {}
     for w in string.gfind(msg, "%S+") do table.insert(tok, w) end
     if tonumber(tok[1]) ~= PROTO_V then return end   -- version we don't speak
@@ -398,6 +407,7 @@ local function Receive(sender, msg)
             applyingRemote = true
             A.ApplyTankSlots(A.DecodeTankSlots(tok, 3))
             applyingRemote = false
+            stat.tsRecv = GetTime(); stat.tsFrom = sender
         end
         return
     end

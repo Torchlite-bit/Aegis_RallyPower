@@ -1904,6 +1904,21 @@ SlashCmdList["AEGISRP"] = function(msg)
         elseif GetNumRaidMembers() == 0 and GetNumPartyMembers() == 0 then
             DEFAULT_CHAT_FRAME:AddMessage("  |cffff8800[solo]|r not grouped, so "
                 .. "nothing is being synced right now.")
+        elseif AegisRP_SyncStats then
+            -- Wire telemetry, so ONE client's output shows whether sync is
+            -- actually flowing (and from whom) instead of needing two side by
+            -- side and a guess.
+            local s = AegisRP_SyncStats()
+            local function ago(t)
+                if not t then return "|cff777777never|r" end
+                return math.floor(GetTime() - t) .. "s ago"
+            end
+            DEFAULT_CHAT_FRAME:AddMessage("  |cff88ccffwire:|r tank order sent "
+                .. ago(s.tsSent) .. ", received " .. ago(s.tsRecv)
+                .. (s.tsFrom and (" from " .. s.tsFrom) or ""))
+            DEFAULT_CHAT_FRAME:AddMessage("  |cff88ccff       |r " .. s.rx
+                .. " RPCX message(s) received"
+                .. (s.rxFrom and (", last from " .. s.rxFrom) or ""))
         end
         return
     end
