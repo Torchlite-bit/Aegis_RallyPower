@@ -308,6 +308,14 @@ local function SendREQ()
     RawSend(PROTO_V .. " REQ")
 end
 
+-- Interrupt cooldown (Kick tab). Self-reported and sent the instant it starts,
+-- so there is nothing to batch through the flush - and no leader gate, because
+-- you can only ever announce your OWN cooldown. Called by the panel's poller.
+function AegisRP_SendKick(remaining)
+    if not remaining or remaining <= 0 then return end
+    RawSend(PROTO_V .. " KICK " .. string.format("%.1f", remaining))
+end
+
 --------------------------------------------------------------------------
 -- dirty set + debounced flush
 --------------------------------------------------------------------------
@@ -408,6 +416,16 @@ local function Receive(sender, msg)
             A.ApplyTankSlots(A.DecodeTankSlots(tok, 3))
             applyingRemote = false
             stat.tsRecv = GetTime(); stat.tsFrom = sender
+        end
+        return
+    end
+
+    if cmd == "KICK" then
+        -- a member reporting their own interrupt cooldown; they're always
+        -- authoritative for themselves, so no permission check applies
+        local cd = tonumber(tok[3])
+        if cd and cd > 0 and cd < 600 and AegisRP.NoteRemoteKick then
+            AegisRP.NoteRemoteKick(sender, cd)
         end
         return
     end

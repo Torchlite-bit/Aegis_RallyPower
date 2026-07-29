@@ -141,34 +141,51 @@ strip positions `stripPos_*`, selections `shamanSel`/`hunterSting`/
 5. Non-Paladin classes are **deliberately simplified subsets** of the Paladin
    template (see `docs/DESIGN_ALLCLASSES.md`).
 
-## Next milestone: Assignment & Sync (in this internal order)
+## Milestone: Assignment & Sync — **COMPLETE** (validated in-game)
 
-1. **Shared assignment data model** — one table shape covering: blessings
-   (keep PallyPower's existing format), totems (`shaman × element → totem +
-   party`), and duties (`debuff/utility → caster`). Both sync and the panel
-   consume this model; design it multi-caster from day one.
-2. **Sync protocol** — broadcast own assignments + cast times; receive and
-   store others'; leader / "Free Assignment" permissions. Paladin messages
-   unchanged on `PLPWR`; new prefix (e.g. `RPCX`) for the rest. Consider
-   SuperWoW `UNIT_CASTEVENT` for cast-exact shared timers. Requires
-   two-client testing.
-3. **Assignment panel** — the five-tab frame from
-   `docs/AegisRP_assignment_concept.html` (Blessings live; Totems, Raid
-   Buffs, Debuffs, Utility). Replicate frame specs from the 3.3.5 reference
-   the same way the pop-out was done.
+All three steps shipped and were confirmed on a two-client Turtle test:
 
-Small stragglers that can slot in anytime: Mage/Warrior debuff-duty buttons
-(30 minutes each on `UnitHasDebuffEntry`), Priest Tank Shield (wants the role
-table from sync), Paladin aura/seal/RF toggles (legacy self-bar already
-provides them).
+1. **Shared assignment data model** — `Core/Aegis_Assign.lua`. Blessings keep
+   PallyPower's format; totems, duties and the raid-buff grid live in
+   `AegisRP_Assign`, multi-caster from the start.
+2. **Sync protocol** — `Core/Aegis_Sync.lua` on `RPCX` (blessings still ride
+   `PLPWR` untouched). Leader / Free Assignment permissions, message chunking,
+   and tank-slot (`TS`) sharing. **Verified**: a leader's MT/OT plan appears on
+   a second client, which shows `lead=no` and the leader's slots.
+3. **Assignment panel** — `Core/Aegis_AssignPanel.lua`, six tabs: Blessings,
+   Totems, Raid Buffs, Debuffs, Kick, Roles.
 
-**Parallel milestone — Options UI (`docs/OPTIONS_UI_SPEC.md`):** the tabbed
-settings frame (reference: PallyPower Classic's Settings/Buttons/Raid tabs).
-Its Settings + Buttons tabs are pure local config and can be built **now**,
-independent of sync; its Raid tab (roles, auto-buff overrides, Free
-Assignment) belongs to the sync milestone and ships as a stub until then.
-Follow the spec's module `optionsInfo` contract so one Buttons tab serves
-every class.
+**Cast observation is validated.** `UNIT_CASTEVENT` fires on Turtle 1.18.1,
+`UnitName()` resolves GUIDs, `SpellInfo()` resolves ids, and `evt` is `CAST` on
+a completed cast. `Core/Aegis_CastWatch.lua` owns the addon's single handler;
+consumers use `AegisRP.CastWatch.Subscribe(fn(caster, target, spell, id, evt))`.
+**Known characteristic:** a caster must be seen *once* before their casts
+register — the event only reaches units the client can see. After that the
+timer runs locally at any distance.
+
+Stragglers from this milestone are resolved: Mage Scorch and Warrior Sunder
+debuff buttons shipped; Paladin aura/seal/RF toggles were already provided by
+the legacy self-bar. **Priest Tank Shield is cancelled** — PW: Shield was
+deliberately dropped in 0.14.0 (reactive spam, not a maintained/assigned duty);
+wire id 19 is retired and must never be reused.
+
+The **Options UI** (`docs/OPTIONS_UI_SPEC.md`) is built: Settings, Buttons and
+Raid tabs, the last carrying per-character targeted duties. Follow the spec's
+module `optionsInfo` contract so one Buttons tab keeps serving every class.
+
+## Next up
+
+- **Raid-wide interrupt timers** *(in progress)* — the Kick tab observes others'
+  kicks locally, which needs them in range. Members now also **broadcast their
+  own** interrupt cooldown over `RPCX` (`KICK`), which reaches any distance and
+  needs no SuperWoW on the sender. The tab distinguishes the two sources.
+- **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
+  detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
+  for now.** Its `C_UnitAuras` would give true `expirationTime` and
+  server-authoritative, caster-modified durations for other players' buffs,
+  retiring the "durations come from the catalog" limitation. If revisited, add
+  it as a *third optional tier* behind SuperWoW, never a dependency. Note `#`
+  and `%` stay forbidden regardless — they're syntax, not library functions.
 
 ## Working style
 

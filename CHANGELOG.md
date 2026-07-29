@@ -87,10 +87,27 @@ is in.
   one-line edit at the top of the Roles section if a Turtle spec changes who can
   tank.)
 
+### Added (Raid-wide interrupt timers)
+- **Your interrupt is now broadcast** the moment it goes on cooldown (`RPCX`
+  `KICK`), so the Kick tab is right for members you can't see. Watching someone
+  cast needs them **in range**; a broadcast doesn't — which closes the gap
+  where a distant kicker showed "Ready" while actually on cooldown.
+- It reads **your own cooldown** rather than a cast event, so it needs **no
+  SuperWoW on the sender** — even a bare 1.12 client contributes its kicks to
+  everyone else's tab. It sends the true remaining time, so talent-reduced
+  cooldowns and the sampling delay both come out right.
+- Self-reported, so there's no leader gate — you can only ever announce your
+  own cooldown. Sent immediately rather than batched through the flush.
+- **The tab now says which source it used**: "Exact - reported by their Aegis,
+  any distance" versus "Observed from their cast (needed them in range)". A
+  synced report always wins over an observed one.
+
 ### Planned / under consideration
-- **Raid-wide interrupt timers** — the Kick tab observes others' kicks locally
-  via the cast watcher; broadcasting them over RPCX would make them exact for
-  members out of observation range.
+- **ClassicAPI aura tier** — the VanillaFixes DLL's `C_UnitAuras` exposes true
+  `expirationTime` and server-authoritative, caster-modified durations for other
+  players' buffs, which would retire the catalog-duration limitation. Evaluated
+  and deliberately deferred; if adopted it goes in as a third optional tier
+  behind SuperWoW, never as a dependency.
 
 ---
 

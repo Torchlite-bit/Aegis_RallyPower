@@ -1529,8 +1529,11 @@ local INTERRUPTS = {
 }
 local KICK_ORDER = { "WARRIOR", "ROGUE", "SHAMAN", "MAGE", "WARLOCK" }
 
--- observed cooldowns for OTHER players: [name] = GetTime() when ready again.
+-- cooldowns for OTHER players: [name] = GetTime() when ready again, plus how
+-- we learned it ("sync" = they told us, exact; "seen" = we watched their cast).
+-- A synced report always wins: it survives them being out of observation range.
 local kickReady = {}
+local kickSrc = {}
 
 -- Observe OTHER players' interrupts through the shared cast watcher
 -- (Core\Aegis_CastWatch.lua owns the single UNIT_CASTEVENT handler). Confirmed
@@ -1545,10 +1548,21 @@ if AegisRP.CastWatch then
         for i = 1, table.getn(info.names) do
             if info.names[i] == spell then
                 kickReady[caster] = GetTime() + info.cd
+                kickSrc[caster] = "seen"
                 return
             end
         end
     end)
+end
+
+-- Installed by the sync layer when a member reports their own interrupt going
+-- on cooldown (RPCX "KICK"). Exact, and - unlike watching their cast - it
+-- reaches us however far away they are, which is the whole point: observation
+-- needs them in range, a broadcast doesn't.
+function AegisRP.NoteRemoteKick(name, cd)
+    if not name or not cd or cd <= 0 then return end
+    kickReady[name] = GetTime() + cd
+    kickSrc[name] = "sync"
 end
 
 -- MY interrupt: the first of my class's interrupt spells I actually know.
@@ -1564,6 +1578,32 @@ local function MyInterrupt()
     end
     return nil, info, nil
 end
+
+-- Announce MY interrupt the moment it goes on cooldown, so members who can't
+-- see me still get an exact timer. This reads my OWN cooldown rather than a
+-- cast event, so it needs no SuperWoW - even a bare 1.12 client contributes its
+-- kicks to everyone else's tab. Always-on (not gated on the panel being open),
+-- and it sends the real remaining time, so talent-reduced cooldowns and the
+-- poll delay both come out right.
+local myKickReady = true
+local kickPollAccum = 0
+local kickPoll = CreateFrame("Frame")
+kickPoll:SetScript("OnUpdate", function()
+    kickPollAccum = kickPollAccum + (arg1 or 0)
+    if kickPollAccum < 0.2 then return end
+    kickPollAccum = 0
+    local sp = MyInterrupt()
+    if not sp then return end
+    local start, dur = GetSpellCooldown(sp.index, "spell")
+    local rem = 0
+    if start and dur and dur > 1.5 then rem = start + dur - GetTime() end
+    if rem > 0 then
+        if myKickReady and AegisRP_SendKick then AegisRP_SendKick(rem) end
+        myKickReady = false
+    else
+        myKickReady = true
+    end
+end)
 
 -- remaining cooldown (seconds) for a member, or 0 when ready/unknown.
 local function KickRemaining(name)
@@ -1626,8 +1666,17 @@ local function KickCellTip()
         GameTooltip:AddLine("Ready", 0.4, 0.9, 0.5)
     end
     if name ~= Me() then
-        GameTooltip:AddLine(SUPERWOW_VERSION and "Observed from their casts (best-effort)."
-            or "Others' live cooldowns need SuperWoW.", 0.55, 0.55, 0.62)
+        local src = kickSrc[name]
+        if src == "sync" then
+            GameTooltip:AddLine("Exact - reported by their Aegis, any distance.", 0.5, 0.8, 0.6)
+        elseif src == "seen" then
+            GameTooltip:AddLine("Observed from their cast (needed them in range).", 0.55, 0.55, 0.62)
+        else
+            GameTooltip:AddLine(SUPERWOW_VERSION
+                and "No data yet - they report it when they kick, or we watch them cast."
+                or "Others' live cooldowns need SuperWoW, or Aegis on their client.",
+                0.55, 0.55, 0.62)
+        end
     end
     GameTooltip:Show()
 end
