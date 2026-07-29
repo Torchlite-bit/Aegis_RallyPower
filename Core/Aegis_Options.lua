@@ -507,6 +507,14 @@ local function ButtonsTabEntries()
     table.insert(entries, { type = "check", key = "smartBuffs", label = "Smart buffs", default = true,
         tip = "Skip players who already have the buff (off = allow re-casting)." })
     table.insert(entries, { type = "check", key = "expirySound", label = "Sound when a buff runs out", default = true })
+    table.insert(entries, { type = "check", key = "observeCasts", label = "Time other players' buffs", default = true,
+        tip = (AegisRP.CastWatch and AegisRP.CastWatch.Available())
+              and "Watch other casters and time the buffs THEY apply, not just yours.\nNeeds SuperWoW (detected)."
+              or "Needs SuperWoW, which isn't loaded - timers stay limited to your own casts." })
+    if AegisRP.HasInterrupt and AegisRP.HasInterrupt() then
+        table.insert(entries, { type = "check", key = "kickSound", label = "Sound when it's your turn to kick", default = true,
+            tip = "Plays when you reach the top of the kick rotation - you're watching the boss, not the strip.\nHide the strip itself with /rpc kick." })
+    end
     table.insert(entries, { type = "check", label = "UnitXP SP3 line-of-sight", default = false,
         tip = "Use UnitXP.dll (if loaded) to skip out-of-line-of-sight targets.",
         get = function() return PP_PerUser and PP_PerUser.useunitxp_sp3 end,

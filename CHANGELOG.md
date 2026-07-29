@@ -13,6 +13,41 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 ---
 
 ## [Unreleased]
+### Added (Cast-exact shared timers — validated on Turtle)
+The `UNIT_CASTEVENT` observation was confirmed working in-game on Turtle 1.18.1
+(the event fires, GUIDs resolve to names via `UnitName`, spell ids resolve via
+`SpellInfo`, and `evt` is `CAST` on a completed cast), so the feature it gated
+is in.
+- **Other players' buffs are now timed.** Previously `expiry[]` only ever held
+  *your own* casts, so a buff another priest put up showed as "covered" with no
+  timer, and never triggered the expiry ding. The addon now watches other
+  casters and records the same deadline it would for your own cast. Because the
+  coverage scan, the player pop-out, the strip and smart-targeting all already
+  read the one shared `expiry[]` store, **they all gain raid-wide timers from
+  this single hook** — no per-consumer wiring.
+- **New `Core/Aegis_CastWatch.lua`** — one `UNIT_CASTEVENT` handler for the whole
+  addon, with a `Subscribe(fn(caster, target, spell, id, evt))` API, memoised
+  spell-id→name resolution, and pcall-isolated watchers so one erroring consumer
+  can't blind the others. The Kick tab's private handler moved onto it (same
+  behaviour, one event registration instead of two).
+- **Only completed casts count** (`CAST`, not `START`), so an interrupted cast
+  can't leave a phantom timer; and the coverage scan still self-corrects,
+  clearing a recorded deadline the moment the buff isn't actually on the unit.
+- **New setting** — *Options → Buttons → Behaviour → "Time other players'
+  buffs"* (default on; the tooltip reports whether SuperWoW was detected).
+  Without SuperWoW nothing changes: timers stay limited to your own casts.
+- **Limitation:** durations come from the buff catalog, not the wire, so a
+  non-default-rank cast is timed at the catalog duration (all the tracked raid
+  buffs are single-duration across ranks in Vanilla, so this is only a concern
+  if Turtle changes one).
+- `/rpc castdbg` now logs the target as well as the caster, and reports through
+  the shared watcher.
+- **Range note (confirmed in testing):** `UNIT_CASTEVENT` only reaches you for
+  units the client can currently see, so a caster has to come into range *once*
+  before their casts register. After that the timer runs locally and keeps
+  counting no matter how far apart you get — it's the first sighting that needs
+  proximity, not the tracking.
+
 ### Added (Mage Scorch debuff tracking)
 - **Mage Scorch button** added to the class-buff strip as a debuff-tracking
   button alongside Intellect/Brilliance. The button shows your target's Scorch
@@ -29,6 +64,18 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
   CHUNK (multi-message) based on serialized size. Receiver handles both formats
   identically to ensure zero-impact forward compatibility.
 
+### Changed (`/rpc slots` now shows whether sync is actually flowing)
+- The diagnostic flags **test mode** ("these are preview slots - nothing is sent
+  or received") and **solo** ("not grouped"). Test mode is a local sandbox —
+  tank slots live in a separate preview store, `RawSend` suppresses every RPCX
+  message, and `ApplyTankSlots` ignores incoming ones — so slot output there
+  says nothing about whether sync works. Without the note it reads like a
+  passing two-client test when no message ever left the client.
+- When you *are* grouped it adds **wire telemetry**: when the tank order was
+  last sent and last received (and from whom), plus a count of all RPCX messages
+  received. One client's output now shows whether sync is live, instead of
+  needing two side by side and a guess.
+
 ### Fixed (Roles tab: tank dropdown overflow in a full raid)
 - The **Main Tank / Off-Tank dropdowns** now list only tank-capable classes
   (Warrior, Paladin, Druid, Shaman — Turtle WoW has a tanking shaman spec). In a
@@ -40,9 +87,62 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
   one-line edit at the top of the Roles section if a Turtle spec changes who can
   tank.)
 
+### Added (Kick rotation — a shared interrupt order, and a strip that tells you when you're up)
+- **The rotation is just a priority order.** Whose turn it is isn't stored
+  anywhere — it's *"the highest person in the order whose kick is actually
+  ready"*. Using your kick puts you on cooldown, which hands the top spot to the
+  next person by itself. Nothing to drift between clients, nothing to reset
+  after a wipe, and no turn counter to sync: every client computes the same
+  answer from the same shared data.
+- **Dead, absent and on-cooldown members are skipped**, so the rotation never
+  stalls waiting behind someone who can't act. This only works because kick
+  cooldowns now travel raid-wide.
+- **New kick strip** (`/rpc kick`, interrupt classes only) — your personal cue,
+  answering one question at a glance rather than showing a roster:
+  **KICK NOW** (red) · **On deck** (amber) · **Holding** (green) ·
+  **Cooldown** (grey). Red still means *act*, matching every other strip in the
+  addon. It names who's up when it isn't you, and who follows when it is.
+  Hovering lists the whole rotation with live cooldowns.
+- **Sound when you reach the top** (Options → Behaviour, default on) — you're
+  watching the boss, not the strip. It fires on the transition only, so sitting
+  at the top waiting for a cast doesn't machine-gun it.
+- **Kick tab plans it**: click a name to add or remove them from the rotation,
+  mouse-wheel to move them up or down it. Leader-gated like tank slots, shared
+  over `RPCX` (`KO`), and the tab marks who is **UP** and who's **next**.
+- The strip engine gains an **amber `warn` state** for "not yet, but be ready" —
+  the same meaning yellow already carried on the Core's class rows.
+
+### Added (Test mode simulates a live rotation)
+- With `/rpc test` on, a pretend mob starts casting every few seconds and
+  whoever is up interrupts it, starting their cooldown and advancing the order.
+  **Your own strip cycles through all four states unattended**, so the feature
+  can be judged solo instead of needing five interrupt-capable people. Each
+  simulated kick is announced in chat so the order is followable.
+- The simulated rotation is seeded from the preview raid (a warrior, rogue,
+  shaman, mage and warlock — every cooldown length in play) and lives in the
+  preview store, so it never touches a real raid's plan or the wire.
+
+### Added (Raid-wide interrupt timers)
+- **Your interrupt is now broadcast** the moment it goes on cooldown (`RPCX`
+  `KICK`), so the Kick tab is right for members you can't see. Watching someone
+  cast needs them **in range**; a broadcast doesn't — which closes the gap
+  where a distant kicker showed "Ready" while actually on cooldown.
+- It reads **your own cooldown** rather than a cast event, so it needs **no
+  SuperWoW on the sender** — even a bare 1.12 client contributes its kicks to
+  everyone else's tab. It sends the true remaining time, so talent-reduced
+  cooldowns and the sampling delay both come out right.
+- Self-reported, so there's no leader gate — you can only ever announce your
+  own cooldown. Sent immediately rather than batched through the flush.
+- **The tab now says which source it used**: "Exact - reported by their Aegis,
+  any distance" versus "Observed from their cast (needed them in range)". A
+  synced report always wins over an observed one.
+
 ### Planned / under consideration
-- **Cast-exact shared timers** via SuperWoW `UNIT_CASTEVENT`, so the panel and
-  strips show what is *actually up* across the raid, not just your own casts.
+- **ClassicAPI aura tier** — the VanillaFixes DLL's `C_UnitAuras` exposes true
+  `expirationTime` and server-authoritative, caster-modified durations for other
+  players' buffs, which would retire the catalog-duration limitation. Evaluated
+  and deliberately deferred; if adopted it goes in as a third optional tier
+  behind SuperWoW, never as a dependency.
 
 ---
 

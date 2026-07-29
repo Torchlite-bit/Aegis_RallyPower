@@ -7,9 +7,9 @@
 [![Octo WoW](https://img.shields.io/badge/Octo%20WoW-1.18.1-4c1?style=flat-square&labelColor=555)](https://octowow.st/)
 [![Capy WoW](https://img.shields.io/badge/Capy%20WoW-1.18.1-4c1?style=flat-square&labelColor=555)](https://capycraft.io/)
 
-[![SuperWoW](https://img.shields.io/badge/SuperWoW-Required-8A2BE2?style=flat-square&labelColor=555)](https://github.com/balakethelock/SuperWoW)
-[![Nampower](https://img.shields.io/badge/Nampower-Required-8A2BE2?style=flat-square&labelColor=555)](https://github.com/brues-code/nampower)
-[![UnitXP_SP3](https://img.shields.io/badge/UnitXP__SP3-Required-8A2BE2?style=flat-square&labelColor=555)](https://codeberg.org/konaka/UnitXP_SP3)
+[![SuperWoW](https://img.shields.io/badge/SuperWoW-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/balakethelock/SuperWoW)
+[![Nampower](https://img.shields.io/badge/Nampower-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/brues-code/nampower)
+[![UnitXP_SP3](https://img.shields.io/badge/UnitXP__SP3-Recommended-dfb317?style=flat-square&labelColor=555)](https://codeberg.org/konaka/UnitXP_SP3)
 [![ClassicAPI](https://img.shields.io/badge/ClassicAPI-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/brues-code/ClassicAPI)
 
 A comprehensive buff management addon for Turtle WoW that extends PallyPower's Paladin-focused toolkit to all nine classes. Coordinate raid buffs, totems, debuffs, and interrupts across your entire group with shared assignment tracking, test-mode previews, and zero network traffic (unless you're coordinating).
@@ -58,16 +58,31 @@ Coordinate assignments across the raid with real-time sync:
 - **Raid Buffs** — Caster × class matrix for Priest/Mage/Druid buffs
 - **Totems** — Shaman totem assignments (auto-grouped, icon labels)
 - **Debuffs** — Warrior Sunder, Mage Scorch duty tracking
-- **Kick tab** — Interrupt tracker (who has kicks, whose are ready — your own exact, others best-effort)
+- **Kick tab** — The interrupt **rotation**: click a name to add them, mouse-wheel to reorder. Whoever sits highest and is off cooldown is up next
 - **Roles** — Mark Main Tank/Off-Tanks, set per-tank blessings, mark healers
 
 Test mode seats a full 40-player preview raid so you can test on low-level characters.
+
+### 🦶 Kick Rotation
+Set a priority order of interrupters; the whole raid gets it. Your strip then answers the one question that matters mid-pull:
+
+**🔴 KICK NOW** · **🟡 On deck** · **🟢 Holding** · **⚫ Cooldown**
+
+Whose turn it is isn't a counter anyone advances — it's *whoever sits highest in the order and is actually off cooldown*. Kicking puts you on cooldown, which hands the top spot to the next person automatically, and anyone dead, absent or on cooldown gets skipped instead of stalling the rotation. Nothing to drift out of sync, because there's no turn pointer to drift.
+
+A sound fires when you reach the top — you're watching the boss, not the strip.
 
 ### 📡 Shared Assignment Sync (RPCX Protocol)
 - Broadcast your assignments + receive others' over a dedicated addon channel
 - Leader-gated edits; Free Assignment mode lets members edit freely
 - Automatic message chunking for large assignment blocks
+- Shares the tank plan and the kick rotation; members broadcast their own interrupt cooldowns, so the Kick tab is right even for people you can't see
 - No impact on blessings — they stay on PLPWR (stock PallyPower compatible)
+
+### ⏱️ Cast-Exact Timers
+The 1.12 client can't *read* how long is left on someone else's buff. With **SuperWoW**, Aegis watches casts as they happen and times them itself — so a buff *another* priest applies gets a real countdown, not a guess.
+
+One hook feeds everything: the class bar, the player pop-out, coverage counts, smart-targeting and the expiry ding all read the same shared store. Toggle it off with **"Time other players' buffs"** in Options.
 
 ### 🧪 Test Mode
 ```macro
@@ -96,11 +111,15 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 | `/rpc` (or `/aegis`) | Toggle the class buff bar |
 | `/rpc options` | Open settings (or right-click minimap icon) |
 | `/rpc assign` | Open the assignment panel (or right-click a strip title) |
+| `/rpc kick` | Show/hide the kick-rotation strip (interrupt classes) |
 | `/rpc test` | Test mode — preview buffs on all specs |
 | `/rpc sync` | Force a full assignment resync |
+| `/rpc slots` | Tank plan, plus whether sync is actually reaching you |
 | `/rpc castdbg` | Log raw cast events (SuperWoW only; for debugging) |
-| `/rpc slots` | Dump tank-slot plan (for sync debugging) |
-| `/pp` | PallyPower grid (Paladins only) |
+| `/rpc reset` | Put the bar back if it ends up off-screen |
+| `/rpc icon` | Cycle the minimap icon skin (or shift-click the icon) |
+| `/pp`, `/pallypower`, `/rp`, `/rallypower` | PallyPower grid / buff bar (Paladins) |
+| `/rpc legacy` | The classic PallyPower options frame (escape hatch) |
 
 **Key Binding:** Bind "Smart buff: next member missing any buff" to top off the group hands-free.
 
@@ -111,22 +130,24 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 ### ✅ Completed
 - All nine class modules (bars, buttons, targeting)
 - Shared assignment data model (blessings, totems, debuffs, utilities, interrupts)
-- RPCX sync protocol (broadcast & receive, leader permissions, Free Assignment)
-- Assignment panel with all five tabs
+- RPCX sync protocol (broadcast & receive, leader permissions, Free Assignment) — **validated on two clients**
+- Assignment panel with all six tabs
 - Mage Scorch debuff-tracking button + debuff-button infrastructure
 - Message chunking for large assignment blocks
-- Interrupt tracking (Kick tab) with SuperWoW cast observation
-- Test mode with 40-player preview raid
+- **Cast-exact shared timers** — buffs *other* people cast are timed, not guessed
+- **Raid-wide interrupt timers** — members broadcast their own kick cooldowns, so distance doesn't matter
+- **Kick rotation** — shared priority order, personal strip, cooldown/dead auto-skip
+- Test mode with 40-player preview raid, including a live kick-rotation simulation
 - Full Options UI with per-class toggles and settings
 
-### ⏳ Next: Cast-Exact Shared Timers
-Broadcast actual spell casts via SuperWoW `UNIT_CASTEVENT` so the raid sees what's *truly up* instead of best-effort timings. Currently blocked on in-game validation of cast observation on Turtle WoW.
-
-**Run `/rpc castdbg` to help validate:** toggle on, trigger some interrupts, check chat for raw cast events. Results feed back to development.
+### ⏳ Next
+- **Live cast trigger** — the cast watcher already sees *hostile* casts, so the kick strip could fire the moment the mob starts casting, not just when your turn comes round
+- **Raid-marker binding** — pin a rotation to Skull/Cross when two mobs need interrupting
+- **ClassicAPI aura tier** *(evaluated, deferred)* — its `C_UnitAuras` exposes true `expirationTime` and server-authoritative, caster-modified durations, which would retire the catalog-duration limitation. If adopted it goes in as an *optional third tier* behind SuperWoW, never a dependency
 
 ### 🔮 Future Possibilities
 - Per-caster Free Assignment (allowing members to edit specific rows)
-- Mage/Warrior debuff-duty buttons (auto-tracking via UnitHasDebuffEntry)
+- Optional chat announce when the rotation hands off
 - Raid buff grid view (if assignment panel grows)
 
 ---
@@ -142,6 +163,16 @@ Broadcast actual spell casts via SuperWoW `UNIT_CASTEVENT` so the raid sees what
   Eliminates client stutter. Not required, but makes timers and UI smoother.
   ↳ [VanillaFixes Release](https://github.com/hannesmann/vanillafixes.git)
 
+- 🎯 **UnitXP_SP3** — Recommended
+  Adds a real line-of-sight check. Aegis uses it when loaded to skip targets it can't actually see — turn it on with **UnitXP SP3 line-of-sight** in Options.
+  ↳ [UnitXP_SP3](https://codeberg.org/konaka/UnitXP_SP3)
+
+- ⚡ **Nampower** — Recommended
+  Removes the client's cast-queue delay. Aegis doesn't call it, but every click you make lands faster with it loaded.
+  ↳ [Nampower](https://github.com/brues-code/nampower)
+
+**None of these are required.** Without them Aegis falls back gracefully — icon matching instead of spell IDs, your own casts instead of everyone's, and no line-of-sight filtering. You'll get a one-time notice at login if SuperWoW is missing.
+
 ### Compatibility
 - **Paladin sync works!** Aegis: RallyPower keeps PallyPower's `PLPWR` sync channel and message format, so Aegis Paladins coordinate blessings with stock PallyPower / PallyPowerTW users bidirectionally.
 - **Other classes are local-only by default** — no network traffic. Turn on the assignment panel to enable `RPCX` sync with other Aegis users.
@@ -150,9 +181,11 @@ Broadcast actual spell casts via SuperWoW `UNIT_CASTEVENT` so the raid sees what
 
 ## 🐛 Known Limitations
 
-- **1.12 client limitation:** Can't read another player's remaining buff time, so non-self timers count down from your casts (PallyPower's solution; we use the same approach)
+- **1.12 client limitation:** Can't *read* another player's remaining buff time. With SuperWoW, Aegis works around it by watching casts as they happen, so buffs others apply are timed too; without it, non-self timers count down from your own casts (PallyPower's approach)
+- **Cast observation needs one sighting:** `UNIT_CASTEVENT` only reaches units the client can see, so a caster must come into range **once** before their casts register. After that the timer runs locally at any distance. Interrupt cooldowns sidestep this entirely — members broadcast their own
+- **Durations come from the spell catalog,** not the wire. Every tracked raid buff is single-duration across ranks in vanilla, so this only bites if Turtle changes one
+- **Interrupt cooldowns are vanilla defaults** and Turtle-unverified — a one-line edit in the `INTERRUPTS` table if any are wrong
 - **Range detection:** Uses visibility checks, which are wider than buff range; out-of-range casts cancel cleanly
-- **Cast observation:** Requires SuperWoW's `UNIT_CASTEVENT`; without it, other players' kick timers show "ready" (best-effort)
 
 ---
 

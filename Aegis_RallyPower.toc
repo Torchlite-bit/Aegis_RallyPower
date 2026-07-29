@@ -19,6 +19,7 @@ PallyPower\MinimapButton.lua
 PallyPower\MinimapButton.xml
 
 Core\Aegis_Core.lua
+Core\Aegis_CastWatch.lua
 Core\Aegis_Strip.lua
 Core\Aegis_Assign.lua
 Classes\Class_Priest.lua

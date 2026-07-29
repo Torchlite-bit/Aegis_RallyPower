@@ -13,6 +13,9 @@
 --   <v> CLR <caster>
 --   <v> FA  <0|1>                          raid-wide Free Assignment flag (leader)
 --   <v> TS  <mt> <ot1> <ot2>               tank-slot order, "-" = empty (leader)
+--   <v> KO  <name> <name> ...              kick rotation order, "-" = empty (leader)
+--   <v> KICK <seconds>                     my interrupt just went on cooldown
+--   <v> CHUNK <caster> <seq> <i> <n> <payload>   one slice of an oversized BLK
 -- Wids never cross the wire as spell names (Turtle-rename safe); unknown wids
 -- are skipped, not errored (forward-compat). Permission mirrors PallyPower:
 -- accept a block for CASTER from SENDER iff sender==caster or sender is
@@ -38,9 +41,16 @@ local applyingRemote = false    -- true while installing a received block
 local dirty = {}                -- set of caster names pending broadcast
 local freeDirty = false         -- Free Assignment flag changed, pending send
 local tsDirty = false           -- tank-slot order changed, pending send
+local koDirty = false           -- kick rotation changed, pending send
 local flushAccum = 0
 local lastReq = -100
 local chunks = {}               -- reassembly buffer: [caster][seq] = { chunks, expire_time }
+
+-- Wire telemetry for /rpc slots. Verifying sync used to need two clients side
+-- by side and a guess about whether anything crossed the wire at all; these let
+-- ONE client's output show whether it is sending, receiving, and from whom.
+local stat = { tsSent = nil, tsRecv = nil, tsFrom = nil, rx = 0, rxFrom = nil }
+function AegisRP_SyncStats() return stat end
 
 --------------------------------------------------------------------------
 -- helpers + lazy catalog reverse maps (catalogs register at class-module
@@ -302,6 +312,14 @@ local function SendREQ()
     RawSend(PROTO_V .. " REQ")
 end
 
+-- Interrupt cooldown (Kick tab). Self-reported and sent the instant it starts,
+-- so there is nothing to batch through the flush - and no leader gate, because
+-- you can only ever announce your OWN cooldown. Called by the panel's poller.
+function AegisRP_SendKick(remaining)
+    if not remaining or remaining <= 0 then return end
+    RawSend(PROTO_V .. " KICK " .. string.format("%.1f", remaining))
+end
+
 --------------------------------------------------------------------------
 -- dirty set + debounced flush
 --------------------------------------------------------------------------
@@ -320,7 +338,8 @@ local function MarkAuthoritativeDirty()
         if name == Me() or iLead then dirty[name] = true end
     end
     dirty[Me()] = true          -- always assert myself, even with an empty block skipped later
-    if iLead then freeDirty = true; tsDirty = true end   -- announce free-assign + tank order
+    -- announce free-assign, tank order and the kick rotation
+    if iLead then freeDirty = true; tsDirty = true; koDirty = true end
 end
 
 local function Flush()
@@ -333,8 +352,14 @@ local function Flush()
     -- tank-slot order (leader only; shares the raid's MT/OT plan)
     if tsDirty and A.IAmLead() then
         RawSend(PROTO_V .. " TS " .. table.concat(A.EncodeTankSlots(), " "))
+        if not (AegisRP.IsTestMode and AegisRP.IsTestMode()) then stat.tsSent = GetTime() end
     end
     tsDirty = false
+    -- kick rotation (leader only; the raid's interrupt priority order)
+    if koDirty and A.IAmLead() then
+        RawSend(PROTO_V .. " KO " .. table.concat(A.EncodeKickOrder(), " "))
+    end
+    koDirty = false
     local any = false
     for name in pairs(dirty) do any = true; break end
     if not any then return end
@@ -351,6 +376,8 @@ end
 
 local function Receive(sender, msg)
     if sender == Me() then return end            -- our own echo
+    stat.rx = stat.rx + 1                        -- any RPCX traffic at all
+    stat.rxFrom = sender
     local tok = {}
     for w in string.gfind(msg, "%S+") do table.insert(tok, w) end
     if tonumber(tok[1]) ~= PROTO_V then return end   -- version we don't speak
@@ -398,6 +425,27 @@ local function Receive(sender, msg)
             applyingRemote = true
             A.ApplyTankSlots(A.DecodeTankSlots(tok, 3))
             applyingRemote = false
+            stat.tsRecv = GetTime(); stat.tsFrom = sender
+        end
+        return
+    end
+
+    if cmd == "KO" then
+        -- only a leader may set the shared kick rotation (tok[3..] = names)
+        if LeaderLike(sender) then
+            applyingRemote = true
+            A.ApplyKickOrder(A.DecodeKickOrder(tok, 3))
+            applyingRemote = false
+        end
+        return
+    end
+
+    if cmd == "KICK" then
+        -- a member reporting their own interrupt cooldown; they're always
+        -- authoritative for themselves, so no permission check applies
+        local cd = tonumber(tok[3])
+        if cd and cd > 0 and cd < 600 and AegisRP.NoteRemoteKick then
+            AegisRP.NoteRemoteKick(sender, cd)
         end
         return
     end
@@ -431,6 +479,10 @@ A.Subscribe(function(domain, caster)
     end
     if domain == "tankslots" then
         tsDirty = true            -- leader shares the MT/OT order (gated in Flush)
+        return
+    end
+    if domain == "kickorder" then
+        koDirty = true            -- leader shares the interrupt rotation
         return
     end
     if domain == "totem" or domain == "duty" or domain == "cbuff" then
