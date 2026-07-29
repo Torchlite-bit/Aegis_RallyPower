@@ -1,303 +1,208 @@
 # Aegis: RallyPower
 
-**Raid buff coordination for every class, not just paladins.**
+**All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
-[![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/3wTfRU8V9Z)
+[![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/hsgPTNkSX)
 [![Client](https://img.shields.io/badge/client-WoW%201.12%20(vanilla)-c79c6e?style=flat-square)](https://turtle-wow.org)
-[![SuperWoW](https://img.shields.io/badge/SuperWoW-recommended-33ffcc?style=flat-square)](#client-mods)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![Octo WoW](https://img.shields.io/badge/Octo%20WoW-1.18.1-4c1?style=flat-square&labelColor=555)](https://octowow.st/)
+[![Capy WoW](https://img.shields.io/badge/Capy%20WoW-1.18.1-4c1?style=flat-square&labelColor=555)](https://capycraft.io/)
 
-PallyPower solved buffs — for paladins. Everyone else got a macro, a spreadsheet,
-and someone yelling "who has fort?" in raid chat. Aegis: RallyPower gives all
-nine classes the same treatment: a bar that knows who's missing what, a panel
-that says who covers what, and timers that count down from **everyone's** casts,
-not just yours.
+[![SuperWoW](https://img.shields.io/badge/SuperWoW-Required-8A2BE2?style=flat-square&labelColor=555)](https://github.com/balakethelock/SuperWoW)
+[![Nampower](https://img.shields.io/badge/Nampower-Required-8A2BE2?style=flat-square&labelColor=555)](https://github.com/brues-code/nampower)
+[![UnitXP_SP3](https://img.shields.io/badge/UnitXP__SP3-Required-8A2BE2?style=flat-square&labelColor=555)](https://codeberg.org/konaka/UnitXP_SP3)
+[![ClassicAPI](https://img.shields.io/badge/ClassicAPI-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/brues-code/ClassicAPI)
 
-> Built for **Turtle WoW 1.18.1**, which runs the original **WoW 1.12 (vanilla)**
-> client on **Lua 5.0**. Not Classic. Not retail. Real vanilla.
+A comprehensive buff management addon for Turtle WoW that extends PallyPower's Paladin-focused toolkit to all nine classes. Coordinate raid buffs, totems, debuffs, and interrupts across your entire group with shared assignment tracking, test-mode previews, and zero network traffic (unless you're coordinating).
 
-**[💬 Join the Discord](https://discord.gg/3wTfRU8V9Z)** for help, bug reports,
-and feature ideas.
+**By Subtilizer (Torchlite) · Built on PallyPowerTW (ivanovlk) & original PallyPower**
+
+---
+## 📸 Screenshots
+
+<!-- 
+TEMPLATE INSTRUCTIONS: 
+Replace the placeholder image links (e.g., 'path/to/your/image1.png') inside the parentheses with the actual URLs or relative file paths to your screenshots once you have them uploaded to your repository. 
+-->
+
+
+<img width="1539" height="688" alt="class buff" src="https://github.com/user-attachments/assets/921b44d4-564b-4a77-8323-59f40af7478e" />
+
+<img width="1556" height="688" alt="raid roles" src="https://github.com/user-attachments/assets/51575c1f-b2f1-4f81-be10-b1c241e9ca0d" />
+
+
+
 
 ---
 
-## Contents
+## ✨ Key Features
 
-- [What it does](#what-it-does) — per class, and the panel that ties them together
-- [Install](#install)
-- [Using it](#using-it) — commands and the minimap button
-- [Client mods](#client-mods) — SuperWoW & VanillaFixes
-- [A few honest notes](#a-few-honest-notes)
-- [Under the hood](#under-the-hood)
-- [Contributing](#contributing)
+### 📊 Per-Class Buff Management
+Every class gets a dedicated buff bar with its own tracking, UI, and controls:
 
----
+| Class | Features |
+|-------|----------|
+| **Paladin** | The original PallyPower blessing/seal/aura grid + a **hover player pop-out** for each buff (see who has it, who needs it, click to refresh) |
+| **Priest** | Power Word: Fortitude, Divine Spirit, Shadow Protection + Fear Ward utility |
+| **Mage** | Arcane Intellect buff + Scorch debuff-tracking on targets |
+| **Druid** | Mark of the Wild, Thorns |
+| **Warrior** | Battle Shout (party-wide) + Sunder Armor tracking/application |
+| **Shaman** | **All Totems** button (drops 4 totems in order via GCD), element toggles |
+| **Hunter** | Sting selection and application on targets |
+| **Warlock** | Armor (tracked), Soulstone (status tracked), Curse cycle |
+| **Rogue** | Expose Armor tracking + Main/Off-hand poison selection |
 
-## What it does
+### 🎯 Assignment Panel ("Who Covers What")
+Coordinate assignments across the raid with real-time sync:
 
-### ⚔️ Your class bar — one row per class, and it knows who's missing what
+- **Blessings tab** — PallyPower's assignment grid with exact ranks/Symbol counts (byte-compatible with stock PallyPower)
+- **Raid Buffs** — Caster × class matrix for Priest/Mage/Druid buffs
+- **Totems** — Shaman totem assignments (auto-grouped, icon labels)
+- **Debuffs** — Warrior Sunder, Mage Scorch duty tracking
+- **Kick tab** — The interrupt **rotation**: click a name to add them, mouse-wheel to reorder. Whoever sits highest and is off cooldown is up next
+- **Roles** — Mark Main Tank/Off-Tanks, set per-tank blessings, mark healers
 
-Log in on any class and you get a bar tailored to it. For the buffing classes
-it's **one row per class in your raid**, styled exactly like PallyPower's:
-red when someone needs it, green with a timer when they're covered, and a count
-of how many are still missing.
+Test mode seats a full 40-player preview raid so you can test on low-level characters.
 
-- **Scroll a row** to change *that class's* buff — the Druid row can show Thorns
-  while the Mage row shows Brilliance.
-- **Left-click** casts the group version down that class; **right-click** tops
-  off the one person who needs it most (works in combat).
-- **Hover a row** for a pop-out of every player in it — green Have, red Need,
-  blue Not Here, dark-red Dead — each with their own timer. Click a name to buff
-  just them.
-- A **ding at 60 seconds** on anything about to drop, even a buff scrolled off
-  the visible rows.
-
-| Class | What you get |
-|---|---|
-| **Paladin** | The original PallyPower blessing/aura/seal grid, untouched — plus a hover **player pop-out** on every buff button |
-| **Priest** | Fortitude · Divine Spirit · Shadow Protection, plus Fear Ward |
-| **Mage** | Arcane Intellect, plus a **Scorch** debuff tracker on your target |
-| **Druid** | Mark of the Wild · Thorns |
-| **Warrior** | Battle Shout, plus a **Sunder Armor** tracker |
-| **Shaman** | **All Totems** — one click drops all four, paced through the GCD — plus per-element pickers |
-| **Hunter** | Sting picker, applied to your target |
-| **Warlock** | Armor · Soulstone (knows if one's in your bags) · Curse cycle |
-| **Rogue** | Expose Armor, plus main/off-hand poison slots with real charges left |
-
-### 📋 The assignment panel — "who covers what"
-
-`/rpc assign` opens the raid-leader view. Six tabs, and **everything syncs to
-other Aegis users automatically.**
-
-| Tab | What it's for |
-|---|---|
-| **Blessings** | PallyPower's assignment grid, with Aura and Seal columns first and each paladin's ranks, talents and Symbol count under their name |
-| **Totems** | Shaman × element grid, auto-grouped |
-| **Raid Buffs** | Caster × class grid for priests, mages and druids |
-| **Debuffs** | Who's on Sunder, who's on Scorch |
-| **Kick** | The interrupt **rotation** — click to add someone, wheel to reorder. Whoever sits highest and is off cooldown is up; the dead and absent get skipped |
-| **Roles** | Main Tank + two off-tanks from dropdowns, healer marking, and a per-tank blessing override ("gets Kings instead of Salv") |
-
-The Blessings tab drives PallyPower's own tables and sends its own byte-identical
-messages, so **paladins running stock PallyPower or PallyPowerTW interoperate
-with you in both directions.** Everything else rides a separate `RPCX` channel
-that stock PallyPower simply ignores.
-
-### ⏱️ Timers that count everyone's casts, not just yours
-
-The 1.12 client can't *read* how long is left on someone else's buff. So with
-**SuperWoW** loaded, Aegis watches casts as they happen and times them itself —
-when another priest throws Fortitude, you see the countdown.
-
-This feeds everything at once: the class bar, the pop-out, the coverage counts,
-smart-targeting, and the expiry ding. Turn it off with **"Time other players'
-buffs"** in Options if you'd rather not.
-
-### 🦶 Kick rotation — know when it's your turn
-
-Set a priority order of interrupters on the Kick tab; everyone in the raid gets
-it. Then the strip tells you the one thing you need mid-pull:
+### 🦶 Kick Rotation
+Set a priority order of interrupters; the whole raid gets it. Your strip then answers the one question that matters mid-pull:
 
 **🔴 KICK NOW** · **🟡 On deck** · **🟢 Holding** · **⚫ Cooldown**
 
-Whose turn it is isn't a counter someone has to advance — it's *whoever sits
-highest in the order and is actually off cooldown.* Kicking puts you on
-cooldown, which hands the top spot to the next person automatically, and anyone
-dead, absent or on cooldown is skipped rather than stalling the rotation. There
-is no turn pointer to drift or reset, because there is no turn pointer.
+Whose turn it is isn't a counter anyone advances — it's *whoever sits highest in the order and is actually off cooldown*. Kicking puts you on cooldown, which hands the top spot to the next person automatically, and anyone dead, absent or on cooldown gets skipped instead of stalling the rotation. Nothing to drift out of sync, because there's no turn pointer to drift.
 
-There's a sound when you reach the top, since you're watching the boss, not the
-strip.
+A sound fires when you reach the top — you're watching the boss, not the strip.
 
-### 🧪 Test mode — try it all solo
+### 📡 Shared Assignment Sync (RPCX Protocol)
+- Broadcast your assignments + receive others' over a dedicated addon channel
+- Leader-gated edits; Free Assignment mode lets members edit freely
+- Automatic message chunking for large assignment blocks
+- Shares the tank plan and the kick rotation; members broadcast their own interrupt cooldowns, so the Kick tab is right even for people you can't see
+- No impact on blessings — they stay on PLPWR (stock PallyPower compatible)
 
-`/rpc test` seats a **full 40-man preview raid** of lore characters, one of every
-class and spec. Every option shows up (unlearned ones marked `*`), clicks
-simulate casts and start real timers, and every tab of the panel becomes
-explorable on a level 5 alt.
+### ⏱️ Cast-Exact Timers
+The 1.12 client can't *read* how long is left on someone else's buff. With **SuperWoW**, Aegis watches casts as they happen and times them itself — so a buff *another* priest applies gets a real countdown, not a guess.
 
-It also **runs a live kick rotation**: a pretend mob casts every few seconds,
-whoever is up interrupts it, and your own strip cycles through all four states
-unattended — so you can judge the feature without rounding up five people with
-interrupts.
+One hook feeds everything: the class bar, the player pop-out, coverage counts, smart-targeting and the expiry ding all read the same shared store. Toggle it off with **"Time other players' buffs"** in Options.
 
-It's a sealed sandbox: preview edits live in their own store and **nothing is
-ever sent over the wire**, so you can't pollute a real raid by experimenting.
+### 🧪 Test Mode
+```macro
+/rpc test
+```
 
----
+Preview every buff on a fake 40-man raid of lore characters, simulate casts with real timers, and test UI changes without affecting live assignments.
 
-## Install
-
-1. Download this repo (**Code → Download ZIP**, or clone it).
-2. Drop the folder into:
-   ```
-   World of Warcraft/Interface/AddOns/Aegis_RallyPower
-   ```
-3. **The folder must be named exactly `Aegis_RallyPower`** — GitHub's ZIP unpacks
-   as `Aegis_RallyPower-main`, so rename it or the addon won't load.
-4. Restart the client.
-
-> **Upgrading from the old `RallyPowerCP` build?** Delete that folder first.
-> The rename went all the way down, and old saved settings aren't carried over.
-
-Everything is bundled — art, sounds, textures — with every path verified against
-a real file.
+### 🔧 Minimap Icon
+Left-click opens the right thing for your class. Right-click opens Options. Shift-click cycles skins (5 included: Blue, Gold, Ivory, White, Pearl).
 
 ---
 
-## Using it
+## 🚀 Quick Start
 
-| Do this | Get that |
-|---|---|
-| **Left-click** the minimap icon | The paladin grid, or your class bar |
-| **Right-click** the minimap icon | Options |
-| **Shift-click** the minimap icon | Cycle the icon skin (five ship) |
-| `/rpc` *(or `/aegis`)* | Toggle your class bar |
-| `/rpc assign` | The assignment panel |
-| `/rpc options` | Settings |
+### Installation
+1. Download and extract to `Interface/AddOns/Aegis_RallyPower/`
+   - Upgrading from pre-rebrand? Delete old `RallyPowerCP/` folder first (SavedVariables aren't carried over)
+2. Launch WoW, log in
+3. Left-click the minimap icon or use `/rpc` to toggle the buff bar
+
+### Commands
+
+| Command | What It Does |
+|---------|-------------|
+| `/rpc` (or `/aegis`) | Toggle the class buff bar |
+| `/rpc options` | Open settings (or right-click minimap icon) |
+| `/rpc assign` | Open the assignment panel (or right-click a strip title) |
 | `/rpc kick` | Show/hide the kick-rotation strip (interrupt classes) |
-| `/rpc test` | Test mode on/off |
-| `/rpc sync` | Force a full assignment re-sync |
-| `/rpc slots` | Tank plan + whether sync is actually flowing |
-| `/rpc castdbg` | Log raw cast events (verbose — for debugging) |
-| `/rpc reset` | Put the bar back if it's off-screen |
-| `/pp` | The classic PallyPower grid (paladins) |
+| `/rpc test` | Test mode — preview buffs on all specs |
+| `/rpc sync` | Force a full assignment resync |
+| `/rpc slots` | Tank plan, plus whether sync is actually reaching you |
+| `/rpc castdbg` | Log raw cast events (SuperWoW only; for debugging) |
+| `/rpc reset` | Put the bar back if it ends up off-screen |
+| `/rpc icon` | Cycle the minimap icon skin (or shift-click the icon) |
+| `/pp`, `/pallypower`, `/rp`, `/rallypower` | PallyPower grid / buff bar (Paladins) |
+| `/rpc legacy` | The classic PallyPower options frame (escape hatch) |
 
-Bind **"Smart buff: next member missing any buff"** in the Key Bindings menu to
-work down the raid hands-free — each press buffs the next person missing
-anything.
-
----
-
-## Client mods
-
-**[SuperWoW](https://github.com/balakethelock/SuperWoW) — strongly recommended.**
-Buff detection becomes exact (spell IDs instead of icon matching), casting stops
-needing the target dance, and — the big one — Aegis can see *other people's*
-casts, which is what makes raid-wide timers and the Kick tab work. Without it the
-addon still runs, it just falls back to icons and your own casts. You'll get a
-one-time notice at login.
-
-**[VanillaFixes](https://github.com/hannesmann/vanillafixes) — recommended.**
-Kills client stutter and animation lag. Aegis doesn't depend on it, but every
-timer in the game feels better with it.
+**Key Binding:** Bind "Smart buff: next member missing any buff" to top off the group hands-free.
 
 ---
 
-## A few honest notes
+## 🛠️ Development Status
 
-- **Other players' timers come from watching casts, not reading buffs** — the
-  1.12 API simply can't read them. A caster has to come into range **once**
-  before their casts register; after that the timer runs locally and keeps
-  counting no matter how far apart you drift.
-- **Durations come from the spell catalog, not the wire.** Every tracked raid
-  buff is single-duration across ranks in vanilla, so this only matters if
-  Turtle changes one. Blessings are pinned to Turtle's forced values
-  (10 min / 30 min greater).
-- **Interrupt cooldowns are vanilla defaults** and Turtle-unverified. If one is
-  wrong it's a one-line edit in the `INTERRUPTS` table — tell us on Discord and
-  we'll fix it upstream.
-- **Two channels, on purpose.** Blessings ride PallyPower's `PLPWR` messages
-  byte-for-byte so stock-PallyPower paladins stay compatible forever; everything
-  else rides `RPCX`, which they ignore harmlessly.
-- **Assignments are last-writer-wins,** exactly like PallyPower. Human-paced
-  clicking makes races a non-issue, and a leader who wants to override just
-  clicks — their message lands last.
+### ✅ Completed
+- All nine class modules (bars, buttons, targeting)
+- Shared assignment data model (blessings, totems, debuffs, utilities, interrupts)
+- RPCX sync protocol (broadcast & receive, leader permissions, Free Assignment) — **validated on two clients**
+- Assignment panel with all six tabs
+- Mage Scorch debuff-tracking button + debuff-button infrastructure
+- Message chunking for large assignment blocks
+- **Cast-exact shared timers** — buffs *other* people cast are timed, not guessed
+- **Raid-wide interrupt timers** — members broadcast their own kick cooldowns, so distance doesn't matter
+- **Kick rotation** — shared priority order, personal strip, cooldown/dead auto-skip
+- Test mode with 40-player preview raid, including a live kick-rotation simulation
+- Full Options UI with per-class toggles and settings
 
----
+### ⏳ Next
+- **Live cast trigger** — the cast watcher already sees *hostile* casts, so the kick strip could fire the moment the mob starts casting, not just when your turn comes round
+- **Raid-marker binding** — pin a rotation to Skull/Cross when two mobs need interrupting
+- **ClassicAPI aura tier** *(evaluated, deferred)* — its `C_UnitAuras` exposes true `expirationTime` and server-authoritative, caster-modified durations, which would retire the catalog-duration limitation. If adopted it goes in as an *optional third tier* behind SuperWoW, never a dependency
 
-## Under the hood
-
-```
-Aegis_RallyPower/
-├── Aegis_RallyPower.toc
-├── Bindings.xml              key bindings (must stay at the root)
-├── Core/
-│   ├── Aegis_Core.lua        the class-independent engine
-│   ├── Aegis_CastWatch.lua   the addon's single UNIT_CASTEVENT handler
-│   ├── Aegis_Strip.lua       reusable strip engine behind every class bar
-│   ├── Aegis_Assign.lua      shared assignment data model
-│   ├── Aegis_Sync.lua        the RPCX protocol (broadcast, receive, chunking)
-│   ├── Aegis_AssignPanel.lua the "who covers what" panel
-│   ├── Aegis_Options.lua     the tabbed options frame
-│   └── Aegis_Popout.lua      the PallyPower buff-bar player pop-out
-├── Classes/                  one module per class — pure data, no UI
-├── PallyPower/               the original engine, deliberately untouched
-└── Locale/  Icons/  HDIcons/  Sounds/
-```
-
-The core knows **nothing** about specific classes. Each `Classes/Class_*.lua`
-registers with `AegisRP:NewClass("TOKEN")` and supplies only its data; the engine
-does the scanning, casting, timing and drawing. Adding a buff is usually a single
-table entry.
-
-`Aegis_CastWatch.lua` owns the addon's **only** `UNIT_CASTEVENT` registration.
-Consumers subscribe:
-
-```lua
-AegisRP.CastWatch.Subscribe(function(caster, target, spell, id, evt)
-    -- caster/target are player names; spell is resolved; evt is "CAST"/"START"
-end)
-```
-
-Watchers are pcall-isolated, so one broken consumer can't blind the others.
-
-The PallyPower engine runs **unmodified**. The pop-out grafts onto it by reading
-its own per-button data rather than patching it — which is why blessing sync
-stays byte-compatible with stock.
-
-Everything is **Lua 5.0 and 1.12 API only** — no `#`, no `string.gmatch`, no
-`select`, no `%` operator, no secure templates. [`CLAUDE.md`](CLAUDE.md) has the
-full rules and the reasons behind them, most learned the hard way.
+### 🔮 Future Possibilities
+- Per-caster Free Assignment (allowing members to edit specific rows)
+- Optional chat announce when the rotation hands off
+- Raid buff grid view (if assignment panel grows)
 
 ---
 
-## Something broken?
+## 📋 Requirements
 
-1. Check the **version** (`## Version:` in the `.toc`, currently **0.15.0**) and
-   quote it.
-2. `/rpc castdbg` logs raw cast events if timers look wrong — it's verbose, so
-   flip it back off after a few seconds.
-3. `/rpc slots` shows whether sync is actually reaching you and from whom.
-4. Tell us on **[Discord](https://discord.gg/3wTfRU8V9Z)** or open an
-   [issue](https://github.com/Torchlite-bit/Aegis_RallyPower/issues). Screenshots
-   help enormously, especially for anything layout-related.
+### Client
+* :crystal_ball: **SuperWoW** - Strongly Recommended
+  Enables exact spell-ID-based buff detection and clean one-call casting. Without it, the addon falls back to icon-matching and target-juggling (less reliable, but works).
+  ↳ [SuperWoW Release](https://github.com/balakethelock/SuperWoW/releases/tag/Release) | [Features Wiki](https://github.com/balakethelock/SuperWoW/wiki/Features) | [SuperAPI Addon](https://github.com/balakethelock/SuperAPI)
 
-Recent changes are in [CHANGELOG.md](CHANGELOG.md).
+- 🔨 **VanillaFixes** — Recommended  
+  Eliminates client stutter. Not required, but makes timers and UI smoother.
+  ↳ [VanillaFixes Release](https://github.com/hannesmann/vanillafixes.git)
 
----
-
-## Contributing
-
-PRs welcome — come say hi on **[Discord](https://discord.gg/3wTfRU8V9Z)** first
-if you're planning something big.
-
-Three requests:
-
-1. Keep inside the 1.12 / Lua 5.0 rules in [`CLAUDE.md`](CLAUDE.md) — they're
-   there because breaking them fails at *runtime*, not at load.
-2. Run `python3 scripts/verify.py` before you push; it catches the Lua 5.1-isms
-   that a 1.12 client won't.
-3. Bump the version in **both** `Aegis_RallyPower.toc` and this README, and add
-   a line to [`CHANGELOG.md`](CHANGELOG.md).
-
-## Credits
-
-Aegis: RallyPower is a fork of **PallyPowerTW** by ivanovlk, itself built on the
-original **PallyPower** by Hjorim, Sneakyfoot, Rake, Xerron, Azgaardian and
-Aznamir. Spanish localization by Nuevemasnueve. Maintained by
-**Subtilizer (Torchlite)**.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+### Compatibility
+- **Paladin sync works!** Aegis: RallyPower keeps PallyPower's `PLPWR` sync channel and message format, so Aegis Paladins coordinate blessings with stock PallyPower / PallyPowerTW users bidirectionally.
+- **Other classes are local-only by default** — no network traffic. Turn on the assignment panel to enable `RPCX` sync with other Aegis users.
 
 ---
 
-<div align="center">
+## 🐛 Known Limitations
 
-**[💬 Discord](https://discord.gg/3wTfRU8V9Z)** · **[📜 Changelog](CHANGELOG.md)** · **[🐛 Issues](https://github.com/Torchlite-bit/Aegis_RallyPower/issues)**
+- **1.12 client limitation:** Can't *read* another player's remaining buff time. With SuperWoW, Aegis works around it by watching casts as they happen, so buffs others apply are timed too; without it, non-self timers count down from your own casts (PallyPower's approach)
+- **Cast observation needs one sighting:** `UNIT_CASTEVENT` only reaches units the client can see, so a caster must come into range **once** before their casts register. After that the timer runs locally at any distance. Interrupt cooldowns sidestep this entirely — members broadcast their own
+- **Durations come from the spell catalog,** not the wire. Every tracked raid buff is single-duration across ranks in vanilla, so this only bites if Turtle changes one
+- **Interrupt cooldowns are vanilla defaults** and Turtle-unverified — a one-line edit in the `INTERRUPTS` table if any are wrong
+- **Range detection:** Uses visibility checks, which are wider than buff range; out-of-range casts cancel cleanly
 
-*Aegis: RallyPower is part of the Aegis addon series. Now go buff someone.* ⚔️
+---
 
-</div>
+## 📚 References
+
+- **CHANGELOG.md** — Version history, features per release, roadmap
+- **docs/DESIGN_SYNC.md** — RPCX protocol specification (grammar, flows, permissions)
+- **docs/DESIGN_ALLCLASSES.md** — Class module architecture and pattern
+- **docs/OPTIONS_UI_SPEC.md** — Settings frame layout and options contract
+- **CLAUDE.md** — Development brief (milestones, design decisions, verification workflow)
+
+---
+
+## 🙏 Credits
+
+- **Aegis: RallyPower** by Subtilizer (Torchlite)
+- **PallyPowerTW** by ivanovlk
+- **Original PallyPower** by Hjorim, Sneakyfoot, Rake, Xerron, Azgaardian, Aznamir
+- Spanish localization by Nuevemasnueve
+
+---
+
+## 📄 License
+
+Inherits from PallyPower's original license terms. See in-game addon list for details.
+
+---
+
+**Questions? Bugs? Feature ideas?**  
+Check the [CHANGELOG.md](CHANGELOG.md) for what's planned. File an issue or visit the Turtle WoW forums.
