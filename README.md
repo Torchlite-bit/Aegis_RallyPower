@@ -149,14 +149,14 @@ anything.
 
 ## Client mods
 
-**SuperWoW — strongly recommended.**
+**[SuperWoW](https://github.com/balakethelock/SuperWoW) — strongly recommended.**
 Buff detection becomes exact (spell IDs instead of icon matching), casting stops
 needing the target dance, and — the big one — Aegis can see *other people's*
 casts, which is what makes raid-wide timers and the Kick tab work. Without it the
 addon still runs, it just falls back to icons and your own casts. You'll get a
 one-time notice at login.
 
-**VanillaFixes — recommended.**
+**[VanillaFixes](https://github.com/hannesmann/vanillafixes) — recommended.**
 Kills client stutter and animation lag. Aegis doesn't depend on it, but every
 timer in the game feels better with it.
 
