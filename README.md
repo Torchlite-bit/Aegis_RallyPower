@@ -7,9 +7,9 @@
 [![Octo WoW](https://img.shields.io/badge/Octo%20WoW-1.18.1-4c1?style=flat-square&labelColor=555)](https://octowow.st/)
 [![Capy WoW](https://img.shields.io/badge/Capy%20WoW-1.18.1-4c1?style=flat-square&labelColor=555)](https://capycraft.io/)
 
-[![SuperWoW](https://img.shields.io/badge/SuperWoW-Required-8A2BE2?style=flat-square&labelColor=555)](https://github.com/balakethelock/SuperWoW)
-[![Nampower](https://img.shields.io/badge/Nampower-Required-8A2BE2?style=flat-square&labelColor=555)](https://github.com/brues-code/nampower)
-[![UnitXP_SP3](https://img.shields.io/badge/UnitXP__SP3-Required-8A2BE2?style=flat-square&labelColor=555)](https://codeberg.org/konaka/UnitXP_SP3)
+[![SuperWoW](https://img.shields.io/badge/SuperWoW-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/balakethelock/SuperWoW)
+[![Nampower](https://img.shields.io/badge/Nampower-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/brues-code/nampower)
+[![UnitXP_SP3](https://img.shields.io/badge/UnitXP__SP3-Recommended-dfb317?style=flat-square&labelColor=555)](https://codeberg.org/konaka/UnitXP_SP3)
 [![ClassicAPI](https://img.shields.io/badge/ClassicAPI-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/brues-code/ClassicAPI)
 
 A comprehensive buff management addon for Turtle WoW that extends PallyPower's Paladin-focused toolkit to all nine classes. Coordinate raid buffs, totems, debuffs, and interrupts across your entire group with shared assignment tracking, test-mode previews, and zero network traffic (unless you're coordinating).
@@ -162,6 +162,16 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 - 🔨 **VanillaFixes** — Recommended  
   Eliminates client stutter. Not required, but makes timers and UI smoother.
   ↳ [VanillaFixes Release](https://github.com/hannesmann/vanillafixes.git)
+
+- 🎯 **UnitXP_SP3** — Recommended
+  Adds a real line-of-sight check. Aegis uses it when loaded to skip targets it can't actually see — turn it on with **UnitXP SP3 line-of-sight** in Options.
+  ↳ [UnitXP_SP3](https://codeberg.org/konaka/UnitXP_SP3)
+
+- ⚡ **Nampower** — Recommended
+  Removes the client's cast-queue delay. Aegis doesn't call it, but every click you make lands faster with it loaded.
+  ↳ [Nampower](https://github.com/brues-code/nampower)
+
+**None of these are required.** Without them Aegis falls back gracefully — icon matching instead of spell IDs, your own casts instead of everyone's, and no line-of-sight filtering. You'll get a one-time notice at login if SuperWoW is missing.
 
 ### Compatibility
 - **Paladin sync works!** Aegis: RallyPower keeps PallyPower's `PLPWR` sync channel and message format, so Aegis Paladins coordinate blessings with stock PallyPower / PallyPowerTW users bidirectionally.
