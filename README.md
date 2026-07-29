@@ -75,7 +75,7 @@ other Aegis users automatically.**
 | **Totems** | Shaman × element grid, auto-grouped |
 | **Raid Buffs** | Caster × class grid for priests, mages and druids |
 | **Debuffs** | Who's on Sunder, who's on Scorch |
-| **Kick** | Who has an interrupt, and whose is off cooldown — **yours exact, everyone else's observed from their actual casts** |
+| **Kick** | The interrupt **rotation** — click to add someone, wheel to reorder. Whoever sits highest and is off cooldown is up; the dead and absent get skipped |
 | **Roles** | Main Tank + two off-tanks from dropdowns, healer marking, and a per-tank blessing override ("gets Kings instead of Salv") |
 
 The Blessings tab drives PallyPower's own tables and sends its own byte-identical
@@ -93,12 +93,33 @@ This feeds everything at once: the class bar, the pop-out, the coverage counts,
 smart-targeting, and the expiry ding. Turn it off with **"Time other players'
 buffs"** in Options if you'd rather not.
 
+### 🦶 Kick rotation — know when it's your turn
+
+Set a priority order of interrupters on the Kick tab; everyone in the raid gets
+it. Then the strip tells you the one thing you need mid-pull:
+
+**🔴 KICK NOW** · **🟡 On deck** · **🟢 Holding** · **⚫ Cooldown**
+
+Whose turn it is isn't a counter someone has to advance — it's *whoever sits
+highest in the order and is actually off cooldown.* Kicking puts you on
+cooldown, which hands the top spot to the next person automatically, and anyone
+dead, absent or on cooldown is skipped rather than stalling the rotation. There
+is no turn pointer to drift or reset, because there is no turn pointer.
+
+There's a sound when you reach the top, since you're watching the boss, not the
+strip.
+
 ### 🧪 Test mode — try it all solo
 
 `/rpc test` seats a **full 40-man preview raid** of lore characters, one of every
 class and spec. Every option shows up (unlearned ones marked `*`), clicks
 simulate casts and start real timers, and every tab of the panel becomes
 explorable on a level 5 alt.
+
+It also **runs a live kick rotation**: a pretend mob casts every few seconds,
+whoever is up interrupts it, and your own strip cycles through all four states
+unattended — so you can judge the feature without rounding up five people with
+interrupts.
 
 It's a sealed sandbox: preview edits live in their own store and **nothing is
 ever sent over the wire**, so you can't pollute a real raid by experimenting.
@@ -134,6 +155,7 @@ a real file.
 | `/rpc` *(or `/aegis`)* | Toggle your class bar |
 | `/rpc assign` | The assignment panel |
 | `/rpc options` | Settings |
+| `/rpc kick` | Show/hide the kick-rotation strip (interrupt classes) |
 | `/rpc test` | Test mode on/off |
 | `/rpc sync` | Force a full assignment re-sync |
 | `/rpc slots` | Tank plan + whether sync is actually flowing |

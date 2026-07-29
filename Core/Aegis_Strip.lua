@@ -18,7 +18,7 @@
 --
 -- Inside refresh, helpers on the button:
 --   b:SetIcon(tex) b:SetLabel(txt) b:SetSub(txt) b:SetTimer(txt)
---   b:SetState("good"|"need"|"off")   -- green / red / neutral backdrop
+--   b:SetState("good"|"need"|"warn"|"off")  -- green / red / amber / neutral
 --
 -- The strip is per-character positioned (saved under its key), participates in
 -- the Core's OnActivate/Toggle hooks via the returned object, and ticks every
@@ -41,9 +41,14 @@ local SKIN = {
     tile = false, tileSize = 8, edgeSize = 8,
     insets = { left = 0, right = 0, top = 0, bottom = 0 },
 }
+-- good/need/off are PallyPower's own three (locked). `warn` is ours: amber for
+-- "not yet, but be ready" - the same meaning yellow already carries on the
+-- Core's class rows (a buff about to expire), reused by the kick rotation's
+-- on-deck state.
 local COLORS = {
     good = { 0, 0.7, 0, 0.5 },
     need = { 1, 0,   0, 0.5 },
+    warn = { 0.85, 0.65, 0, 0.5 },
     off  = { 0.25, 0.25, 0.25, 0.5 },
 }
 

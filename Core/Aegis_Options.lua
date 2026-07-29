@@ -511,6 +511,10 @@ local function ButtonsTabEntries()
         tip = (AegisRP.CastWatch and AegisRP.CastWatch.Available())
               and "Watch other casters and time the buffs THEY apply, not just yours.\nNeeds SuperWoW (detected)."
               or "Needs SuperWoW, which isn't loaded - timers stay limited to your own casts." })
+    if AegisRP.HasInterrupt and AegisRP.HasInterrupt() then
+        table.insert(entries, { type = "check", key = "kickSound", label = "Sound when it's your turn to kick", default = true,
+            tip = "Plays when you reach the top of the kick rotation - you're watching the boss, not the strip.\nHide the strip itself with /rpc kick." })
+    end
     table.insert(entries, { type = "check", label = "UnitXP SP3 line-of-sight", default = false,
         tip = "Use UnitXP.dll (if loaded) to skip out-of-line-of-sight targets.",
         get = function() return PP_PerUser and PP_PerUser.useunitxp_sp3 end,

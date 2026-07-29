@@ -1605,9 +1605,17 @@ kickPoll:SetScript("OnUpdate", function()
     end
 end)
 
+-- Test mode can't fake GetSpellCooldown, so the simulation stamps my kick here
+-- instead and KickRemaining reads it while testing.
+local testMyKickUntil = 0
+
 -- remaining cooldown (seconds) for a member, or 0 when ready/unknown.
 local function KickRemaining(name)
     if name == Me() then
+        if AegisRP.IsTestMode() then
+            local r = testMyKickUntil - GetTime()
+            return (r > 0) and r or 0
+        end
         local sp = MyInterrupt()
         if not sp then return 0 end
         local start, dur = GetSpellCooldown(sp.index, "spell")
@@ -1621,6 +1629,257 @@ local function KickRemaining(name)
     if r and r > GetTime() then return r - GetTime() end
     return 0
 end
+
+--------------------------------------------------------------------------
+-- WHOSE TURN IS IT? - derived, never stored.
+--
+-- The rotation is only a priority ORDER. Who kicks next is "the first person
+-- in that order whose interrupt is actually available", so using a kick puts
+-- you on cooldown and hands the top spot to the next person by itself. No turn
+-- pointer exists to drift between clients, survive a wipe wrongly, or need
+-- syncing - every client computes the same answer from the same shared data.
+--------------------------------------------------------------------------
+
+-- raid/party unit token for a name, or nil when they aren't grouped with us
+local function UnitTokenOf(name)
+    if not name then return nil end
+    local n = GetNumRaidMembers()
+    if n > 0 then
+        for i = 1, n do
+            if UnitName("raid" .. i) == name then return "raid" .. i end
+        end
+        return nil
+    end
+    if name == Me() then return "player" end
+    for i = 1, GetNumPartyMembers() do
+        if UnitName("party" .. i) == name then return "party" .. i end
+    end
+    return nil
+end
+
+-- Can `name` kick right now? Off cooldown, present and alive. A dead or absent
+-- kicker is skipped rather than stalling the whole rotation behind them.
+local function KickAvailable(name)
+    if KickRemaining(name) > 0 then return false end
+    if AegisRP.IsTestMode() then return true end   -- preview raid is always "there"
+    local unit = UnitTokenOf(name)
+    if not unit then return false end              -- left the group
+    if UnitIsDeadOrGhost(unit) then return false end
+    return true
+end
+
+-- The ordered available kickers: [1] is up now, [2] is on deck.
+local function KickQueue()
+    local order = A.GetKickOrder()
+    local out = {}
+    for i = 1, table.getn(order) do
+        if KickAvailable(order[i]) then table.insert(out, order[i]) end
+    end
+    return out
+end
+
+-- My standing: "now" | "deck" | "hold" | "cd" | nil (not in the rotation)
+local function MyKickState()
+    local me = Me()
+    if not A.KickIndexOf(me) then return nil end
+    if KickRemaining(me) > 0 then return "cd" end
+    local q = KickQueue()
+    if q[1] == me then return "now" end
+    if q[2] == me then return "deck" end
+    return "hold"
+end
+
+--------------------------------------------------------------------------
+-- THE KICK STRIP - your personal cue, not a roster.
+--
+-- The panel's Kick tab is where a rotation gets PLANNED; this is where it gets
+-- USED, so it answers exactly one question at a glance: is it me? Colours keep
+-- the addon's language - red means act, never "you're fine" - so it reads the
+-- same way as every other strip under pressure.
+--------------------------------------------------------------------------
+
+local kickStrip
+local lastKickState                -- for the "it's your turn" cue edge
+
+local KICK_STATE = {
+    now  = { label = "|cffff4040KICK NOW|r",  state = "need" },
+    deck = { label = "|cffffcc00On deck|r",   state = "warn" },
+    hold = { label = "|cff5be07aHolding|r",   state = "good" },
+    cd   = { label = "|cff888888Cooldown|r",  state = "off"  },
+}
+
+function AegisRP.BuildKickStrip()
+    if kickStrip then return kickStrip end
+    kickStrip = AegisRP.NewStrip("kick", "Kick")
+    kickStrip:AddButton{
+        key = "rotation",
+        refresh = function(b)
+            local st = MyKickState()
+            local sp, info = MyInterrupt()
+            b:SetIcon((sp and sp.texture) or (info and info.icon))
+            if not st then
+                -- not in the rotation: say so rather than implying readiness
+                b:SetLabel("|cffffd100Kick|r")
+                b:SetSub("|cff888888not in rotation|r")
+                b:SetTimer(""); b:SetState("off")
+                return
+            end
+            local d = KICK_STATE[st]
+            b:SetLabel(d.label)
+            b:SetState(d.state)
+            local rem = KickRemaining(Me())
+            b:SetTimer(rem > 0 and AegisRP.FmtTime(rem) or "")
+            local q = KickQueue()
+            if st == "now" then
+                b:SetSub(q[2] and ("|cff999999then " .. q[2] .. "|r") or "")
+            elseif q[1] then
+                b:SetSub("|cff999999up: " .. q[1] .. "|r")
+            else
+                b:SetSub("|cffff6060nobody ready|r")
+            end
+        end,
+        onClick = function() if AegisRP_AssignPanelToggle then AegisRP_AssignPanelToggle() end end,
+        tooltip = function(b, tt)
+            tt:AddLine("Kick rotation", 1, 1, 1)
+            local order = A.GetKickOrder()
+            if table.getn(order) == 0 then
+                tt:AddLine("No rotation set - a leader sets one on the panel's Kick tab.", 0.7, 0.7, 0.7)
+            else
+                for i = 1, table.getn(order) do
+                    local nm = order[i]
+                    local mark = KickAvailable(nm) and "|cff5be07a*|r " or "|cff777777-|r "
+                    local rem = KickRemaining(nm)
+                    tt:AddLine(mark .. i .. ". " .. nm
+                        .. (rem > 0 and ("  |cffff6060" .. math.floor(rem + 0.5) .. "s|r") or ""),
+                        0.85, 0.85, 0.85)
+                end
+                tt:AddLine("Whoever is highest and off cooldown is up.", 0.55, 0.55, 0.62)
+            end
+            tt:AddLine("Click: open the assignment panel.", 0.6, 0.6, 0.6)
+        end,
+    }
+    kickStrip:Finish()
+    return kickStrip
+end
+
+-- True when the player's class has an interrupt at all (drives whether the
+-- strip and its options exist). Exported for the Options tab.
+function AegisRP.HasInterrupt()
+    local _, tok = UnitClass("player")
+    return (tok and INTERRUPTS[tok]) and true or false
+end
+
+-- Build the strip once, for classes that actually have an interrupt. Deferred
+-- to login because it needs the player's class. Hiding works exactly like every
+-- other strip - /rpc kick, and the strip engine remembers the choice.
+local kickInit = CreateFrame("Frame")
+kickInit:RegisterEvent("PLAYER_LOGIN")
+kickInit:SetScript("OnEvent", function()
+    if not AegisRP.HasInterrupt() then return end
+    local ok, err = pcall(AegisRP.BuildKickStrip)
+    if not ok then
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff5555Aegis error:|r " .. tostring(err)
+            .. " |cffaaaaaa(kick strip)|r")
+    end
+end)
+
+-- /rpc kick - show/hide it (also builds on first use for a class that has one)
+function AegisRP_ToggleKickStrip()
+    if not AegisRP.HasInterrupt() then
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r your class has no interrupt.")
+        return
+    end
+    local s = AegisRP.BuildKickStrip()
+    if s and s.Toggle then s:Toggle() end
+end
+
+--------------------------------------------------------------------------
+-- TEST-MODE SIMULATION - watch a rotation actually run, solo.
+--
+-- Every few seconds a pretend mob starts casting and whoever is up kicks it,
+-- which starts their cooldown and hands the top spot to the next person. The
+-- point is that YOUR strip cycles through all four states on its own - up,
+-- cooldown, holding, on deck - so the thing can be judged without a raid.
+-- The whole rotation is the preview one (a separate store), so nothing here
+-- touches a real raid's plan or the wire.
+--------------------------------------------------------------------------
+
+local SIM_PERIOD = 4              -- a simulated interruptible cast this often
+local simAccum = 0
+local simSeeded = false
+
+-- preview kickers: me first (so the strip has something to say), then one of
+-- each interrupt class from the fake raid, so every cooldown length is in play
+local SIM_ROSTER = { "Grommash", "Valeera", "Thrall", "Jaina", "Guldan" }
+
+local function SeedSimRotation()
+    if table.getn(A.GetKickOrder()) > 0 then return true end
+    local list = {}
+    for i = 1, table.getn(SIM_ROSTER) do
+        local nm = SIM_ROSTER[i]
+        -- only seat preview names the fake raid actually has an interrupt for
+        if INTERRUPTS[MemberClass(nm)] then table.insert(list, nm) end
+    end
+    -- The preview raid is seated asynchronously when test mode turns on, so an
+    -- empty result means "not ready yet" - report failure and retry next tick
+    -- rather than locking in a rotation of one.
+    if table.getn(list) == 0 then return false end
+    if INTERRUPTS[MemberClass(Me())] then table.insert(list, 1, Me()) end
+    return A.SetKickOrder(list)
+end
+
+local function SimKick(who)
+    local info = INTERRUPTS[MemberClass(who)]
+    local cd = (info and info.cd) or 10
+    if who == Me() then
+        testMyKickUntil = GetTime() + cd
+    else
+        kickReady[who] = GetTime() + cd
+        kickSrc[who] = "sync"
+    end
+    DEFAULT_CHAT_FRAME:AddMessage("|cffff8800[test]|r "
+        .. ((who == Me()) and "|cff5be07ayou|r" or who) .. " interrupted the cast ("
+        .. cd .. "s cooldown).")
+end
+
+local kickSim = CreateFrame("Frame")
+kickSim:SetScript("OnUpdate", function()
+    if not AegisRP.IsTestMode() then
+        simSeeded = false                 -- re-seed next time test mode comes on
+        return
+    end
+    if not simSeeded then
+        simSeeded = SeedSimRotation() and true or false
+        if not simSeeded then return end  -- can't edit the rotation here; don't sim
+        simAccum = 0
+        return
+    end
+    simAccum = simAccum + (arg1 or 0)
+    if simAccum < SIM_PERIOD then return end
+    simAccum = 0
+    local q = KickQueue()
+    if not q[1] then
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff8800[test]|r a cast went through - "
+            .. "everyone's kick was on cooldown.")
+        return
+    end
+    SimKick(q[1])
+end)
+
+-- The "you're up" cue. Fires on the edge into `now` only, so it can't machine-
+-- gun while you sit at the top of the rotation waiting for a cast.
+local kickCueAccum = 0
+local kickCue = CreateFrame("Frame")
+kickCue:SetScript("OnUpdate", function()
+    kickCueAccum = kickCueAccum + (arg1 or 0)
+    if kickCueAccum < 0.2 then return end
+    kickCueAccum = 0
+    local st = MyKickState()
+    if st == "now" and lastKickState ~= "now" and AegisRP_Settings.kickSound ~= false then
+        PlaySoundFile("Interface\\Addons\\Aegis_RallyPower\\Sounds\\ding.mp3")
+    end
+    lastKickState = st
+end)
 
 local kickCells = {}
 local KICK_COLS, KICK_ROWS = 2, 16
@@ -1681,6 +1940,27 @@ local function KickCellTip()
     GameTooltip:Show()
 end
 
+-- Click a row to put someone in the rotation (or take them out); wheel moves
+-- them up and down it. Both are leader-gated by the model, so a member just
+-- gets told rather than silently having nothing happen.
+local function KickCellClick()
+    if not A.ToggleKicker(this.member) then
+        if table.getn(A.GetKickOrder()) >= A.MaxKickers() and not A.KickIndexOf(this.member) then
+            Msg("The rotation is full (" .. A.MaxKickers() .. ").")
+        else
+            Msg("Only the raid leader / assist can set the kick rotation (or turn on Free Assign).")
+        end
+        return
+    end
+    RefreshCurrent()
+end
+
+local function KickCellWheel()
+    if not A.KickIndexOf(this.member) then return end     -- not in the rotation
+    if not A.MoveKicker(this.member, (arg1 > 0) and -1 or 1) then return end
+    RefreshCurrent()
+end
+
 local function BuildKick(p)
     for i = 1, KICK_COLS * KICK_ROWS do
         local col = math.mod(i - 1, KICK_COLS)
@@ -1697,8 +1977,14 @@ local function BuildKick(p)
         b.stat = Fnt(b, 11, INK_DIM, "RIGHT")
         b.stat:SetWidth(90); b.stat:SetHeight(12)
         b.stat:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+        b.pos = Fnt(b, 11, GOLD, "RIGHT")
+        b.pos:SetWidth(46); b.pos:SetHeight(12)
+        b.pos:SetPoint("RIGHT", b, "RIGHT", -100, 0)
         b:SetScript("OnEnter", SafeTip(KickCellTip))
         b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        b:SetScript("OnClick", KickCellClick)
+        b:SetScript("OnMouseWheel", KickCellWheel)
+        b:EnableMouseWheel(true)
         b:Hide()
         kickCells[i] = b
     end
@@ -1708,6 +1994,8 @@ local function RefreshKick(p)
     local members = KickMembers()
     local cap = KICK_COLS * KICK_ROWS
     local ready, oncd = 0, 0
+    local q = KickQueue()
+    local upNow, upNext = q[1], q[2]
     for i = 1, cap do
         local b = kickCells[i]
         local name = members[i]
@@ -1724,6 +2012,19 @@ local function RefreshKick(p)
                 if sp and sp.texture then tex = sp.texture end
             end
             if tex then b.icon:SetTexture(tex); b.icon:Show() else b.icon:Hide() end
+            -- rotation position, and who is actually up right now
+            local slot = A.KickIndexOf(name)
+            if slot then
+                if name == upNow then
+                    b.pos:SetText("|cffff6060UP|r")
+                elseif name == upNext then
+                    b.pos:SetText("|cffffcc00next|r")
+                else
+                    b.pos:SetText("|cffaa9966#" .. slot .. "|r")
+                end
+            else
+                b.pos:SetText("")
+            end
             local rem = KickRemaining(name)
             if rem > 0 then
                 oncd = oncd + 1
@@ -1732,7 +2033,7 @@ local function RefreshKick(p)
             else
                 ready = ready + 1
                 b.stat:SetText("|cff5be07aReady|r")
-                b:SetBackdropColor(0.09, 0.13, 0.09, 0.85)
+                b:SetBackdropColor(slot and 0.10 or 0.09, 0.13, slot and 0.16 or 0.09, 0.85)
             end
             b:Show()
         else
@@ -1740,11 +2041,17 @@ local function RefreshKick(p)
         end
     end
     p.note:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
-    p.note:SetText(ready .. " ready, " .. oncd .. " on CD")
+    local rot = table.getn(A.GetKickOrder())
+    p.note:SetText(ready .. " ready, " .. oncd .. " on CD"
+        .. (rot > 0 and ("  |cffaa9966|  rotation of " .. rot
+            .. (upNow and (" - |cffff6060" .. upNow .. "|r|cffaa9966 is up") or " - none ready")
+            .. "|r") or ""))
     p.cover:SetText("")
-    p.hint:SetText("Who has an interrupt, and whose kick is off cooldown. Your kick is exact; "
-        .. "others are observed from their casts where SuperWoW allows, else shown ready. "
-        .. "Exact raid-wide timers arrive with the sync milestone.")
+    p.hint:SetText("Click a name to put them in the kick rotation; wheel moves them up or down it. "
+        .. "Whoever sits highest AND is off cooldown is up next, so a kick hands the "
+        .. "spot to the next person automatically and the dead or absent get skipped. "
+        .. "Your own cooldown is exact; others report theirs over sync, or are observed "
+        .. "from their casts when in range.")
 end
 
 -- Tank slots: Main Tank + two off-tanks, chosen from dropdowns. Membership

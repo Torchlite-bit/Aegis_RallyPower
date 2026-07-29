@@ -1856,6 +1856,12 @@ SlashCmdList["AEGISRP"] = function(msg)
         return
     end
 
+    -- Show/hide the personal kick-rotation strip (interrupt classes only).
+    if msg == "kick" then
+        if AegisRP_ToggleKickStrip then AegisRP_ToggleKickStrip() end
+        return
+    end
+
     -- Force a full assignment re-sync (request others' + push mine). Every
     -- class; blessings still sync separately over PLPWR.
     if msg == "sync" then

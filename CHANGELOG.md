@@ -87,6 +87,41 @@ is in.
   one-line edit at the top of the Roles section if a Turtle spec changes who can
   tank.)
 
+### Added (Kick rotation — a shared interrupt order, and a strip that tells you when you're up)
+- **The rotation is just a priority order.** Whose turn it is isn't stored
+  anywhere — it's *"the highest person in the order whose kick is actually
+  ready"*. Using your kick puts you on cooldown, which hands the top spot to the
+  next person by itself. Nothing to drift between clients, nothing to reset
+  after a wipe, and no turn counter to sync: every client computes the same
+  answer from the same shared data.
+- **Dead, absent and on-cooldown members are skipped**, so the rotation never
+  stalls waiting behind someone who can't act. This only works because kick
+  cooldowns now travel raid-wide.
+- **New kick strip** (`/rpc kick`, interrupt classes only) — your personal cue,
+  answering one question at a glance rather than showing a roster:
+  **KICK NOW** (red) · **On deck** (amber) · **Holding** (green) ·
+  **Cooldown** (grey). Red still means *act*, matching every other strip in the
+  addon. It names who's up when it isn't you, and who follows when it is.
+  Hovering lists the whole rotation with live cooldowns.
+- **Sound when you reach the top** (Options → Behaviour, default on) — you're
+  watching the boss, not the strip. It fires on the transition only, so sitting
+  at the top waiting for a cast doesn't machine-gun it.
+- **Kick tab plans it**: click a name to add or remove them from the rotation,
+  mouse-wheel to move them up or down it. Leader-gated like tank slots, shared
+  over `RPCX` (`KO`), and the tab marks who is **UP** and who's **next**.
+- The strip engine gains an **amber `warn` state** for "not yet, but be ready" —
+  the same meaning yellow already carried on the Core's class rows.
+
+### Added (Test mode simulates a live rotation)
+- With `/rpc test` on, a pretend mob starts casting every few seconds and
+  whoever is up interrupts it, starting their cooldown and advancing the order.
+  **Your own strip cycles through all four states unattended**, so the feature
+  can be judged solo instead of needing five interrupt-capable people. Each
+  simulated kick is announced in chat so the order is followable.
+- The simulated rotation is seeded from the preview raid (a warrior, rogue,
+  shaman, mage and warlock — every cooldown length in play) and lives in the
+  preview store, so it never touches a real raid's plan or the wire.
+
 ### Added (Raid-wide interrupt timers)
 - **Your interrupt is now broadcast** the moment it goes on cooldown (`RPCX`
   `KICK`), so the Kick tab is right for members you can't see. Watching someone
