@@ -164,17 +164,9 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
   Adds a real line-of-sight check. Aegis uses it when loaded to skip targets it can't actually see — turn it on with **UnitXP SP3 line-of-sight** in Options.
   ↳ [UnitXP_SP3](https://codeberg.org/konaka/UnitXP_SP3)
 
-- ⚡ **Nampower** — Recommended
-  Removes the client's cast-queue delay. Aegis doesn't call it, but every click you make lands faster with it loaded.
-  ↳ [Nampower](https://github.com/brues-code/nampower)
-
-- 🧩 **ClassicAPI** — Recommended
-  Backports modern API namespaces to 1.12. Aegis doesn't use it *yet* — its `C_UnitAuras` would give true expiration times for other players' buffs, which is on the roadmap as an optional extra tier.
-  ↳ [ClassicAPI](https://github.com/brues-code/ClassicAPI)
-
 ### Is anything actually required?
 
-**No — Aegis runs on a stock 1.12 client with none of them.** Every SuperWoW call
+**No — Aegis runs on a stock 1.12 client with neither of them.** Every SuperWoW call
 site has a working fallback: icon-texture matching instead of spell IDs, and the
 classic CVar/target-juggling cast instead of one-call casting. You get a one-time
 notice at login telling you it's in compatibility mode.
@@ -184,9 +176,8 @@ other players' *buff* timers fall back to counting from your own casts, the way
 PallyPower has always done it. Their *interrupt* cooldowns are unaffected —
 those are broadcast by each member, so they work on a bare client.
 
-UnitXP_SP3 is opt-in and off by default; Nampower and ClassicAPI aren't called
-at all. Load them because they make the whole game better, not because Aegis
-needs them.
+UnitXP_SP3 is opt-in and off by default. Load it because it makes the whole
+game better, not because Aegis needs it.
 
 ### Compatibility
 - **Paladin sync works!** Aegis: RallyPower keeps PallyPower's `PLPWR` sync channel and message format, so Aegis Paladins coordinate blessings with stock PallyPower / PallyPowerTW users bidirectionally.
