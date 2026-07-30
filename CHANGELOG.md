@@ -13,6 +13,10 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 ---
 
 ## [Unreleased]
+
+---
+
+## [1.1.0] — 2026-07-30
 ### Added (Cast-exact shared timers — validated on Turtle)
 The `UNIT_CASTEVENT` observation was confirmed working in-game on Turtle 1.18.1
 (the event fires, GUIDs resolve to names via `UnitName`, spell ids resolve via
