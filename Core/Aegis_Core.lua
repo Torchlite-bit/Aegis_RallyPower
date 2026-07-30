@@ -26,10 +26,12 @@
 -- HOW BUFFS ARE DETECTED
 --   Turtle 1.18.1 runs SuperWoW, which makes UnitBuff() *also* return the aura's
 --   spell id. When present we match by spell id (exact - no icon collisions).
---   SuperWoW is required, but we fall back gracefully: if it is missing we match
---   by icon texture exactly like PallyPower/1.12 (UnitBuff returns only a texture
+--   SuperWoW is strongly recommended but NOT required: without it we match by
+--   icon texture exactly like PallyPower/1.12 (UnitBuff returns only a texture
 --   there). Each buff entry lists both its spell id(s) and its icon basename(s),
---   so the same data drives either path.
+--   so the same data drives either path. The only capability with no fallback is
+--   cast observation (UNIT_CASTEVENT), which is why other players' BUFF timers
+--   need SuperWoW - their interrupt cooldowns don't, since those are broadcast.
 --
 -- ADDING A CLASS
 --   Copy an existing Classes\Class_<Name>.lua, change the token and the data,
