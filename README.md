@@ -4,13 +4,13 @@
 
 [![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/hsgPTNkSX)
 [![Client](https://img.shields.io/badge/client-WoW%201.12%20(vanilla)-c79c6e?style=flat-square)](https://turtle-wow.org)
-[![Octo WoW](https://img.shields.io/badge/Octo%20WoW-1.18.1-4c1?style=flat-square&labelColor=555)](https://octowow.st/)
-[![Capy WoW](https://img.shields.io/badge/Capy%20WoW-1.18.1-4c1?style=flat-square&labelColor=555)](https://capycraft.io/)
+[![Octo WoW](https://img.shields.io/badge/Octo%20WoW-1.18.1-8A2BE2?style=flat-square&labelColor=555)](https://octowow.st/)
+[![Capy WoW](https://img.shields.io/badge/Capy%20WoW-1.18.1-8B4513?style=flat-square&labelColor=555)](https://capycraft.io/)
 
-[![SuperWoW](https://img.shields.io/badge/SuperWoW-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/balakethelock/SuperWoW)
-[![Nampower](https://img.shields.io/badge/Nampower-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/brues-code/nampower)
-[![UnitXP_SP3](https://img.shields.io/badge/UnitXP__SP3-Recommended-dfb317?style=flat-square&labelColor=555)](https://codeberg.org/konaka/UnitXP_SP3)
-[![ClassicAPI](https://img.shields.io/badge/ClassicAPI-Recommended-dfb317?style=flat-square&labelColor=555)](https://github.com/brues-code/ClassicAPI)
+[![SuperWoW](https://img.shields.io/badge/SuperWoW-Recommended-fe7d37?style=flat-square&labelColor=555)](https://github.com/balakethelock/SuperWoW)
+[![Nampower](https://img.shields.io/badge/Nampower-Recommended-fe7d37?style=flat-square&labelColor=555)](https://github.com/brues-code/nampower)
+[![UnitXP_SP3](https://img.shields.io/badge/UnitXP__SP3-Recommended-fe7d37?style=flat-square&labelColor=555)](https://codeberg.org/konaka/UnitXP_SP3)
+[![ClassicAPI](https://img.shields.io/badge/ClassicAPI-Recommended-fe7d37?style=flat-square&labelColor=555)](https://github.com/brues-code/ClassicAPI)
 
 A comprehensive buff management addon for Turtle WoW that extends PallyPower's Paladin-focused toolkit to all nine classes. Coordinate raid buffs, totems, debuffs, and interrupts across your entire group with shared assignment tracking, test-mode previews, and zero network traffic (unless you're coordinating).
 
@@ -171,7 +171,25 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
   Removes the client's cast-queue delay. Aegis doesn't call it, but every click you make lands faster with it loaded.
   ↳ [Nampower](https://github.com/brues-code/nampower)
 
-**None of these are required.** Without them Aegis falls back gracefully — icon matching instead of spell IDs, your own casts instead of everyone's, and no line-of-sight filtering. You'll get a one-time notice at login if SuperWoW is missing.
+- 🧩 **ClassicAPI** — Recommended
+  Backports modern API namespaces to 1.12. Aegis doesn't use it *yet* — its `C_UnitAuras` would give true expiration times for other players' buffs, which is on the roadmap as an optional extra tier.
+  ↳ [ClassicAPI](https://github.com/brues-code/ClassicAPI)
+
+### Is anything actually required?
+
+**No — Aegis runs on a stock 1.12 client with none of them.** Every SuperWoW call
+site has a working fallback: icon-texture matching instead of spell IDs, and the
+classic CVar/target-juggling cast instead of one-call casting. You get a one-time
+notice at login telling you it's in compatibility mode.
+
+What you lose without SuperWoW is **one** thing: cast observation. That means
+other players' *buff* timers fall back to counting from your own casts, the way
+PallyPower has always done it. Their *interrupt* cooldowns are unaffected —
+those are broadcast by each member, so they work on a bare client.
+
+UnitXP_SP3 is opt-in and off by default; Nampower and ClassicAPI aren't called
+at all. Load them because they make the whole game better, not because Aegis
+needs them.
 
 ### Compatibility
 - **Paladin sync works!** Aegis: RallyPower keeps PallyPower's `PLPWR` sync channel and message format, so Aegis Paladins coordinate blessings with stock PallyPower / PallyPowerTW users bidirectionally.
