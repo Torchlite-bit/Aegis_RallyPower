@@ -62,7 +62,9 @@ After **every** edit:
 python3 scripts/verify.py
 ```
 
-Checks structural balance and Lua 5.1-isms across `Core/` + `Classes/`. There
+Checks structural balance and Lua 5.1-isms across `Core/` + `Classes/` +
+`PallyPower/`. The vendored engine is scanned as a tripwire — it should stay
+untouched, and a failure there means something edited it. There
 is no standalone Lua here; the real test is in-game — errors print to chat
 (the Core wraps risky paths in `pcall` and prints `AegisRP error: …`).
 Use `/rpc test` (test mode) to exercise everything on an under-levelled

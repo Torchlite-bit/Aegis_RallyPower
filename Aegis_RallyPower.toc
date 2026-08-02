@@ -12,10 +12,13 @@ Locale\localization-enUS.lua
 Locale\localization-deDE.lua
 Locale\localization-esES.lua
 
+# PallyPower.xml and MinimapButton.xml each <Script>-include their own .lua as
+# their first line, so listing those .lua files here too would execute them
+# twice. The XML is the loader (that's why the pair must stay in one folder) -
+# load order is unchanged: ManaCost, then PallyPower.lua+frames, then
+# MinimapButton.lua+frames.
 PallyPower\PallyPowerManaCost.lua
-PallyPower\PallyPower.lua
 PallyPower\PallyPower.xml
-PallyPower\MinimapButton.lua
 PallyPower\MinimapButton.xml
 
 Core\Aegis_Core.lua
