@@ -39,3 +39,7 @@ luac.out
 *.x86_64
 *.hex
 
+
+# Python bytecode (scripts/verify.py)
+__pycache__/
+*.pyc
