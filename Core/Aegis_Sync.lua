@@ -36,6 +36,7 @@ local REQ_THROTTLE = 3         -- min seconds between our own REQ storms
 local MAX_LEN     = 250         -- addon-message payload ceiling
 local CHUNK_SIZE  = 240         -- max payload per chunk (leave room for header)
 local CHUNK_EXPIRE = 30         -- seconds before reassembly buffer expires
+local KICK_THROTTLE = 1         -- min seconds between our own KICK broadcasts
 
 local applyingRemote = false    -- true while installing a received block
 local dirty = {}                -- set of caster names pending broadcast
@@ -44,6 +45,7 @@ local tsDirty = false           -- tank-slot order changed, pending send
 local koDirty = false           -- kick rotation changed, pending send
 local flushAccum = 0
 local lastReq = -100
+local lastKickSent = -100       -- GetTime() of our last KICK broadcast
 local chunks = {}               -- reassembly buffer: [caster][seq] = { chunks, expire_time }
 
 -- Wire telemetry for /rpc slots. Verifying sync used to need two clients side
@@ -315,8 +317,17 @@ end
 -- Interrupt cooldown (Kick tab). Self-reported and sent the instant it starts,
 -- so there is nothing to batch through the flush - and no leader gate, because
 -- you can only ever announce your OWN cooldown. Called by the panel's poller.
+--
+-- Rate-limited to one per KICK_THROTTLE seconds. The poller only fires this on
+-- a ready->cooldown edge, so in normal play it's already self-limiting; the
+-- floor is insurance against a bugged caller or a shared-cooldown spell
+-- flickering the edge, since this is the one path that bypasses the flush.
+-- Shortest real interrupt cooldown is 6s (Earth Shock), so 1s drops nothing.
 function AegisRP_SendKick(remaining)
     if not remaining or remaining <= 0 then return end
+    local now = GetTime()
+    if now - lastKickSent < KICK_THROTTLE then return end
+    lastKickSent = now
     RawSend(PROTO_V .. " KICK " .. string.format("%.1f", remaining))
 end
 

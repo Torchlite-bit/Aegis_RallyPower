@@ -13,6 +13,42 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 ---
 
 ## [Unreleased]
+### Fixed (post-release hygiene)
+- **Double-load removed.** `PallyPower.lua` and `MinimapButton.lua` were listed
+  in the TOC *and* `<Script>`-included by their own XML, so each executed twice.
+  The TOC entries are gone; the XML stays the loader (which is why the .lua and
+  .xml must live in one folder). Load order is unchanged, and the vendored
+  engine files are still byte-identical to stock.
+- **`KICK` broadcasts are rate-limited** to one per second per sender
+  (`Aegis_Sync.lua`). The poller only fires on a ready→cooldown edge so it was
+  already self-limiting in practice, but this is the one path that bypasses the
+  debounced flush. The shortest real interrupt cooldown is 6s (Earth Shock), so
+  nothing legitimate is dropped. The guard lives in the sender, so every caller
+  is covered rather than just the poller.
+- **The two always-on kick tickers no longer run for classes without an
+  interrupt.** Class is resolved once and cached (`MyClassKicks`), so a priest
+  or druid stops doing per-tick work for a feature they can't use, and
+  `AegisRP.HasInterrupt()` now shares that one cache.
+
+### Changed (verifier covers the vendored engine)
+- **`scripts/verify.py` now scans `PallyPower/` too** — a tripwire against
+  accidental edits to the engine we've committed to leaving untouched.
+- Doing that required fixing two real blind spots in the checker, which would
+  have mis-read our own code just as easily:
+  - **`--[[ long comments ]]` were parsed as line comments**, leaving the
+    comment *body* to be counted as live code. A commented-out block full of
+    `do`/`end` then read as a structural imbalance. Long strings (`[[ ]]`,
+    `[=[ ]=]`) are handled now as well.
+  - **Bare `do ... end` blocks weren't counted as openers**, so every one
+    looked like an unmatched `end`.
+  With both fixed the whole tree passes, our own files unchanged.
+
+### Notes
+- **`PP_Presets` is correctly declared** — an earlier audit flagged it as a
+  saved variable with no UI, which was wrong. The blessing-preset system is
+  live in `MinimapButton.lua` and reachable two ways: the classic frame's
+  Presets button (`PallyPower.xml:1635`) and our own panel's Presets button for
+  paladins (`Aegis_AssignPanel.lua:2655`). No change made.
 
 ---
 

@@ -1579,6 +1579,21 @@ local function MyInterrupt()
     return nil, info, nil
 end
 
+-- Does MY class have an interrupt at all? Resolved once and cached - a
+-- character's class can't change, so the always-on tickers below shouldn't
+-- re-derive it every tick (nor run at all on a priest or druid). UnitClass is
+-- unreliable before PLAYER_LOGIN, so nil means "not resolved yet", not "no".
+local myHasInterrupt = nil
+
+local function MyClassKicks()
+    if myHasInterrupt == nil then
+        local _, tok = UnitClass("player")
+        if not tok then return false end          -- too early; try again next tick
+        myHasInterrupt = INTERRUPTS[tok] and true or false
+    end
+    return myHasInterrupt
+end
+
 -- Announce MY interrupt the moment it goes on cooldown, so members who can't
 -- see me still get an exact timer. This reads my OWN cooldown rather than a
 -- cast event, so it needs no SuperWoW - even a bare 1.12 client contributes its
@@ -1592,6 +1607,7 @@ kickPoll:SetScript("OnUpdate", function()
     kickPollAccum = kickPollAccum + (arg1 or 0)
     if kickPollAccum < 0.2 then return end
     kickPollAccum = 0
+    if not MyClassKicks() then return end
     local sp = MyInterrupt()
     if not sp then return end
     local start, dur = GetSpellCooldown(sp.index, "spell")
@@ -1765,8 +1781,7 @@ end
 -- True when the player's class has an interrupt at all (drives whether the
 -- strip and its options exist). Exported for the Options tab.
 function AegisRP.HasInterrupt()
-    local _, tok = UnitClass("player")
-    return (tok and INTERRUPTS[tok]) and true or false
+    return MyClassKicks()
 end
 
 -- Build the strip once, for classes that actually have an interrupt. Deferred
@@ -1874,6 +1889,7 @@ kickCue:SetScript("OnUpdate", function()
     kickCueAccum = kickCueAccum + (arg1 or 0)
     if kickCueAccum < 0.2 then return end
     kickCueAccum = 0
+    if not MyClassKicks() then return end
     local st = MyKickState()
     if st == "now" and lastKickState ~= "now" and AegisRP_Settings.kickSound ~= false then
         PlaySoundFile("Interface\\Addons\\Aegis_RallyPower\\Sounds\\ding.mp3")
