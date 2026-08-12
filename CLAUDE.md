@@ -64,7 +64,17 @@ python3 scripts/verify.py
 
 Checks structural balance and Lua 5.1-isms across `Core/` + `Classes/` +
 `PallyPower/`. The vendored engine is scanned as a tripwire — it should stay
-untouched, and a failure there means something edited it. There
+untouched, and a failure there means something edited it.
+
+Behavioural logic that can be isolated from the WoW API gets an off-client test
+under `scripts/test_*.lua`, run with any Lua (the addon files are 5.0-compatible
+so they load unmodified):
+
+```
+lua scripts/test_bagscan.lua      # mailbox BAG_UPDATE storm -> one scan
+```
+
+Beyond that there
 is no standalone Lua here; the real test is in-game — errors print to chat
 (the Core wraps risky paths in `pcall` and prints `AegisRP error: …`).
 Use `/rpc test` (test mode) to exercise everything on an under-levelled

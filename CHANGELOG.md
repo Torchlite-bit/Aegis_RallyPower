@@ -13,6 +13,35 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 ---
 
 ## [Unreleased]
+### Fixed (multi-second freeze on the first mailbox open)
+- **Opening a mailbox could stall the client for many seconds, once per
+  session.** RallyPower has no mailbox code — it was on the receiving end of
+  `BAG_UPDATE`. The stock `MAIL_SHOW` handler calls `OpenBackpack()`, and on the
+  *first* open of mail carrying uncached attachments the client re-fires
+  `BAG_UPDATE` dozens of times in one frame as each item resolves. PallyPower
+  answered **every one** synchronously with a full bags-0–4 walk
+  (`PallyPower.lua:576` → `PallyPower_ScanInventory`), so N events cost N × ~80
+  `GetContainerItemLink` calls in a single frame. Against a custom server, where
+  an uncached lookup is far dearer than a local hit, that's the freeze — and it
+  only happens once because the second open finds a warm cache.
+- **The scan is now coalesced**: during `BAG_UPDATE` it raises a dirty flag, and
+  the real scan runs at most **once per frame**. Calls from anywhere else
+  (`:1740` init, `:3069` refresh) stay synchronous, since those read `PP_Symbols`
+  immediately. A storm of 100 events now costs one scan instead of 100.
+- **Unresolved items are treated as "not yet, try next event"** rather than
+  waited on: an item still resolving returns a texture but a nil link, and its
+  resolve fires its own `BAG_UPDATE`. The scan holds briefly so a half-populated
+  bag can't broadcast a wrong `SYMCOUNT` to the raid, with a 5-second cap so a
+  permanently-unresolvable slot can't wedge it.
+- Only Paladins were exposed — `PallyPower_ScanInventory` returns immediately
+  for other classes (`PallyPower.lua:2897`).
+- New `Core/Aegis_BagScan.lua` wraps the engine function rather than editing it,
+  keeping `PallyPower/` byte-identical to stock. `/rpc bagscan` reports how many
+  scans ran versus how many were folded away.
+- **New off-client test**: `lua scripts/test_bagscan.lua` fires a 100-event
+  storm and asserts exactly one scan, plus the unresolved-item hold, its time
+  cap, and that direct callers stay synchronous.
+
 ### Fixed (`/pp buff` crashed when anyone was dead)
 - **`PallyPower_AutoBuffAll` threw `attempt to compare number with nil`.** The
   engine writes a buff-bar count as `"3 (1)"` the moment someone in the raid is
