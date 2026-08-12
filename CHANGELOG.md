@@ -13,6 +13,29 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 ---
 
 ## [Unreleased]
+### Changed (BAG_UPDATE registered only where it's read)
+- **`Aegis_Strip.lua`'s bag-cache invalidation now registers `BAG_UPDATE` only
+  for Rogue and Warlock** — the only two modules that ever call
+  `AegisRP.FindBagItem` (poison selection, Soulstone status). Every other
+  class was invalidating a cache nobody reads. The handler was already O(1)
+  (nils a variable; `BagContents()` rebuilds lazily), so this isn't a
+  performance fix — it's not paying for events with no reader. Split onto its
+  own frame, deferred to `PLAYER_LOGIN` (class isn't reliable before then), so
+  the spellbook-cache invalidation (`FindSpell`, used by every class) is
+  unaffected.
+
+### Considered and rejected: skipping the Symbol scan while solo
+- Looked at also skipping PallyPower's Symbol-of-Kings bag scan while ungrouped
+  (`SYMCOUNT` has nobody to reach solo). **Didn't do it** — `PP_Symbols` also
+  drives the buff-bar **title text** (`PallyPower.lua:1421`), and the bar can
+  be visible while solo (`PallyPower_UpdateUI` shows it off `IsPally == 1`
+  alone, no group requirement). Skipping the scan would leave a solo paladin
+  looking at a stale reagent count. The broadcast itself is already a
+  no-op when ungrouped (`PallyPower_SendMessage` targets `PARTY` with none
+  present), and frequency is already capped at once per frame by the
+  coalescing below regardless of group state — so there was no real cost left
+  to cut, only a correctness risk to take on.
+
 ### Fixed (multi-second freeze on the first mailbox open)
 - **Opening a mailbox could stall the client for many seconds, once per
   session.** RallyPower has no mailbox code — it was on the receiving end of
