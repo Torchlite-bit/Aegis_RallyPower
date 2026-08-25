@@ -187,10 +187,10 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
 
 ## Next up
 
-- **Raid-wide interrupt timers** *(in progress)* — the Kick tab observes others'
-  kicks locally, which needs them in range. Members now also **broadcast their
-  own** interrupt cooldown over `RPCX` (`KICK`), which reaches any distance and
-  needs no SuperWoW on the sender. The tab distinguishes the two sources.
+- **Raid-wide interrupt timers — DONE, validated in-game.** Members broadcast
+  their own interrupt cooldown over `RPCX` (`KICK`, `Aegis_Sync.lua`), which
+  reaches any distance and needs no SuperWoW on the sender; the Kick tab
+  distinguishes a synced report from a locally observed one (`kickSrc`).
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and
