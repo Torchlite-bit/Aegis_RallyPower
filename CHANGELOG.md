@@ -13,6 +13,73 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 ---
 
 ## [Unreleased]
+### Changed (BAG_UPDATE registered only where it's read)
+- **`Aegis_Strip.lua`'s bag-cache invalidation now registers `BAG_UPDATE` only
+  for Rogue and Warlock** — the only two modules that ever call
+  `AegisRP.FindBagItem` (poison selection, Soulstone status). Every other
+  class was invalidating a cache nobody reads. The handler was already O(1)
+  (nils a variable; `BagContents()` rebuilds lazily), so this isn't a
+  performance fix — it's not paying for events with no reader. Split onto its
+  own frame, deferred to `PLAYER_LOGIN` (class isn't reliable before then), so
+  the spellbook-cache invalidation (`FindSpell`, used by every class) is
+  unaffected.
+
+### Considered and rejected: skipping the Symbol scan while solo
+- Looked at also skipping PallyPower's Symbol-of-Kings bag scan while ungrouped
+  (`SYMCOUNT` has nobody to reach solo). **Didn't do it** — `PP_Symbols` also
+  drives the buff-bar **title text** (`PallyPower.lua:1421`), and the bar can
+  be visible while solo (`PallyPower_UpdateUI` shows it off `IsPally == 1`
+  alone, no group requirement). Skipping the scan would leave a solo paladin
+  looking at a stale reagent count. The broadcast itself is already a
+  no-op when ungrouped (`PallyPower_SendMessage` targets `PARTY` with none
+  present), and frequency is already capped at once per frame by the
+  coalescing below regardless of group state — so there was no real cost left
+  to cut, only a correctness risk to take on.
+
+### Fixed (multi-second freeze on the first mailbox open)
+- **Opening a mailbox could stall the client for many seconds, once per
+  session.** RallyPower has no mailbox code — it was on the receiving end of
+  `BAG_UPDATE`. The stock `MAIL_SHOW` handler calls `OpenBackpack()`, and on the
+  *first* open of mail carrying uncached attachments the client re-fires
+  `BAG_UPDATE` dozens of times in one frame as each item resolves. PallyPower
+  answered **every one** synchronously with a full bags-0–4 walk
+  (`PallyPower.lua:576` → `PallyPower_ScanInventory`), so N events cost N × ~80
+  `GetContainerItemLink` calls in a single frame. Against a custom server, where
+  an uncached lookup is far dearer than a local hit, that's the freeze — and it
+  only happens once because the second open finds a warm cache.
+- **The scan is now coalesced**: during `BAG_UPDATE` it raises a dirty flag, and
+  the real scan runs at most **once per frame**. Calls from anywhere else
+  (`:1740` init, `:3069` refresh) stay synchronous, since those read `PP_Symbols`
+  immediately. A storm of 100 events now costs one scan instead of 100.
+- **Unresolved items are treated as "not yet, try next event"** rather than
+  waited on: an item still resolving returns a texture but a nil link, and its
+  resolve fires its own `BAG_UPDATE`. The scan holds briefly so a half-populated
+  bag can't broadcast a wrong `SYMCOUNT` to the raid, with a 5-second cap so a
+  permanently-unresolvable slot can't wedge it.
+- Only Paladins were exposed — `PallyPower_ScanInventory` returns immediately
+  for other classes (`PallyPower.lua:2897`).
+- New `Core/Aegis_BagScan.lua` wraps the engine function rather than editing it,
+  keeping `PallyPower/` byte-identical to stock. `/rpc bagscan` reports how many
+  scans ran versus how many were folded away.
+- **New off-client test**: `lua scripts/test_bagscan.lua` fires a 100-event
+  storm and asserts exactly one scan, plus the unresolved-item hold, its time
+  cap, and that direct callers stay synchronous.
+
+### Fixed (`/pp buff` crashed when anyone was dead)
+- **`PallyPower_AutoBuffAll` threw `attempt to compare number with nil`.** The
+  engine writes a buff-bar count as `"3 (1)"` the moment someone in the raid is
+  dead (`PallyPower.lua:1507`), but its own reader does `tonumber(text) > 0`
+  (`PallyPower.lua:3738`) — and `tonumber("3 (1)")` is `nil`. So `/pp buff` and
+  `/pp autobuff` errored for the whole pull as soon as there was a corpse.
+  **Not a version mismatch or a line-number shift** — this is a latent bug in
+  stock PallyPowerTW that only needs a dead raid member to surface, and the
+  reported line 3738 matches our file exactly.
+- Fixed by **replacing the function from our side** rather than editing
+  `PallyPower/`, keeping the vendored engine byte-identical to stock: the count
+  is now read as the *leading* number, so `"3 (1)"` correctly means "3 still
+  need it", and a button whose text isn't a count is skipped instead of
+  throwing. `"0 (2)"` correctly does nothing — only corpses are missing it.
+
 ### Fixed (post-release hygiene)
 - **Double-load removed.** `PallyPower.lua` and `MinimapButton.lua` were listed
   in the TOC *and* `<Script>`-included by their own XML, so each executed twice.

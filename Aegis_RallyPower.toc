@@ -38,4 +38,5 @@ Core\Aegis_Options.lua
 Core\Aegis_AssignPanel.lua
 Core\Aegis_Sync.lua
 
+Core\Aegis_BagScan.lua
 Core\Aegis_Popout.lua
