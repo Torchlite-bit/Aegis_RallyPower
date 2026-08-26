@@ -1858,22 +1858,6 @@ SlashCmdList["AEGISRP"] = function(msg)
         return
     end
 
-    -- Bag-scan coalescing counters. `folded` climbing far above `scans` is the
-    -- mailbox storm being absorbed; on a first mailbox open expect folded to
-    -- jump by dozens while scans goes up by one.
-    if msg == "bagscan" then
-        if not (AegisRP.BagScan and AegisRP.BagScan.Stats) then
-            DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r bag-scan coalescing isn't active "
-                .. "(the PallyPower engine didn't load).")
-            return
-        end
-        local scans, folded, owed = AegisRP.BagScan.Stats()
-        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis bag scans:|r " .. scans
-            .. " run, |cff5be07a" .. folded .. "|r folded away"
-            .. (owed and " |cffff8800(one owed)|r" or ""))
-        return
-    end
-
     -- Show/hide the personal kick-rotation strip (interrupt classes only).
     if msg == "kick" then
         if AegisRP_ToggleKickStrip then AegisRP_ToggleKickStrip() end

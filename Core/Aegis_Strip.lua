@@ -128,29 +128,16 @@ function AegisRP.FindBagItem(pattern)
     return fb, fs, fn
 end
 
--- cache invalidation: spellbook (every class calls FindSpell) vs bags (only
--- Rogue/Warlock call FindBagItem, via BagPoisons/Soulstone lookups). Split so
--- gating the bag half by class can't touch the spellbook half.
-local invSpells = CreateFrame("Frame", "AegisRP_StripSpellWatch")
-invSpells:RegisterEvent("SPELLS_CHANGED")
-invSpells:SetScript("OnEvent", function()
-    for k in pairs(spellCache) do spellCache[k] = nil end
-end)
-
--- BAG_UPDATE only matters to Rogue (poisons) and Warlock (Soulstone), so only
--- those two register for it - everyone else's bag cache would just sit unused.
--- The handler itself is already O(1) (nils the cache; BagContents rebuilds
--- lazily), so this isn't a stall fix, just not paying for events nobody reads.
--- Deferred to PLAYER_LOGIN: UnitClass("player") isn't reliable before then.
-local BAG_WATCH_CLASSES = { ROGUE = true, WARLOCK = true }
-local invBagInit = CreateFrame("Frame", "AegisRP_StripBagWatchInit")
-invBagInit:RegisterEvent("PLAYER_LOGIN")
-invBagInit:SetScript("OnEvent", function()
-    local _, tok = UnitClass("player")
-    if not BAG_WATCH_CLASSES[tok] then return end
-    local invBag = CreateFrame("Frame", "AegisRP_StripBagWatch")
-    invBag:RegisterEvent("BAG_UPDATE")
-    invBag:SetScript("OnEvent", function() bagCache = nil end)
+-- cache invalidation
+local inv = CreateFrame("Frame", "AegisRP_StripCacheWatch")
+inv:RegisterEvent("SPELLS_CHANGED")
+inv:RegisterEvent("BAG_UPDATE")
+inv:SetScript("OnEvent", function()
+    if event == "SPELLS_CHANGED" then
+        for k in pairs(spellCache) do spellCache[k] = nil end
+    else
+        bagCache = nil
+    end
 end)
 
 -- Target-debuff presence with SuperWoW id-learning.
