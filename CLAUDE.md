@@ -20,26 +20,124 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **0.14.0**. See `CHANGELOG.md` for the full history and
+Current version: **1.1.0**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
-## Hard environment rules (violating these bricks the addon)
+## HARD RULES — never violate these
 
-**Lua 5.0, not 5.1.** Never use:
-- `#` length operator → use `table.getn(t)`
-- `string.gmatch` → use `string.gfind`
-- `select(...)` → does not exist
-- numeric `%` modulo → use `math.mod`
-- varargs beyond the implicit `arg` table
+Not style preferences. Each one produces a runtime error, a silent failure, or
+a file the client refuses to load. Shared with **Aegis: Exchange**; the two
+addons keep these rules identical so a habit learned in one is safe in the
+other.
 
-**1.12 widget API:**
-- Frame handlers receive **implicit globals**: `this`, `event`, `arg1`… —
-  there is no `self`/`event` parameter.
-- **Definition order matters**: a `local function` must be defined before any
-  reference, or forward-declared (`local Foo` … later `Foo = function() end`).
-- No `C_Timer`, no secure templates, **no combat lockdown** (casting from code
-  is legal in combat — a genuine advantage over retail).
-- Timers/tickers = `OnUpdate` with an accumulator on `arg1`.
+### Language (Lua 5.0)
+
+1. **Lua 5.0 only.** No `string.match`, no `string.gmatch`, no `:match()`.
+   Use **`string.find`** (with captures) and **`string.gfind`** — the 5.0 name
+   for what later Lua calls `gmatch`.
+2. **No `#` length operator** → `table.getn(t)`. **No `table.setn`.**
+3. **No `%` modulo operator** → `math.mod(a, b)`. No integer division either —
+   combine `math.floor` with `math.mod`.
+4. **Varargs use the `arg` table and `arg.n`.** `select()` does not exist.
+5. Fine to use: `string.gsub`, `find`, `gfind`, `format`, `sub`, `lower`,
+   `upper`. Only the `match`/`gmatch` family is banned.
+
+### Events
+
+6. **Handlers read the GLOBALS `event`, `arg1`, `arg2`…** — never
+   `function(self, event, ...)`. On this client OnEvent receives no arguments;
+   the client sets `this`, `event` and `arg1..argN` as globals.
+
+7. **A handler for an event that can STORM must be O(1), state-gated, or
+   coalesced behind a once-per-frame flush.** Never an unbounded rescan, never
+   a per-item client query, inline in the handler.
+
+   This is a freeze rule, not a tidiness rule — and **this addon is the
+   cautionary case**. On 1.12 the client populates its item cache lazily, so
+   the *first* time a session opens mail with unseen attachments it re-fires
+   `BAG_UPDATE` (the stock `MAIL_SHOW` handler calls `OpenBackpack()`) dozens
+   of times in a few frames. RallyPower has no mailbox feature and still
+   stalled ~18s, purely because the vendored engine answered every fire with a
+   full bag walk (`PallyPower.lua:576` → `PallyPower_ScanInventory`).
+
+   A coalescing fix for that was written and then **reverted** (PR #40) once the
+   mail hang was traced elsewhere, so the unbounded scan is still live. Treat it
+   as a known cost, not a solved problem: if it is revisited, the shape is a
+   dirty flag flushed once per frame, and the vendored engine must be wrapped
+   rather than edited.
+
+   **Never inline in a stormable handler:** `GetItemInfo` per item, any
+   `GameTooltip:Set*` per item, a full bag or inventory walk, or a list
+   repaint. If a handler needs one, it needs a dirty flag.
+
+   Stormable events we touch: `BAG_UPDATE`, `UNIT_AURA`,
+   `PLAYER_AURAS_CHANGED`, `CHAT_MSG_ADDON`, `UNIT_CASTEVENT`.
+
+### Hooking
+
+8. **No `hooksecurefunc`, no secure hooks** — they don't exist in 1.12. Hook by
+   **saving the original and replacing it**, then calling the saved original.
+   Canonical examples: `Core/Aegis_Popout.lua` (`orig_PallyPower_UpdateUI`,
+   and the `PallyPower_AutoBuffAll` replacement).
+
+### The 32-upvalue ceiling
+
+9. **A function may read at most 32 file-scope locals. Lua 5.0 refuses to LOAD
+   a file that breaks this** — `too many upvalues (limit=32)` — so the whole
+   addon dies, not just that feature.
+
+   Every file-scope `local` a function references costs one upvalue. A big
+   builder function plus a few new layout constants is all it takes.
+   **We are already at 28**: `CreatePanel` in `Core/Aegis_AssignPanel.lua`
+   (lines 2483–2697). Four more file-scope locals in that file, referenced from
+   that function, and the addon stops loading.
+
+   **Nothing local catches this.** `verify.py` won't, and a Lua 5.1 harness
+   won't — 5.1's limit is 60. The only signal is:
+
+   ```
+   luac5.1 -l -p Core/Aegis_AssignPanel.lua | grep upvalues
+   ```
+
+   **The fix is a table.** Thirteen constants as thirteen locals cost thirteen
+   upvalues; the same thirteen as fields of one table cost one. Group new
+   panel/layout constants into a table rather than adding another file-scope
+   local next to an already-large function.
+
+### SavedVariables
+
+10. **SavedVariables are `nil` until `ADDON_LOADED` fires.** Never *read* a
+    stored value at file scope. The `X = X or {}` init form at the top of a
+    file is safe and is what we use (`AegisRP_Settings`, `AegisRP_Roles`,
+    `AegisRP_Assign`); reading `AegisRP_Settings.someOption` at file scope is
+    not — it sees the default, never the player's saved choice.
+
+### Frames & widget API
+
+11. Frame handlers receive **implicit globals**: `this`, `event`, `arg1`…
+12. **Definition order matters**: a `local function` must be defined before any
+    reference, or forward-declared (`local Foo` … later `Foo = function() end`).
+    This is the single most common way to brick this addon.
+13. Use **`getglobal()` / `setglobal()`** for dynamic frame names — never `_G`.
+14. Build frames with **`CreateFrame`** using **vanilla templates only**
+    (`UIPanelButtonTemplate`, `UIDropDownMenuTemplate`, `GameTooltipTemplate`).
+15. No `C_Timer`, no secure templates, **no combat lockdown** — casting from
+    code is legal in combat, a genuine advantage over retail.
+16. Timers/tickers = `OnUpdate` with an accumulator on `arg1`.
+17. **`UIDropDownMenu` has a button ceiling.** A menu built from the full raid
+    overflows it and silently clips names (`Too many buttons in
+    UIDropDownMenu`). Filter the list to plausible candidates — see
+    `TANK_CLASSES` in `Core/Aegis_AssignPanel.lua`.
+
+### Adding a file
+
+18. **Adding a `.lua` means editing the `.toc`, and that needs a FULL client
+    restart, not `/reload`** — 1.12 reads the file list at startup. Mark such a
+    release **restart** in `CHANGELOG.md`.
+
+---
+
+## Environment specifics
 
 **SuperWoW** (detected via `SUPERWOW_VERSION`) — always guard and always keep a
 bare-1.12 fallback:
@@ -64,7 +162,14 @@ python3 scripts/verify.py
 
 Checks structural balance and Lua 5.1-isms across `Core/` + `Classes/` +
 `PallyPower/`. The vendored engine is scanned as a tripwire — it should stay
-untouched, and a failure there means something edited it. There
+untouched, and a failure there means something edited it.
+
+Behavioural logic that can be isolated from the WoW API can get an off-client
+test under `scripts/test_*.lua`, run with any Lua (the addon files are
+5.0-compatible so they load unmodified). None exist right now - the one that
+did went out with the PR #40 revert.
+
+Beyond that there
 is no standalone Lua here; the real test is in-game — errors print to chat
 (the Core wraps risky paths in `pcall` and prints `AegisRP error: …`).
 Use `/rpc test` (test mode) to exercise everything on an under-levelled
@@ -177,10 +282,10 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
 
 ## Next up
 
-- **Raid-wide interrupt timers** *(in progress)* — the Kick tab observes others'
-  kicks locally, which needs them in range. Members now also **broadcast their
-  own** interrupt cooldown over `RPCX` (`KICK`), which reaches any distance and
-  needs no SuperWoW on the sender. The tab distinguishes the two sources.
+- **Raid-wide interrupt timers — DONE, validated in-game.** Members broadcast
+  their own interrupt cooldown over `RPCX` (`KICK`, `Aegis_Sync.lua`), which
+  reaches any distance and needs no SuperWoW on the sender; the Kick tab
+  distinguishes a synced report from a locally observed one (`kickSrc`).
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and
@@ -189,11 +294,105 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   it as a *third optional tier* behind SuperWoW, never a dependency. Note `#`
   and `%` stay forbidden regardless — they're syntax, not library functions.
 
+## README / CHANGELOG upkeep
+
+- **The badge block at the top of `README.md` is maintained by the project
+  owner.** Grouped deliberately: Discord (`5865F2`), then the 1.18.1 servers —
+  Octo WoW purple (`8A2BE2`), Capy WoW brown (`8B5A2B`); then the optional DLLs
+  on their own row, orange (`ff8c00`, "Recommended"). Keep the shields.io style
+  (`flat-square`, `labelColor=555`); do not reorder, re-row or restyle unasked.
+- **Nothing is Required.** The addon runs on a stock 1.12 client; every
+  SuperWoW call site has a fallback. Do not add a "Required" badge back.
+- **A badge must be earned in code.** Nampower and ClassicAPI badges were
+  removed because a grep of `Core/` and `Classes/` finds no calls to either.
+  UnitXP_SP3 keeps one because it is genuinely read
+  (`Aegis_Options.lua`, line-of-sight toggle). Same test for anything new: a
+  code change that actually depends on it, or no badge.
+- **The H1 carries the version** — `# Aegis: RallyPower (v1.1.0)` — so it is a
+  bump site.
+- One Discord invite, `https://discord.gg/hsgPTNkSX`. If it ever appears in
+  more than one place, change every occurrence together or none.
+- Every version bump gets a `CHANGELOG.md` entry. Mark a release **restart**
+  when it adds a new `.lua` to the `.toc`.
+- Be explicit about limitations and Turtle-unverified values.
+
+### A version bump touches THREE places
+
+Miss one and the in-game version stops matching the release:
+
+1. `Aegis_RallyPower.toc` — `## Version:`
+2. `README.md` — the **H1**: `# Aegis: RallyPower (vX.Y.Z)`
+3. `CHANGELOG.md` — a new entry
+
+(There is no `A.version` global in our Lua; `PallyPower_Version` belongs to the
+vendored engine and is not ours to bump.)
+
+### WHICH number to bump
+
+`MAJOR.MINOR.PATCH`. **RallyPower has had a public release, so MAJOR is 1.**
+
+- **MAJOR (`1`.x.y) — stability.** Moves only for a change that breaks a
+  player's existing setup without a migration — a SavedVariables format they
+  cannot upgrade into, a removed feature people depend on, or an `RPCX`
+  protocol change that silently desyncs mixed-version raids. Not for "a lot has
+  changed": size is not breakage.
+- **MINOR (1.`x`.0) — a new capability.** The addon can do something it could
+  not do before: a new tab, a new tracked buff, a new strip. The test: *could a
+  player notice a new thing, not merely a better thing?* Resets PATCH to 0.
+- **PATCH (1.x.`y`) — a fix or small correction.** Bug fixes, typos, wording,
+  colour, layout, and a rewritten routine that computes the same thing more
+  correctly. **No new capability.**
+
+**Changing HOW something is built is not a capability.** A layout change is a
+PATCH. So is a colour, a rename, a refactor, and a corrected calculation — even
+when the diff is large. Ask what the player can now DO, never how much moved.
+
+**When a release does both**, it is a MINOR — the larger claim wins.
+
+**Every shipped change bumps**, not once per merge. A branch that adds a
+capability then fixes three things in it merges as `1.2.3`, not `1.2.0`. The
+number is a running account of what happened.
+
+**Not a release, therefore not a bump:** anything under `scripts/` or `docs/`,
+and edits to `CLAUDE.md` itself. None of it ships.
+
+---
+
+## Quick self-check before committing Lua
+
+`python3 scripts/verify.py` covers the language rules and structural balance
+across `Core/` + `Classes/` + `PallyPower/`. It does **not** cover upvalues,
+definition order, or anything visual — those still need the checks below and a
+real client.
+
+- [ ] No `string.match` / `string.gmatch` / `:match()` — used `string.find` /
+      `string.gfind`.
+- [ ] No `#` — used `table.getn`. No `table.setn`.
+- [ ] No `%` operator — used `math.mod`.
+- [ ] No `select()`; varargs use `arg` / `arg.n`.
+- [ ] Event handlers read `event` / `arg1…` globals (not `self, event, ...`).
+- [ ] **No handler for a stormable event** (`BAG_UPDATE`, `UNIT_AURA`,
+      `PLAYER_AURAS_CHANGED`, `CHAT_MSG_ADDON`, `UNIT_CASTEVENT`) does an
+      unbounded rescan, a per-item query, or a repaint inline — it is O(1),
+      state-gated, or behind a dirty flag flushed once per frame.
+- [ ] No `hooksecurefunc` / secure hooks — saved original + replaced.
+- [ ] **No function exceeds 32 upvalues** —
+      `luac5.1 -l -p <file> | grep upvalues`. `verify.py` and any 5.1 harness
+      will NOT catch this; the client refuses to load the file.
+      `CreatePanel` in `Aegis_AssignPanel.lua` is already at **28**.
+- [ ] Every `local function` is defined before its first reference (or
+      forward-declared). Re-check after any scripted or multi-line edit.
+- [ ] No stored setting is **read** at file scope (`X = X or {}` init is fine).
+- [ ] `PallyPower/` is byte-identical to stock — `git diff --stat PallyPower/`
+      is empty. Extend it by save-and-replace from our side, never by editing.
+- [ ] Any off-client tests under `scripts/test_*.lua` still pass.
+- [ ] Tested in-game, or explicitly flagged as untested.
+
+---
+
 ## Working style
 
-- Version-bump `Aegis_RallyPower.toc` + README, and write a `CHANGELOG.md` entry
-  for every release; be explicit about limitations and Turtle-unverified
-  values.
 - When behavior must match PallyPower, **read its source and reuse its data**
   rather than re-implementing (see how the pop-out consumes engine tables).
-- Commit small; test in-game between steps; `/reload` is the loop.
+- Commit small; test in-game between steps; `/reload` is the loop (except when
+  the `.toc` changed — that needs a full restart).
