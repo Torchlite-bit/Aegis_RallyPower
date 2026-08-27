@@ -13,6 +13,21 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 ---
 
 ## [Unreleased]
+### Fixed (`/pp buff` crashed when anyone was dead)
+- **`PallyPower_AutoBuffAll` threw `attempt to compare number with nil`.** The
+  engine writes a buff-bar count as `"3 (1)"` the moment someone in the raid is
+  dead (`PallyPower.lua:1507`), but its own reader does `tonumber(text) > 0`
+  (`PallyPower.lua:3738`) — and `tonumber("3 (1)")` is `nil`. So `/pp buff` and
+  `/pp autobuff` errored for the whole pull as soon as there was a corpse.
+  **Not a version mismatch or a line-number shift** — this is a latent bug in
+  stock PallyPowerTW that only needs a dead raid member to surface, and the
+  reported line 3738 matches our file exactly.
+- Fixed by **replacing the function from our side** rather than editing
+  `PallyPower/`, keeping the vendored engine byte-identical to stock: the count
+  is now read as the *leading* number, so `"3 (1)"` correctly means "3 still
+  need it", and a button whose text isn't a count is skipped instead of
+  throwing. `"0 (2)"` correctly does nothing — only corpses are missing it.
+
 ### Fixed (post-release hygiene)
 - **Double-load removed.** `PallyPower.lua` and `MinimapButton.lua` were listed
   in the TOC *and* `<Script>`-included by their own XML, so each executed twice.
