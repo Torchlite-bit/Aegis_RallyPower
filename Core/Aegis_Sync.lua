@@ -9,7 +9,10 @@
 --
 -- Grammar (docs\DESIGN_SYNC.md): space-delimited head, ";"-delimited payload
 --   <v> REQ
---   <v> BLK <caster> <seq> <payload>      payload = cTOKEN;t<wids>;d<entries>;b<pairs>
+--   <v> BLK <caster> <seq> <payload>
+--         payload = cTOKEN;t<wids>;d<entries>;b<class.buff>;g<group.buff>
+--         "g" is additive: a v1 client skips tags it does not know, so group
+--         buffs reach new clients without desyncing old ones (no PROTO bump)
 --   <v> CLR <caster>
 --   <v> FA  <0|1>                          raid-wide Free Assignment flag (leader)
 --   <v> TS  <mt> <ot1> <ot2>               tank-slot order, "-" = empty (leader)
@@ -185,12 +188,32 @@ local function SerializeBlock(name)
         if table.getn(ents) > 0 then table.insert(parts, "b" .. table.concat(ents, ",")) end
     end
 
+    -- group buffs: <group>.<buffIndex> pairs, same shape as the "b" section.
+    -- A group can carry several buffs, so it simply appears several times
+    -- (g2.1,2.3,5.1 = group 2 gets buffs 1 and 3, group 5 gets buff 1).
+    if c.gbuff and token then
+        local cat = BuffCatalog(token)
+        local ents = {}
+        local maxg = (A.MaxGroups and A.MaxGroups()) or 8
+        for g = 1, maxg do
+            local set = c.gbuff[g]
+            if set then
+                -- walk the CATALOG, not the set, so ordering is deterministic
+                for i = 1, table.getn(cat) do
+                    local nm = cat[i].name or cat[i].group
+                    if nm and set[nm] then table.insert(ents, g .. "." .. i) end
+                end
+            end
+        end
+        if table.getn(ents) > 0 then table.insert(parts, "g" .. table.concat(ents, ",")) end
+    end
+
     return table.concat(parts, ";")
 end
 
 local function DeserializeBlock(caster, seq, payload)
     local block = { seq = tonumber(seq) or 0 }
-    local rawB = nil
+    local rawB, rawG = nil, nil
     for section in string.gfind(payload or "", "[^;]+") do
         local tag = string.sub(section, 1, 1)
         local data = string.sub(section, 2)
@@ -214,6 +237,8 @@ local function DeserializeBlock(caster, seq, payload)
             end
         elseif tag == "b" then
             rawB = data                       -- resolved after class is known
+        elseif tag == "g" then
+            rawG = data                       -- ditto: needs the caster's catalog
         end
     end
     local token = block.class or ClassOf(caster)
@@ -226,6 +251,19 @@ local function DeserializeBlock(caster, seq, payload)
             local cid = tonumber(cidS)
             local bd = cat and idxS and cat[tonumber(idxS)]
             if cid ~= nil and bd then block.cbuff[cid] = bd.name or bd.group end
+        end
+    end
+    if rawG and token then
+        local cat = BuffCatalog(token)
+        block.gbuff = {}
+        for ent in string.gfind(rawG, "[^,]+") do
+            local _, _, gS, idxS = string.find(ent, "^(%d+)%.(%d+)$")
+            local g = tonumber(gS)
+            local bd = cat and idxS and cat[tonumber(idxS)]
+            if g and bd then
+                block.gbuff[g] = block.gbuff[g] or {}
+                block.gbuff[g][bd.name or bd.group] = true
+            end
         end
     end
     return block
@@ -496,7 +534,8 @@ A.Subscribe(function(domain, caster)
         koDirty = true            -- leader shares the interrupt rotation
         return
     end
-    if domain == "totem" or domain == "duty" or domain == "cbuff" then
+    if domain == "totem" or domain == "duty" or domain == "cbuff"
+       or domain == "gbuff" then
         MarkDirty(caster)
     end
 end)

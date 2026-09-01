@@ -13,6 +13,39 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 ---
 
 ## [Unreleased]
+
+## [1.1.1] — 2026-09-01
+### Added (group-buff assignment model — foundation, no UI yet)
+- **Raid buffs can now be assigned by raid group, with several buffs per
+  group.** `Priest 1 covers groups 2 and 3`, and group 2 can carry *both*
+  Spirit and Stamina from the same caster. Model + sync only in this release;
+  the Raid Buffs tab still shows the class grid until the UI lands.
+- **Why a second domain instead of replacing the class grid.** Assigning by
+  *class* is a **paladin** mechanic — Greater Blessings are cast per class,
+  which is why PallyPower is class-shaped and why blessings keep that model
+  untouched. A priest/mage/druid group buff (Prayer of Fortitude, Arcane
+  Brilliance, Gift of the Wild) lands on a **party**, so group assignment is
+  the shape raids actually organise around. The class grid was inherited from
+  the paladin design into a place it doesn't fit. The two answer different
+  questions and both stay: `cbuff` is "which buff do I give class X" (the
+  strip's per-class wheel), `gbuff` is "which groups do I cover, with what".
+- New model API in `Core/Aegis_Assign.lua`: `SetGroupBuff`, `HasGroupBuff`,
+  `ToggleGroupBuff`, `GetGroupBuffs`, `GetCoveredGroups`, `ClearGroupBuffs`,
+  `MaxGroups`. A group holds a **set**, and empties itself out of the table
+  when its last buff is removed so serialised blocks stay small.
+- **No protocol version bump was needed.** The new `g` payload section
+  (`g<group>.<buffIndex>` pairs, same shape as the existing `b` section) is
+  additive, and the deserialiser's tag dispatch already skips sections it
+  doesn't recognise — so a v1.1.0 client receiving group buffs ignores that
+  one section and keeps everything else, rather than desyncing. This is
+  asserted by test, not assumed.
+- **New off-client test** — `lua scripts/test_groupbuff.lua`, 26 checks
+  covering the model, catalog-ordered output, bounds rejection, a full
+  serialise → broadcast → receive round-trip through the real sync layer, and
+  forward compatibility in both directions (a v1 payload still parses; an
+  unknown future tag is skipped without harming the sections around it).
+  Restores the `scripts/test_*.lua` convention that went out with the PR #40
+  revert.
 ### Fixed (`/pp buff` crashed when anyone was dead)
 - **`PallyPower_AutoBuffAll` threw `attempt to compare number with nil`.** The
   engine writes a buff-bar count as `"3 (1)"` the moment someone in the raid is

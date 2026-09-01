@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.1.0**. See `CHANGELOG.md` for the full history and
+Current version: **1.1.1**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -164,10 +164,17 @@ Checks structural balance and Lua 5.1-isms across `Core/` + `Classes/` +
 `PallyPower/`. The vendored engine is scanned as a tripwire — it should stay
 untouched, and a failure there means something edited it.
 
-Behavioural logic that can be isolated from the WoW API can get an off-client
-test under `scripts/test_*.lua`, run with any Lua (the addon files are
-5.0-compatible so they load unmodified). None exist right now - the one that
-did went out with the PR #40 revert.
+Behavioural logic that can be isolated from the WoW API gets an off-client test
+under `scripts/test_*.lua`, run with any Lua (the addon files are
+5.0-compatible so they load unmodified):
+
+```
+lua scripts/test_groupbuff.lua   # group-buff model + RPCX round-trip
+```
+
+Anything that crosses the wire should have one — a silent serialise/deserialise
+bug corrupts raid assignments with no error, which is the worst failure mode
+the sync layer has.
 
 Beyond that there
 is no standalone Lua here; the real test is in-game — errors print to chat
