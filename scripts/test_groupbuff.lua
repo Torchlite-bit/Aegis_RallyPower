@@ -140,6 +140,23 @@ check("group 5 emptied", table.getn(A.GetGroupBuffs(ME, 5)), 0)
 check("emptied group leaves coverage", table.concat(A.GetCoveredGroups(ME), ","), "2")
 
 --------------------------------------------------------------------------
+-- 2b. ClearGroupBuffs wipes the whole group plan (the panel's Clear button,
+--     which must NOT touch the separate per-class plan)
+--------------------------------------------------------------------------
+A.SetGroupBuff(ME, 4, "Divine Spirit", true)
+A.SetClassBuff(ME, 0, "Power Word: Fortitude")     -- the other domain
+check("clear returns true", A.ClearGroupBuffs(ME), true)
+check("all groups gone", table.getn(A.GetCoveredGroups(ME)), 0)
+check("class plan untouched by group clear", A.GetClassBuff(ME, 0),
+      "Power Word: Fortitude")
+A.SetClassBuff(ME, 0, nil)
+-- clearing an already-empty plan is a no-op, not an error
+check("clear is idempotent", A.ClearGroupBuffs(ME), true)
+-- rebuild the state the wire test below expects
+A.SetGroupBuff(ME, 2, "Power Word: Fortitude", true)
+A.SetGroupBuff(ME, 2, "Divine Spirit", true)
+
+--------------------------------------------------------------------------
 -- 3. Bounds: groups outside 1..8 are rejected, not stored
 --------------------------------------------------------------------------
 check("group 0 rejected", A.SetGroupBuff(ME, 0, "Divine Spirit", true), false)

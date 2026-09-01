@@ -1,4 +1,4 @@
-# Aegis: RallyPower (v1.1.1)
+# Aegis: RallyPower (v1.2.0)
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
@@ -52,7 +52,7 @@ Every class gets a dedicated buff bar with its own tracking, UI, and controls:
 Coordinate assignments across the raid with real-time sync:
 
 - **Blessings tab** — PallyPower's assignment grid with exact ranks/Symbol counts (byte-compatible with stock PallyPower)
-- **Raid Buffs** — Caster × class matrix for Priest/Mage/Druid buffs
+- **Raid Buffs** — Caster × **raid group** matrix for Priest/Mage/Druid, several buffs per group ("Priest 1 covers groups 2 and 3 with Fort + Spirit"). Toggle to the older per-class view for retargeting a caster's strip buttons
 - **Totems** — Shaman totem assignments (auto-grouped, icon labels)
 - **Debuffs** — Warrior Sunder, Mage Scorch duty tracking
 - **Kick tab** — The interrupt **rotation**: click a name to add them, mouse-wheel to reorder. Whoever sits highest and is off cooldown is up next

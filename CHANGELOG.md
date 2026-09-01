@@ -14,6 +14,36 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-01
+### Added (Raid Buffs tab: assign by raid group)
+- **The Raid Buffs tab can now assign by raid group.** Rows are still your
+  priests, mages and druids; columns are now **groups 1–8**, and each cell
+  holds one small toggle per buff that caster can give — so *"Priest 1 covers
+  groups 2 and 3, and group 2 gets Fortitude **and** Spirit"* is a few clicks
+  in one row, rather than something the panel simply couldn't express.
+- **Why by group.** A priest/mage/druid group buff (Prayer of Fortitude,
+  Arcane Brilliance, Gift of the Wild) lands on a **party**. Assigning by class
+  is a *paladin* mechanic — Greater Blessings are cast per class, which is why
+  PallyPower is class-shaped — and the class grid had been inherited into a
+  place it doesn't fit.
+- **Coverage now reads per group**: "No buffer for group: 4, 7" instead of by
+  class, because that's the gap that actually matters for these buffs.
+- **The per-class view is still there**, behind a *View: By Group / By Class*
+  toggle at the top of the tab (remembered per character). It wasn't deleted
+  because it does one thing nothing else can: a leader editing it retargets
+  that caster's own strip buttons. The strip's mouse-wheel only ever sets your
+  own.
+- **Clear only clears the view you're looking at.** The two are separate plans,
+  and wiping the hidden one would be invisible destruction. Asserted by test.
+
+### Notes
+- Untested in-game — the grid is visual and needs a real client. `/rpc test`
+  seats the preview raid, so the tab can be exercised solo.
+- `CreatePanel` went from **28 to 29** of the 32-upvalue ceiling. The nine new
+  layout constants live in one `GBUF` table on purpose: as separate file-scope
+  locals they would have pushed it to 38, and Lua 5.0 refuses to *load* a file
+  that breaks the limit — the whole addon, not just the tab.
+
 ## [1.1.1] — 2026-09-01
 ### Added (group-buff assignment model — foundation, no UI yet)
 - **Raid buffs can now be assigned by raid group, with several buffs per

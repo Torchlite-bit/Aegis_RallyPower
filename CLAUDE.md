@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.1.1**. See `CHANGELOG.md` for the full history and
+Current version: **1.2.0**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -88,9 +88,14 @@ other.
 
    Every file-scope `local` a function references costs one upvalue. A big
    builder function plus a few new layout constants is all it takes.
-   **We are already at 28**: `CreatePanel` in `Core/Aegis_AssignPanel.lua`
-   (lines 2483–2697). Four more file-scope locals in that file, referenced from
-   that function, and the addon stops loading.
+   **We are already at 29**: `CreatePanel` in `Core/Aegis_AssignPanel.lua`.
+   Three more file-scope locals in that file, referenced from that function,
+   and the addon stops loading.
+
+   The group-buff grid is the worked example: its nine layout constants went
+   into one `GBUF` table, so `CreatePanel` grew by exactly **one** upvalue (the
+   builder it calls) instead of ten. As nine separate locals it would have hit
+   38 and the addon would not have loaded.
 
    **Nothing local catches this.** `verify.py` won't, and a Lua 5.1 harness
    won't — 5.1's limit is 60. The only signal is:

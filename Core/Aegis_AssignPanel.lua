@@ -1217,6 +1217,264 @@ local function RefreshBuffGrid(p)
 end
 
 --------------------------------------------------------------------------
+-- RAID BUFFS, GROUP VIEW: caster x raid group, several buffs per cell.
+--
+-- Assigning by GROUP is the shape raids actually organise around for
+-- priest/mage/druid buffs, because the group version lands on a PARTY - see
+-- the gbuff domain in Aegis_Assign.lua for why the class grid is really a
+-- paladin mechanic. The class view stays behind a toggle rather than being
+-- deleted: a leader can retarget another caster's per-class strip buttons
+-- from it, and nothing else in the addon can do that.
+--
+-- Every cell holds one small toggle per buff the caster's class can give, so
+-- "group 2 gets Fortitude AND Spirit" is two clicks in one cell rather than a
+-- cycle through subsets.
+--
+-- Layout constants live in ONE table deliberately: CreatePanel sits near the
+-- Lua 5.0 32-upvalue ceiling and every file-scope local it reaches costs one.
+--------------------------------------------------------------------------
+
+local GBUF = {
+    ROWS  = 9,        -- pooled caster rows
+    COLS  = 8,        -- raid groups 1..8
+    CELLW = 62,
+    STEP  = 66,
+    SUBW  = 19,       -- one buff toggle inside a cell
+    SUBH  = 30,
+    TOP   = -84,
+    HDR   = -60,
+    MAXB  = 3,        -- widest catalog (priest); spare toggles stay hidden
+}
+
+local groupRows = {}
+
+local function GroupViewOn()
+    return AegisRP_Settings.buffView ~= "class"
+end
+
+local function GroupBuffClick()
+    if not (this.caster and this.group and this.buffName) then return end
+    if not A.ToggleGroupBuff(this.caster, this.group, this.buffName) then
+        Msg("You can't assign for " .. this.caster .. " (need lead/assist).")
+        return
+    end
+    RefreshCurrent()
+end
+
+local function GroupBuffTip()
+    if AegisRP_Settings.tooltips == false then return end
+    if not this.buffName then return end
+    if not SpellTip(this, this.buffName) then
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:SetText(this.buffName, 1, 1, 1)
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(this.caster .. "  -  Group " .. this.group, 1, 1, 1)
+    if A.HasGroupBuff(this.caster, this.group, this.buffName) then
+        GameTooltip:AddLine("Assigned - click to remove", 0.36, 0.88, 0.48)
+    else
+        GameTooltip:AddLine("Not assigned - click to assign", 0.6, 0.6, 0.6)
+    end
+    GameTooltip:Show()
+end
+
+local function BuffViewToggle()
+    AegisRP_Settings.buffView = GroupViewOn() and "class" or "group"
+    RefreshCurrent()
+end
+
+local function BuffViewTip()
+    if AegisRP_Settings.tooltips == false then return end
+    GameTooltip:SetOwner(this, "ANCHOR_LEFT")
+    GameTooltip:SetText("Assignment view", 1, 1, 1)
+    GameTooltip:AddLine("By Group - which raid groups this caster covers, and with which "
+        .. "buffs. A group can take several.", 0.7, 0.7, 0.7, 1)
+    GameTooltip:AddLine("By Class - the per-class grid. It retargets that caster's own "
+        .. "strip buttons, which only this view can do.", 0.7, 0.7, 0.7, 1)
+    GameTooltip:Show()
+end
+
+local function BuildGroupGrid(p)
+    -- view toggle, parked on the panel so it costs no file-scope local
+    local tg = MakeCell(p, 92, 18)
+    tg:SetPoint("TOPLEFT", p, "TOPLEFT", NAME_W, -40)
+    tg.label = Fnt(tg, 10, GOLD, "CENTER")
+    tg.label:SetWidth(92); tg.label:SetHeight(11)
+    tg.label:SetPoint("CENTER", tg, "CENTER", 0, 0)
+    tg:SetScript("OnClick", BuffViewToggle)
+    tg:SetScript("OnEnter", SafeTip(BuffViewTip))
+    tg:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    p.buffToggle = tg
+
+    p.groupHdr = {}
+    for g = 1, GBUF.COLS do
+        local l = Fnt(p, 10, GOLD, "CENTER")
+        l:SetWidth(GBUF.CELLW); l:SetHeight(11)
+        l:SetPoint("TOPLEFT", p, "TOPLEFT", NAME_W + (g - 1) * GBUF.STEP, GBUF.HDR)
+        l:SetText("Group " .. g)
+        p.groupHdr[g] = l
+    end
+
+    for r = 1, GBUF.ROWS do
+        local row = { cells = {} }
+        local y = GBUF.TOP - (r - 1) * ROW_H
+        row.name = Fnt(p, 11, INK)
+        row.name:SetWidth(NAME_W - 22); row.name:SetHeight(12)
+        row.name:SetPoint("TOPLEFT", p, "TOPLEFT", 6, y - 3)
+        row.sub = Fnt(p, 8, INK_FAINT)
+        row.sub:SetWidth(NAME_W - 22); row.sub:SetHeight(9)
+        row.sub:SetPoint("TOPLEFT", p, "TOPLEFT", 6, y - 17)
+        for g = 1, GBUF.COLS do
+            local cell = MakeCell(p, GBUF.CELLW, CELL_H)
+            cell:SetPoint("TOPLEFT", p, "TOPLEFT",
+                          NAME_W + (g - 1) * GBUF.STEP, y)
+            cell:EnableMouse(false)          -- the toggles inside take the clicks
+            cell.toggles = {}
+            for i = 1, GBUF.MAXB do
+                local t = MakeCell(cell, GBUF.SUBW, GBUF.SUBH)
+                t:SetPoint("LEFT", cell, "LEFT", 2 + (i - 1) * (GBUF.SUBW + 1), 0)
+                local ic = t:CreateTexture(nil, "ARTWORK")
+                ic:SetWidth(15); ic:SetHeight(15)
+                ic:SetPoint("CENTER", t, "CENTER", 0, 0)
+                t.icon = ic
+                t.txt = Fnt(t, 9, GOLD_BRIGHT, "CENTER")
+                t.txt:SetWidth(GBUF.SUBW); t.txt:SetHeight(10)
+                t.txt:SetPoint("CENTER", t, "CENTER", 0, 0)
+                t.group = g
+                t:SetScript("OnClick", GroupBuffClick)
+                t:SetScript("OnEnter", SafeTip(GroupBuffTip))
+                t:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                t:Hide()
+                cell.toggles[i] = t
+            end
+            cell:Hide()
+            row.cells[g] = cell
+        end
+        groupRows[r] = row
+    end
+end
+
+local function RefreshGroupGrid(p)
+    local rows = BufferList()
+    local covered = {}          -- [group] = true once any caster covers it
+    for r = 1, GBUF.ROWS do
+        local row = groupRows[r]
+        local entry = rows[r]
+        if entry then
+            local cc = CLASS_RGB[entry.token] or INK
+            row.name:SetText(entry.name)
+            row.name:SetTextColor(cc[1], cc[2], cc[3])
+            local cat = BuffCatalog(entry.token)
+            local n = table.getn(cat)
+            row.sub:SetText(SubFor(entry.name, entry.token))
+            for g = 1, GBUF.COLS do
+                local cell = row.cells[g]
+                local any = false
+                for i = 1, GBUF.MAXB do
+                    local t = cell.toggles[i]
+                    local bd = cat[i]
+                    if bd and i <= n then
+                        local nm = bd.name or bd.group
+                        t.caster = entry.name
+                        t.buffName = nm
+                        local on = A.HasGroupBuff(entry.name, g, nm)
+                        if on then any = true; covered[g] = true end
+                        local tex = BuffIconFor(entry.token, nm)
+                        if tex then
+                            t.icon:SetTexture(tex); t.icon:Show()
+                            t.icon:SetAlpha(on and 1 or 0.25)
+                            t.txt:SetText("")
+                        else
+                            t.icon:Hide()
+                            t.txt:SetText(string.sub(nm, 1, 2))
+                        end
+                        if on then
+                            t:SetBackdropColor(0.10, 0.22, 0.11, 0.95)
+                        else
+                            t:SetBackdropColor(0.10, 0.088, 0.07, 0.55)
+                        end
+                        t:Show()
+                    else
+                        t.caster = nil; t.buffName = nil
+                        t:Hide()
+                    end
+                end
+                if any then
+                    cell:SetBackdropColor(0.13, 0.115, 0.085, 0.95)
+                else
+                    cell:SetBackdropColor(0.10, 0.088, 0.07, 0.6)
+                end
+                cell:Show()
+            end
+        else
+            row.name:SetText(""); row.sub:SetText("")
+            for g = 1, GBUF.COLS do row.cells[g]:Hide() end
+        end
+    end
+
+    if table.getn(rows) == 0 then
+        p.cover:SetText("")
+        p.hint:SetText("No priests, mages or druids in your group. /rpc test seats the "
+            .. "preview raid so you can try the panel solo.")
+        return
+    end
+    -- coverage is per GROUP here, not per class: which parties has nobody taken
+    local gaps = {}
+    local live = GetNumRaidMembers() > 0 and 8 or 1
+    for g = 1, live do
+        if not covered[g] then table.insert(gaps, tostring(g)) end
+    end
+    if table.getn(gaps) == 0 then
+        p.cover:SetTextColor(OK_GREEN[1], OK_GREEN[2], OK_GREEN[3])
+        p.cover:SetText("Coverage: every group has a buffer.")
+    else
+        p.cover:SetTextColor(GAP_RED[1], GAP_RED[2], GAP_RED[3])
+        p.cover:SetText("No buffer for group: " .. table.concat(gaps, ", "))
+    end
+    p.hint:SetText("Click a buff to give it to that group - a group can take several from "
+        .. "one caster. Group buffs land on a party, which is why this view is by group. "
+        .. "Synced to the raid.")
+end
+
+-- Tab 3 entry point: swap the two views and hide whichever isn't showing.
+local function RefreshBuffTab(p)
+    local grp = GroupViewOn()
+    if p.buffToggle then
+        p.buffToggle.label:SetText(grp and "View: By Group" or "View: By Class")
+        p.buffToggle:Show()
+    end
+    for g = 1, GBUF.COLS do
+        if p.groupHdr and p.groupHdr[g] then
+            if grp then p.groupHdr[g]:Show() else p.groupHdr[g]:Hide() end
+        end
+    end
+    for c = 0, 9 do
+        if buffHeader[c] then
+            if grp then buffHeader[c]:Hide() else buffHeader[c]:Show() end
+        end
+    end
+    if grp then
+        for r = 1, BUFF_ROWS do
+            local row = buffRows[r]
+            if row then
+                row.name:SetText(""); row.sub:SetText("")
+                for c = 0, 9 do row.cells[c]:Hide() end
+            end
+        end
+        RefreshGroupGrid(p)
+    else
+        for r = 1, GBUF.ROWS do
+            local row = groupRows[r]
+            if row then
+                row.name:SetText(""); row.sub:SetText("")
+                for g = 1, GBUF.COLS do row.cells[g]:Hide() end
+            end
+        end
+        RefreshBuffGrid(p)
+    end
+end
+
+--------------------------------------------------------------------------
 -- DUTY TABS - Debuffs / Utility as two-column cards
 --------------------------------------------------------------------------
 
@@ -2408,7 +2666,7 @@ local function RefreshInner()
     local p = panels[currentTab]
     if currentTab == 1 then RefreshBlessings(p)
     elseif currentTab == 2 then RefreshTotems(p)
-    elseif currentTab == 3 then RefreshBuffGrid(p)
+    elseif currentTab == 3 then RefreshBuffTab(p)
     elseif currentTab == 5 then RefreshKick(p)
     elseif currentTab == 6 then RefreshRoles(p)
     elseif DUTY_TAB[currentTab] then RefreshDutyTab(p, currentTab) end
@@ -2451,12 +2709,17 @@ local function ClearCurrentTab()
         end
         Msg("Totem assignments cleared.")
     elseif currentTab == 3 then
+        -- clear whichever view is on screen, not both: the two are separate
+        -- plans and wiping the hidden one would be invisible destruction
+        local grp = GroupViewOn()
         for _, entry in ipairs(BufferList()) do
             if A.CanEdit(Me(), entry.name) then
-                for c = 0, 9 do A.SetClassBuff(entry.name, c, nil) end
+                if grp then A.ClearGroupBuffs(entry.name)
+                else for c = 0, 9 do A.SetClassBuff(entry.name, c, nil) end end
             end
         end
-        Msg("Raid buff assignments cleared.")
+        Msg(grp and "Group buff assignments cleared."
+                or "Per-class buff assignments cleared.")
     elseif DUTY_TAB[currentTab] then
         for _, def in ipairs(DutyList(DUTY_TAB[currentTab])) do
             local holders = A.GetDutyCasters(def.key)
@@ -2624,6 +2887,7 @@ local function CreatePanel()
     BuildBlessings(panels[1])
     BuildTotems(panels[2])
     BuildBuffGrid(panels[3])
+    BuildGroupGrid(panels[3])
     BuildDutyTab(panels[4], 4)
     BuildKick(panels[5])
     BuildRoles(panels[6])
