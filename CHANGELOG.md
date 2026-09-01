@@ -14,6 +14,32 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-01
+### Added (several people can own the same debuff)
+- **Stacking debuffs now take as many owners as you want.** Sunder Armor and
+  Scorch are cumulative — a real raid runs two or three warriors on Sunder and
+  a pair of mages on Scorch — but the Debuffs tab could only ever name **one**
+  person per duty, so the assignment never matched what the raid was actually
+  doing. Clicking a stacking card now **adds** an owner rather than replacing
+  the last one; right-click drops the most recently added. Cycling past the
+  last candidate clears the duty, as before.
+- **Non-stacking duties are unchanged and stay single-owner.** Curses and
+  Expose Armor overwrite each other on the target, so exactly one person should
+  hold them; those cards still cycle one name at a time. The card tooltip has
+  always said which kind a duty is (“any number” vs “one owner”) — now the
+  panel behaves that way too.
+- Each owner still broadcasts **their own** claim in **their own** `RPCX`
+  block, so multi-owner duties need no protocol change and mixed-version raids
+  degrade to what an older client understands. Asserted by
+  `scripts/test_groupbuff.lua`.
+
+### Fixed
+- **Class names no longer bleed through the Raid Buffs group grid.** Switching
+  the tab to the group view hid the class *icons* but left their *labels*
+  drawn, so “Warrior”, “Shaman”, “Priest” and “Pet” sat underneath the
+  group headers. The builder now keeps a reference to each label so the view
+  switch can hide it with its icon.
+
 ## [1.2.0] — 2026-09-01
 ### Added (Raid Buffs tab: assign by raid group)
 - **The Raid Buffs tab can now assign by raid group.** Rows are still your

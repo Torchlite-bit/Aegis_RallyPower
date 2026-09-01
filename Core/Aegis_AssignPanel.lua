@@ -1107,6 +1107,11 @@ local function BuffCellTip()
 end
 
 local function BuildBuffGrid(p)
+    -- The class header is TWO widgets: an icon and the class name under it.
+    -- Both have to be reachable, or the group view can't hide the half it
+    -- doesn't own. Labels park on the panel so they cost no file-scope local
+    -- (CreatePanel is near the 32-upvalue ceiling).
+    p.classHdrLbl = {}
     for c = 0, 9 do
         local t = p:CreateTexture(nil, "ARTWORK")
         t:SetWidth(24); t:SetHeight(24)
@@ -1116,6 +1121,7 @@ local function BuildBuffGrid(p)
         l:SetPoint("TOPLEFT", p, "TOPLEFT", NAME_W + c * 44 - 1, -68)
         l:SetText(CLASS_LABEL[c])
         buffHeader[c] = t
+        p.classHdrLbl[c] = l
     end
     for r = 1, BUFF_ROWS do
         local row = { cells = {} }
@@ -1452,6 +1458,11 @@ local function RefreshBuffTab(p)
         if buffHeader[c] then
             if grp then buffHeader[c]:Hide() else buffHeader[c]:Show() end
         end
+        -- the class NAME under each icon is a separate widget; missing it left
+        -- "Warrior Rogue Priest ..." showing through under the group headers
+        if p.classHdrLbl and p.classHdrLbl[c] then
+            if grp then p.classHdrLbl[c]:Hide() else p.classHdrLbl[c]:Show() end
+        end
     end
     if grp then
         for r = 1, BUFF_ROWS do
@@ -1544,8 +1555,43 @@ local function CycleDutyHolder(key, dir)
         RefreshCurrent()
         return
     end
-    local cur = holders[1] and holders[1].caster or nil
     local curTarget = holders[1] and holders[1].target      -- preserve the target
+    local val = true
+    if def.target ~= "none" and type(curTarget) == "string" then val = curTarget end
+
+    -- A `multi` duty ACCUMULATES owners instead of replacing them: several
+    -- warriors really do stack Sunder, and several mages really do stack
+    -- Scorch. Forward adds the next candidate who isn't already on it and
+    -- wraps to empty once everyone is; backward drops the last one added.
+    -- Single-owner duties (curses, Expose) keep the plain replace-cycle,
+    -- because two people casting them just overwrite each other.
+    if def.multi then
+        local held = {}
+        for i = 1, table.getn(holders) do held[holders[i].caster] = true end
+        if dir > 0 then
+            for i = 1, n do
+                if not held[cands[i]] then
+                    A.SetDuty(cands[i], key, val)
+                    RefreshCurrent()
+                    return
+                end
+            end
+            -- everyone already has it: wrap round to nobody
+            for i = 1, table.getn(holders) do A.ClearDuty(holders[i].caster, key) end
+        else
+            for i = n, 1, -1 do
+                if held[cands[i]] then
+                    A.ClearDuty(cands[i], key)
+                    RefreshCurrent()
+                    return
+                end
+            end
+        end
+        RefreshCurrent()
+        return
+    end
+
+    local cur = holders[1] and holders[1].caster or nil
     local idx = 0
     for i = 1, n do if cands[i] == cur then idx = i end end
     idx = idx + dir
@@ -1554,8 +1600,6 @@ local function CycleDutyHolder(key, dir)
         A.ClearDuty(holders[i].caster, key)
     end
     if idx > 0 then
-        local val = true
-        if def.target ~= "none" and type(curTarget) == "string" then val = curTarget end
         A.SetDuty(cands[idx], key, val)
     end
     RefreshCurrent()
@@ -1712,8 +1756,9 @@ local function RefreshDutyTab(p, tabIndex)
         p.note:SetTextColor(OK_GREEN[1], OK_GREEN[2], OK_GREEN[3])
     end
     p.cover:SetText("")
-    p.hint:SetText("Click a card to cycle who's responsible (lead/assist cycles anyone; "
-        .. "others claim or unclaim themselves). Synced to the raid.")
+    p.hint:SetText("Click a card to set who's responsible (lead/assist sets anyone; others "
+        .. "claim or unclaim themselves). Stacking debuffs - Sunder, Scorch - take SEVERAL "
+        .. "owners: each click adds another, right-click drops the last. Synced to the raid.")
 end
 
 --------------------------------------------------------------------------

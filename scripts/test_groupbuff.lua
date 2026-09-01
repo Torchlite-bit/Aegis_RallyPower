@@ -191,6 +191,28 @@ if blk then
 end
 
 --------------------------------------------------------------------------
+-- 4b. Multi-owner duties: several casters hold the SAME duty at once.
+--     Each caster owns their own block, so this has to survive the wire as
+--     two independent BLKs rather than one shared list.
+--------------------------------------------------------------------------
+A.RegisterDuty{ key = "SUNDER", wid = 7, class = "WARRIOR", tab = "debuff",
+                spell = "Sunder Armor", target = "none", multi = true, dur = 30 }
+A.SetDuty("War1", "SUNDER", true)
+A.SetDuty("War2", "SUNDER", true)
+A.SetDuty("War3", "SUNDER", true)
+check("three owners on one duty", table.getn(A.GetDutyCasters("SUNDER")), 3)
+A.ClearDuty("War2", "SUNDER")
+check("dropping one leaves the others", table.getn(A.GetDutyCasters("SUNDER")), 2)
+
+-- and each owner's claim rides its own block
+sent = {}
+pumpFrames(1.0)
+local w1 = lastBlockFor("War1")
+local w3 = lastBlockFor("War3")
+check("owner 1 broadcast its own claim", w1 ~= nil and string.find(w1, "d7", 1, true) ~= nil, true)
+check("owner 2 broadcast its own claim", w3 ~= nil and string.find(w3, "d7", 1, true) ~= nil, true)
+
+--------------------------------------------------------------------------
 -- 5. FORWARD COMPATIBILITY, both directions
 --------------------------------------------------------------------------
 -- a v1 payload (no g section) must still parse everything it does know
