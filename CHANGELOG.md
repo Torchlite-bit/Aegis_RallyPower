@@ -14,6 +14,56 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-09-01
+### Added (taunt rotation)
+- **There is now a taunt rotation, and it works exactly like the kick one.**
+  Set a priority order of tanks; whoever sits highest and is off cooldown is
+  up. Taunting puts you on cooldown and hands the top spot to the next person
+  by itself, and anyone dead, absent or on cooldown is skipped — so nothing
+  has to be advanced by hand and there is no turn pointer to drift out of sync.
+- **Its own strip** (`/rpc taunt`), with the same four states the kick strip
+  has — **TAUNT NOW** / On deck / Holding / Cooldown — and its own sound
+  toggle in Options. A protection warrior has a kick *and* a taunt, so both
+  strips can be up at once and they track independently.
+- **Warrior Taunt and Druid Growl only.** Mocking Blow is a taunt too, but at a
+  two-minute cooldown it is never part of a rotation, and one cooldown per
+  class means listing it would time every warrior's Taunt wrong. Turtle's
+  tanking paladins and shamans hold threat without a taunt as far as we have
+  verified on-realm; if that changes, one line in the `TAUNTS` catalog is the
+  whole fix.
+- **Taunt cooldowns sync like kick ones.** Members broadcast their own over
+  `RPCX` (`TNT`), which is exact and reaches any distance without SuperWoW on
+  the sender; with SuperWoW we also observe casts as a fallback for people
+  running a plain client. The shared order rides `TO`, leader-gated like `KO`.
+
+### Changed
+- **The Kick tab is now the Rotations tab**, with a Kick/Taunt switch in its
+  top-right — the same control the Raid Buffs tab uses. Two tabs would have
+  been the obvious thing, but the tab row is full at six and the two grids are
+  the same list with a different ability column, so a view switch beats a
+  cramped seventh tab. **Clear** on that tab now clears the rotation you are
+  looking at, not just its timers, and never touches the hidden one.
+- **Kicks and taunts are one implementation, not two.** `ROT` holds a record
+  per rotation (catalog, cooldown state, strip, simulation) and every engine
+  function takes one, so a fix to the rotation rules lands in both and a third
+  rotation costs a table entry rather than another 400 lines. The model layer
+  is keyed the same way (`A.GetRotation("taunt")`); the older `A.GetKickOrder`
+  family survives as wrappers, so nothing calling them changed.
+- One cooldown poller and one turn-cue ticker now serve both rotations instead
+  of one each — a warrior with both abilities costs the same `OnUpdate` work
+  as a rogue with one.
+- Test mode simulates whichever rotations you are actually in, so a mage no
+  longer gets taunt chatter and a druid no longer gets interrupt chatter.
+- Roster pruning drops leavers from every rotation at once, so adding a
+  rotation can't quietly leave stale names in it.
+
+### Testing
+- New `scripts/test_rotation.lua` (42 checks): the two rotations stay
+  independent stores, the kick-named wrappers still behave, the cap and the
+  leader gate hold, pruning reaches both, each rotation rides its own wire
+  message without leaking into the other, `-` clears, and `KICK`/`TNT` route to
+  the right rotation while nonsense values are dropped.
+
 ## [1.3.0] — 2026-09-01
 ### Added (several people can own the same debuff)
 - **Stacking debuffs now take as many owners as you want.** Sunder Armor and

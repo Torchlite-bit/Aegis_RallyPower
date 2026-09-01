@@ -17,7 +17,9 @@
 --   <v> FA  <0|1>                          raid-wide Free Assignment flag (leader)
 --   <v> TS  <mt> <ot1> <ot2>               tank-slot order, "-" = empty (leader)
 --   <v> KO  <name> <name> ...              kick rotation order, "-" = empty (leader)
+--   <v> TO  <name> <name> ...              taunt rotation order, "-" = empty (leader)
 --   <v> KICK <seconds>                     my interrupt just went on cooldown
+--   <v> TNT  <seconds>                     my taunt just went on cooldown
 --   <v> CHUNK <caster> <seq> <i> <n> <payload>   one slice of an oversized BLK
 -- Wids never cross the wire as spell names (Turtle-rename safe); unknown wids
 -- are skipped, not errored (forward-compat). Permission mirrors PallyPower:
@@ -39,16 +41,17 @@ local REQ_THROTTLE = 3         -- min seconds between our own REQ storms
 local MAX_LEN     = 250         -- addon-message payload ceiling
 local CHUNK_SIZE  = 240         -- max payload per chunk (leave room for header)
 local CHUNK_EXPIRE = 30         -- seconds before reassembly buffer expires
-local KICK_THROTTLE = 1         -- min seconds between our own KICK broadcasts
+local CD_THROTTLE = 1           -- min seconds between our own KICK/TNT broadcasts
 
 local applyingRemote = false    -- true while installing a received block
 local dirty = {}                -- set of caster names pending broadcast
 local freeDirty = false         -- Free Assignment flag changed, pending send
 local tsDirty = false           -- tank-slot order changed, pending send
 local koDirty = false           -- kick rotation changed, pending send
+local toDirty = false           -- taunt rotation changed, pending send
 local flushAccum = 0
 local lastReq = -100
-local lastKickSent = -100       -- GetTime() of our last KICK broadcast
+local lastCdSent = { KICK = -100, TNT = -100 }   -- last self-cooldown broadcast
 local chunks = {}               -- reassembly buffer: [caster][seq] = { chunks, expire_time }
 
 -- Wire telemetry for /rpc slots. Verifying sync used to need two clients side
@@ -352,22 +355,28 @@ local function SendREQ()
     RawSend(PROTO_V .. " REQ")
 end
 
--- Interrupt cooldown (Kick tab). Self-reported and sent the instant it starts,
--- so there is nothing to batch through the flush - and no leader gate, because
--- you can only ever announce your OWN cooldown. Called by the panel's poller.
+-- My own rotation cooldown (Kick / Taunt tabs). Self-reported and sent the
+-- instant it starts, so there is nothing to batch through the flush - and no
+-- leader gate, because you can only ever announce your OWN cooldown. Called by
+-- the panel's pollers.
 --
--- Rate-limited to one per KICK_THROTTLE seconds. The poller only fires this on
--- a ready->cooldown edge, so in normal play it's already self-limiting; the
--- floor is insurance against a bugged caller or a shared-cooldown spell
--- flickering the edge, since this is the one path that bypasses the flush.
--- Shortest real interrupt cooldown is 6s (Earth Shock), so 1s drops nothing.
-function AegisRP_SendKick(remaining)
+-- Rate-limited to one per CD_THROTTLE seconds, per message kind so a warrior
+-- who taunts and pummels in the same second still reports both. The pollers
+-- only fire on a ready->cooldown edge, so in normal play this is already
+-- self-limiting; the floor is insurance against a bugged caller or a
+-- shared-cooldown spell flickering the edge, since this is the one path that
+-- bypasses the flush. The shortest real cooldown here is 6s (Earth Shock), so
+-- a 1s floor drops nothing.
+local function SendCooldown(cmd, remaining)
     if not remaining or remaining <= 0 then return end
     local now = GetTime()
-    if now - lastKickSent < KICK_THROTTLE then return end
-    lastKickSent = now
-    RawSend(PROTO_V .. " KICK " .. string.format("%.1f", remaining))
+    if now - (lastCdSent[cmd] or -100) < CD_THROTTLE then return end
+    lastCdSent[cmd] = now
+    RawSend(PROTO_V .. " " .. cmd .. " " .. string.format("%.1f", remaining))
 end
+
+function AegisRP_SendKick(remaining)  SendCooldown("KICK", remaining) end
+function AegisRP_SendTaunt(remaining) SendCooldown("TNT",  remaining) end
 
 --------------------------------------------------------------------------
 -- dirty set + debounced flush
@@ -388,7 +397,7 @@ local function MarkAuthoritativeDirty()
     end
     dirty[Me()] = true          -- always assert myself, even with an empty block skipped later
     -- announce free-assign, tank order and the kick rotation
-    if iLead then freeDirty = true; tsDirty = true; koDirty = true end
+    if iLead then freeDirty = true; tsDirty = true; koDirty = true; toDirty = true end
 end
 
 local function Flush()
@@ -404,11 +413,15 @@ local function Flush()
         if not (AegisRP.IsTestMode and AegisRP.IsTestMode()) then stat.tsSent = GetTime() end
     end
     tsDirty = false
-    -- kick rotation (leader only; the raid's interrupt priority order)
+    -- rotations (leader only; the raid's interrupt and taunt priority orders)
     if koDirty and A.IAmLead() then
-        RawSend(PROTO_V .. " KO " .. table.concat(A.EncodeKickOrder(), " "))
+        RawSend(PROTO_V .. " KO " .. table.concat(A.EncodeRotation("kick"), " "))
     end
     koDirty = false
+    if toDirty and A.IAmLead() then
+        RawSend(PROTO_V .. " TO " .. table.concat(A.EncodeRotation("taunt"), " "))
+    end
+    toDirty = false
     local any = false
     for name in pairs(dirty) do any = true; break end
     if not any then return end
@@ -479,22 +492,24 @@ local function Receive(sender, msg)
         return
     end
 
-    if cmd == "KO" then
-        -- only a leader may set the shared kick rotation (tok[3..] = names)
+    if cmd == "KO" or cmd == "TO" then
+        -- only a leader may set a shared rotation (tok[3..] = names)
         if LeaderLike(sender) then
             applyingRemote = true
-            A.ApplyKickOrder(A.DecodeKickOrder(tok, 3))
+            A.ApplyRotation((cmd == "KO") and "kick" or "taunt",
+                            A.DecodeRotation(tok, 3))
             applyingRemote = false
         end
         return
     end
 
-    if cmd == "KICK" then
-        -- a member reporting their own interrupt cooldown; they're always
-        -- authoritative for themselves, so no permission check applies
+    if cmd == "KICK" or cmd == "TNT" then
+        -- a member reporting their own cooldown; they're always authoritative
+        -- for themselves, so no permission check applies
         local cd = tonumber(tok[3])
-        if cd and cd > 0 and cd < 600 and AegisRP.NoteRemoteKick then
-            AegisRP.NoteRemoteKick(sender, cd)
+        if cd and cd > 0 and cd < 600 and AegisRP.NoteRemoteCooldown then
+            AegisRP.NoteRemoteCooldown((cmd == "KICK") and "kick" or "taunt",
+                                       sender, cd)
         end
         return
     end
@@ -532,6 +547,10 @@ A.Subscribe(function(domain, caster)
     end
     if domain == "kickorder" then
         koDirty = true            -- leader shares the interrupt rotation
+        return
+    end
+    if domain == "tauntorder" then
+        toDirty = true            -- leader shares the taunt rotation
         return
     end
     if domain == "totem" or domain == "duty" or domain == "cbuff"

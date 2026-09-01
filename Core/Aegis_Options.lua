@@ -515,6 +515,10 @@ local function ButtonsTabEntries()
         table.insert(entries, { type = "check", key = "kickSound", label = "Sound when it's your turn to kick", default = true,
             tip = "Plays when you reach the top of the kick rotation - you're watching the boss, not the strip.\nHide the strip itself with /rpc kick." })
     end
+    if AegisRP.HasTaunt and AegisRP.HasTaunt() then
+        table.insert(entries, { type = "check", key = "tauntSound", label = "Sound when it's your turn to taunt", default = true,
+            tip = "Plays when you reach the top of the taunt rotation.\nHide the strip itself with /rpc taunt." })
+    end
     table.insert(entries, { type = "check", label = "UnitXP SP3 line-of-sight", default = false,
         tip = "Use UnitXP.dll (if loaded) to skip out-of-line-of-sight targets.",
         get = function() return PP_PerUser and PP_PerUser.useunitxp_sp3 end,

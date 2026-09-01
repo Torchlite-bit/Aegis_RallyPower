@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.3.0**. See `CHANGELOG.md` for the full history and
+Current version: **1.4.0**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -175,6 +175,7 @@ under `scripts/test_*.lua`, run with any Lua (the addon files are
 
 ```
 lua scripts/test_groupbuff.lua   # group-buff model + RPCX round-trip
+lua scripts/test_rotation.lua    # kick/taunt rotations + KO/TO/KICK/TNT wire
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -272,7 +273,7 @@ All three steps shipped and were confirmed on a two-client Turtle test:
    and tank-slot (`TS`) sharing. **Verified**: a leader's MT/OT plan appears on
    a second client, which shows `lead=no` and the leader's slots.
 3. **Assignment panel** — `Core/Aegis_AssignPanel.lua`, six tabs: Blessings,
-   Totems, Raid Buffs, Debuffs, Kick, Roles.
+   Totems, Raid Buffs, Debuffs, Rotations, Roles.
 
 **Cast observation is validated.** `UNIT_CASTEVENT` fires on Turtle 1.18.1,
 `UnitName()` resolves GUIDs, `SpellInfo()` resolves ids, and `evt` is `CAST` on
@@ -296,8 +297,17 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
 
 - **Raid-wide interrupt timers — DONE, validated in-game.** Members broadcast
   their own interrupt cooldown over `RPCX` (`KICK`, `Aegis_Sync.lua`), which
-  reaches any distance and needs no SuperWoW on the sender; the Kick tab
-  distinguishes a synced report from a locally observed one (`kickSrc`).
+  reaches any distance and needs no SuperWoW on the sender; the Rotations tab
+  distinguishes a synced report from a locally observed one (`r.src`).
+- **Rotations are one engine, two records — untested in-game.** Kick and taunt
+  are the same problem, so `ROT` in `Aegis_AssignPanel.lua` holds both (catalog,
+  cooldown state, strip, sim) and every function takes a record. `A.*Rotation*`
+  in `Aegis_Assign.lua` is keyed the same way; the `A.*Kick*` names survive as
+  wrappers because the panel, strip and sync layer all call them. Adding a third
+  rotation is a `ROT` entry plus a `ROT_KIND` entry plus a wire tag — do it that
+  way, never by copying the engine. **Turtle-unverified:** the `TAUNTS` catalog
+  has Warrior Taunt and Druid Growl only; if Turtle gives its tanking paladins
+  or shamans a taunt, one entry there is the whole fix.
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and

@@ -1858,9 +1858,13 @@ SlashCmdList["AEGISRP"] = function(msg)
         return
     end
 
-    -- Show/hide the personal kick-rotation strip (interrupt classes only).
+    -- Show/hide the personal rotation strips (classes that have the ability).
     if msg == "kick" then
         if AegisRP_ToggleKickStrip then AegisRP_ToggleKickStrip() end
+        return
+    end
+    if msg == "taunt" then
+        if AegisRP_ToggleTauntStrip then AegisRP_ToggleTauntStrip() end
         return
     end
 

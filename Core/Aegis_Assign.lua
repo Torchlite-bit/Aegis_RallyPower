@@ -453,6 +453,10 @@ end
 -- own block always survives, so a leader's plan persists across relogs)
 --------------------------------------------------------------------------
 
+-- defined with the rotations further down (it needs their store layout);
+-- forward-declared here because PruneToRoster is written above them
+local PruneRotations
+
 function A.PruneToRoster()
     local present = {}
     present[UnitName("player")] = true
@@ -482,15 +486,10 @@ function A.PruneToRoster()
         AegisRP_Assign.casters[name] = nil
         AegisRP.AssignStatus[name] = nil
     end
-    -- drop kickers who left: the rotation skips absent members anyway, but a
-    -- stale name would sit in the list forever and confuse the panel's order.
-    -- (Only the real store - the test-mode preview rotation is separate.)
-    if not testing and AegisRP_Roles and AegisRP_Roles.kickOrder then
-        local ko = AegisRP_Roles.kickOrder
-        for i = table.getn(ko), 1, -1 do
-            if not present[ko[i]] then table.remove(ko, i) end
-        end
-    end
+    -- drop rotation members who left: a rotation skips absent people anyway,
+    -- but a stale name would sit in the list forever and confuse the panel's
+    -- order. (Only the real stores - the test-mode previews are separate.)
+    if not testing then PruneRotations(present) end
     -- heal duties held by a caster of the wrong class (stale data from before
     -- class-matching was enforced), where the class is known
     local healed = false
@@ -752,110 +751,158 @@ function A.ApplyTankSlots(list)
 end
 
 --------------------------------------------------------------------------
--- KICK ROTATION - an ordered priority list of interrupters.
+-- ROTATIONS - ordered priority lists of people who share one job.
+--
+-- Two of them exist: "kick" (who interrupts) and "taunt" (who picks the boss
+-- up). They are the same problem, so they are one implementation with a `kind`
+-- rather than two copies: a bug fixed in the rotation rules is fixed in both,
+-- and a third rotation later costs a table entry, not another 100 lines.
 --
 -- Deliberately just an ORDER, with no "whose turn" pointer: whose turn it is
 -- falls out of the order plus everyone's cooldowns (the first person in the
--- list whose kick is actually ready). That makes the rotation stateless - every
--- client computes the same answer from the same synced data, so there is no
--- turn counter to drift, desync, or reset on a wipe. Using a kick puts you on
--- cooldown, which hands the top spot to the next person automatically.
+-- list whose ability is actually ready). That makes a rotation stateless -
+-- every client computes the same answer from the same synced data, so there is
+-- no turn counter to drift, desync, or reset on a wipe. Using the ability puts
+-- you on cooldown, which hands the top spot to the next person automatically.
 --------------------------------------------------------------------------
-local MAX_KICKERS = 10          -- keeps the wire message well inside one send
-local previewKickOrder = {}
+local MAX_ROT = 10              -- keeps the wire message well inside one send
 
-local function KickStore()
-    if AegisRP.IsTestMode and AegisRP.IsTestMode() then return previewKickOrder end
+-- kind -> { save = AegisRP_Roles field, domain = Notify domain }. The saved
+-- field names are frozen: `kickOrder` is what every existing character already
+-- has on disk, so it keeps its name rather than being migrated.
+local ROT_KIND = {
+    kick  = { save = "kickOrder",  domain = "kickorder"  },
+    taunt = { save = "tauntOrder", domain = "tauntorder" },
+}
+local ROT_ORDER = { "kick", "taunt" }     -- iteration order, for the pruner
+
+-- test mode gets its own rotations so a preview never touches the raid's plan
+local previewRot = { kick = {}, taunt = {} }
+
+local function RotStore(kind)
+    local def = ROT_KIND[kind]
+    if not def then return nil end
+    if AegisRP.IsTestMode and AegisRP.IsTestMode() then
+        previewRot[kind] = previewRot[kind] or {}
+        return previewRot[kind]
+    end
     AegisRP_Roles = AegisRP_Roles or {}
-    AegisRP_Roles.kickOrder = AegisRP_Roles.kickOrder or {}
-    return AegisRP_Roles.kickOrder
+    AegisRP_Roles[def.save] = AegisRP_Roles[def.save] or {}
+    return AegisRP_Roles[def.save]
 end
 
-function A.MaxKickers() return MAX_KICKERS end
+function A.MaxRotation() return MAX_ROT end
 
-function A.GetKickOrder()
-    local s, out = KickStore(), {}
+function A.GetRotation(kind)
+    local s, out = RotStore(kind), {}
+    if not s then return out end
     for i = 1, table.getn(s) do out[i] = s[i] end
     return out
 end
 
 -- position of `name` in the rotation (1-based), or nil
-function A.KickIndexOf(name)
+function A.RotationIndexOf(kind, name)
     if not name then return nil end
-    local s = KickStore()
+    local s = RotStore(kind)
+    if not s then return nil end
     for i = 1, table.getn(s) do if s[i] == name then return i end end
     return nil
 end
 
 -- leader-gated. Adds to the end if absent, removes if already present.
-function A.ToggleKicker(name)
-    if not name then return false end
+function A.ToggleRotationMember(kind, name)
+    local def = ROT_KIND[kind]
+    if not (def and name) then return false end
     if not (A.IAmLead() or A.GetFreeAssign()) then return false end
-    local s = KickStore()
-    local at = A.KickIndexOf(name)
+    local s = RotStore(kind)
+    local at = A.RotationIndexOf(kind, name)
     if at then
         table.remove(s, at)
     else
-        if table.getn(s) >= MAX_KICKERS then return false end
+        if table.getn(s) >= MAX_ROT then return false end
         table.insert(s, name)
     end
-    Notify("kickorder", name)
+    Notify(def.domain, name)
     return true
 end
 
 -- leader-gated. dir = -1 up (higher priority) / +1 down.
-function A.MoveKicker(name, dir)
+function A.MoveRotationMember(kind, name, dir)
+    local def = ROT_KIND[kind]
+    if not def then return false end
     if not (A.IAmLead() or A.GetFreeAssign()) then return false end
-    local s = KickStore()
-    local at = A.KickIndexOf(name)
+    local s = RotStore(kind)
+    local at = A.RotationIndexOf(kind, name)
     if not at then return false end
     local to = at + dir
     if to < 1 or to > table.getn(s) then return false end
     s[at], s[to] = s[to], s[at]
-    Notify("kickorder", name)
+    Notify(def.domain, name)
     return true
 end
 
-function A.ClearKickOrder()
+function A.ClearRotation(kind)
+    local def = ROT_KIND[kind]
+    if not def then return false end
     if not (A.IAmLead() or A.GetFreeAssign()) then return false end
-    local s = KickStore()
+    local s = RotStore(kind)
     for i = table.getn(s), 1, -1 do table.remove(s, i) end
-    Notify("kickorder", nil)
+    Notify(def.domain, nil)
     return true
 end
 
 -- leader-gated bulk set (used by the panel's "suggest order")
-function A.SetKickOrder(list)
+function A.SetRotation(kind, list)
+    local def = ROT_KIND[kind]
+    if not def then return false end
     if not (A.IAmLead() or A.GetFreeAssign()) then return false end
-    local s = KickStore()
+    local s = RotStore(kind)
     for i = table.getn(s), 1, -1 do table.remove(s, i) end
     for i = 1, table.getn(list) do
-        if i > MAX_KICKERS then break end
+        if i > MAX_ROT then break end
         s[i] = list[i]
     end
-    Notify("kickorder", nil)
+    Notify(def.domain, nil)
     return true
 end
 
 -- remote apply (RPCX): install without re-broadcasting. Sandbox stays local.
-function A.ApplyKickOrder(list)
+function A.ApplyRotation(kind, list)
+    local def = ROT_KIND[kind]
+    if not def then return end
     if AegisRP.IsTestMode and AegisRP.IsTestMode() then return end
     AegisRP_Roles = AegisRP_Roles or {}
-    AegisRP_Roles.kickOrder = AegisRP_Roles.kickOrder or {}
-    local s = AegisRP_Roles.kickOrder
+    AegisRP_Roles[def.save] = AegisRP_Roles[def.save] or {}
+    local s = AegisRP_Roles[def.save]
     for i = table.getn(s), 1, -1 do table.remove(s, i) end
     for i = 1, table.getn(list) do s[i] = list[i] end
-    Notify("kickorder", nil)
+    Notify(def.domain, nil)
 end
 
-function A.EncodeKickOrder()
-    local s, out = KickStore(), {}
-    for i = 1, table.getn(s) do out[i] = s[i] end
+function A.EncodeRotation(kind)
+    local s, out = RotStore(kind), {}
+    if s then for i = 1, table.getn(s) do out[i] = s[i] end end
     if table.getn(out) == 0 then out[1] = "-" end   -- "empty" needs a token
     return out
 end
 
-function A.DecodeKickOrder(tokens, base)
+-- forward-declared above PruneToRoster: drop anyone no longer in the group
+-- from every rotation at once, so adding a rotation never means remembering
+-- to add it to the pruner too.
+function PruneRotations(present)
+    if not AegisRP_Roles then return end
+    for i = 1, table.getn(ROT_ORDER) do
+        local def = ROT_KIND[ROT_ORDER[i]]
+        local s = AegisRP_Roles[def.save]
+        if s then
+            for j = table.getn(s), 1, -1 do
+                if not present[s[j]] then table.remove(s, j) end
+            end
+        end
+    end
+end
+
+function A.DecodeRotation(tokens, base)
     local list = {}
     local i = base
     while tokens[i] do
@@ -864,6 +911,20 @@ function A.DecodeKickOrder(tokens, base)
     end
     return list
 end
+
+-- Kick-specific names, kept because the panel, the strip and the sync layer all
+-- call them and because "kick" reads better than GetRotation("kick") at a call
+-- site that is only ever about interrupts.
+function A.MaxKickers()             return A.MaxRotation() end
+function A.GetKickOrder()           return A.GetRotation("kick") end
+function A.KickIndexOf(name)        return A.RotationIndexOf("kick", name) end
+function A.ToggleKicker(name)       return A.ToggleRotationMember("kick", name) end
+function A.MoveKicker(name, dir)    return A.MoveRotationMember("kick", name, dir) end
+function A.ClearKickOrder()         return A.ClearRotation("kick") end
+function A.SetKickOrder(list)       return A.SetRotation("kick", list) end
+function A.ApplyKickOrder(list)     return A.ApplyRotation("kick", list) end
+function A.EncodeKickOrder()        return A.EncodeRotation("kick") end
+function A.DecodeKickOrder(t, base) return A.DecodeRotation(t, base) end
 
 -- wire encode/decode: N tokens, "-" = empty (player names carry no "-"/space
 -- on a single-realm server).

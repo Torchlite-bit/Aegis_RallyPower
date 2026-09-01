@@ -243,11 +243,11 @@ local TAB_INFO = {
     { label = "Totems",     live = false },
     { label = "Raid Buffs", live = false },
     { label = "Debuffs",    live = false },
-    { label = "Kick",       live = true  },   -- interrupt tracker (live CDs)
+    { label = "Rotations",  live = true  },   -- kick + taunt trackers (live CDs)
     { label = "Roles",      live = true  },   -- tanks/healers ride PLPWR
 }
 -- tab 4 is the debuff duty-card list; tab 3 is the caster x class buff grid;
--- tab 5 is the interrupt (kick) tracker; tab 6 is the roles grid.
+-- tab 5 is the kick/taunt rotation tracker; tab 6 is the roles grid.
 local DUTY_TAB = { [4] = "debuff" }
 
 local function Me() return UnitName("player") end
@@ -1807,15 +1807,22 @@ local function MemberClass(name)
 end
 
 --------------------------------------------------------------------------
--- KICK TAB - interrupt tracker. One cell per interrupt-capable member.
--- YOUR own kick shows an exact live cooldown (GetSpellCooldown); others are
--- best-effort - with SuperWoW we observe their casts (UNIT_CASTEVENT) and time
--- the cooldown locally, otherwise they're assumed ready. Exact raid-wide
--- timers are the sync-milestone follow-up. We can't read another player's
--- spellbook, so capability is by CLASS, not spec.
+-- ROTATION TABS - who interrupts, and who taunts.
+--
+-- Two rotations, one engine. They ask the same question ("whose turn is it?")
+-- and answer it the same way, so kicks and taunts share every line below and
+-- differ only in a catalog entry: which spells, how long the cooldown, which
+-- classes have one. A third rotation costs a table entry, not another engine.
+--
+-- YOUR own cooldown is exact (GetSpellCooldown); other people's are best
+-- effort - they broadcast theirs over RPCX (exact, and at any distance), and
+-- with SuperWoW we also observe their casts and time it locally as a fallback.
+-- We can't read another player's spellbook, so capability is by CLASS, not
+-- spec: a fury warrior appears in the taunt list, and a leader who knows the
+-- raid simply doesn't put them in the rotation.
 --------------------------------------------------------------------------
 
--- names = interrupt spell(s) to match; cd = seconds (Vanilla defaults,
+-- names = spell(s) to match, best first; cd = seconds (Vanilla defaults,
 -- Turtle-unverified - edit here if a value differs); icon = fallback texture
 -- for members whose spell we can't read.
 local INTERRUPTS = {
@@ -1830,49 +1837,94 @@ local INTERRUPTS = {
     WARLOCK = { names = { "Spell Lock" }, cd = 24,
                 icon = "Interface\\Icons\\Spell_Shadow_MindRot", label = "Spell Lock (pet)" },
 }
-local KICK_ORDER = { "WARRIOR", "ROGUE", "SHAMAN", "MAGE", "WARLOCK" }
 
--- cooldowns for OTHER players: [name] = GetTime() when ready again, plus how
--- we learned it ("sync" = they told us, exact; "seen" = we watched their cast).
--- A synced report always wins: it survives them being out of observation range.
-local kickReady = {}
-local kickSrc = {}
+-- Taunts. Warrior Taunt and druid Growl only. Mocking Blow is a taunt too, but
+-- on a two-minute cooldown it is never part of a rotation and one `cd` per
+-- class means listing it would time every warrior's Taunt wrong. Turtle's
+-- tanking paladins and shamans hold threat without a taunt as far as we have
+-- verified on-realm - if that changes, one entry here is the whole fix.
+local TAUNTS = {
+    WARRIOR = { names = { "Taunt" }, cd = 10,
+                icon = "Interface\\Icons\\Spell_Nature_Reincarnation", label = "Taunt" },
+    DRUID   = { names = { "Growl" }, cd = 10,
+                icon = "Interface\\Icons\\Ability_Physical_Taunt", label = "Growl" },
+}
 
--- Observe OTHER players' interrupts through the shared cast watcher
+-- Everything that differs between the two rotations, and all of their live
+-- state. The functions below take one of these records and are otherwise
+-- identical, which is the whole point of the table.
+--   ready/src : OTHER players' cooldowns - when they're up again, and how we
+--               learned it ("sync" = they told us, exact and at any range;
+--               "seen" = we watched their cast, so they had to be visible).
+--               A synced report always wins.
+--   send      : global name of the sync sender (looked up with getglobal, so
+--               load order between the panel and the sync layer can't bite).
+local ROT = {
+    kick = {
+        kind = "kick", cat = INTERRUPTS, order = { "WARRIOR", "ROGUE", "SHAMAN", "MAGE", "WARLOCK" },
+        title = "Kick", verb = "kick", noun = "interrupt", act = "interrupted the cast",
+        send = "AegisRP_SendKick", sound = "kickSound",
+        sim = { "Grommash", "Valeera", "Thrall", "Jaina", "Guldan" },
+        ready = {}, src = {}, cells = {}, myReady = true, testUntil = 0,
+    },
+    taunt = {
+        kind = "taunt", cat = TAUNTS, order = { "WARRIOR", "DRUID" },
+        title = "Taunt", verb = "taunt", noun = "taunt", act = "taunted the boss",
+        send = "AegisRP_SendTaunt", sound = "tauntSound",
+        sim = { "Grommash", "Fandral" },
+        ready = {}, src = {}, cells = {}, myReady = true, testUntil = 0,
+    },
+}
+local ROT_KINDS = { "kick", "taunt" }        -- fixed iteration order
+
+-- Observe OTHER players' rotation abilities through the shared cast watcher
 -- (Core\Aegis_CastWatch.lua owns the single UNIT_CASTEVENT handler). Confirmed
 -- working on Turtle 1.18.1. Always-on, so the timers stay warm whether or not
 -- the panel is open; without SuperWoW this never fires and others show "ready".
+-- UNIT_CASTEVENT storms, so this stays O(1): one class lookup, then at most a
+-- handful of string compares against two small catalogs.
 if AegisRP.CastWatch then
     AegisRP.CastWatch.Subscribe(function(caster, target, spell, id, evt)
         if evt ~= "CAST" and evt ~= "START" then return end
         if not spell or caster == Me() then return end
-        local info = INTERRUPTS[MemberClass(caster)]
-        if not info then return end
-        for i = 1, table.getn(info.names) do
-            if info.names[i] == spell then
-                kickReady[caster] = GetTime() + info.cd
-                kickSrc[caster] = "seen"
-                return
+        local cls = MemberClass(caster)
+        if not cls then return end
+        for k = 1, table.getn(ROT_KINDS) do
+            local r = ROT[ROT_KINDS[k]]
+            local info = r.cat[cls]
+            if info then
+                for i = 1, table.getn(info.names) do
+                    if info.names[i] == spell then
+                        r.ready[caster] = GetTime() + info.cd
+                        r.src[caster] = "seen"
+                    end
+                end
             end
         end
     end)
 end
 
--- Installed by the sync layer when a member reports their own interrupt going
--- on cooldown (RPCX "KICK"). Exact, and - unlike watching their cast - it
+-- Installed by the sync layer when a member reports their own ability going on
+-- cooldown (RPCX "KICK" / "TNT"). Exact, and - unlike watching their cast - it
 -- reaches us however far away they are, which is the whole point: observation
 -- needs them in range, a broadcast doesn't.
-function AegisRP.NoteRemoteKick(name, cd)
-    if not name or not cd or cd <= 0 then return end
-    kickReady[name] = GetTime() + cd
-    kickSrc[name] = "sync"
+function AegisRP.NoteRemoteCooldown(kind, name, cd)
+    local r = ROT[kind]
+    if not (r and name and cd and cd > 0) then return end
+    r.ready[name] = GetTime() + cd
+    r.src[name] = "sync"
 end
 
--- MY interrupt: the first of my class's interrupt spells I actually know.
+-- kept because it was the documented entry point before taunts existed
+function AegisRP.NoteRemoteKick(name, cd)
+    AegisRP.NoteRemoteCooldown("kick", name, cd)
+end
+
+-- MY ability for a rotation: the first of my class's spells I actually know.
 -- Returns spell record, catalog info, and the matched spell name.
-local function MyInterrupt()
+local function MyAbility(r)
     local _, tok = UnitClass("player")
-    local info = tok and INTERRUPTS[tok]
+    local info = tok and r.cat[tok]
     if not info then return nil, nil, nil end
     for i = 1, table.getn(info.names) do
         local nm = info.names[i]
@@ -1882,81 +1934,85 @@ local function MyInterrupt()
     return nil, info, nil
 end
 
--- Does MY class have an interrupt at all? Resolved once and cached - a
--- character's class can't change, so the always-on tickers below shouldn't
--- re-derive it every tick (nor run at all on a priest or druid). UnitClass is
+-- Does MY class have this ability at all? Resolved once and cached on the
+-- record - a character's class can't change, so the always-on tickers below
+-- shouldn't re-derive it every tick (nor run at all on a priest). UnitClass is
 -- unreliable before PLAYER_LOGIN, so nil means "not resolved yet", not "no".
-local myHasInterrupt = nil
-
-local function MyClassKicks()
-    if myHasInterrupt == nil then
+local function MyClassHas(r)
+    if r.myHas == nil then
         local _, tok = UnitClass("player")
-        if not tok then return false end          -- too early; try again next tick
-        myHasInterrupt = INTERRUPTS[tok] and true or false
+        if not tok then return false end
+        r.myHas = r.cat[tok] and true or false
     end
-    return myHasInterrupt
+    return r.myHas
 end
 
--- Announce MY interrupt the moment it goes on cooldown, so members who can't
--- see me still get an exact timer. This reads my OWN cooldown rather than a
--- cast event, so it needs no SuperWoW - even a bare 1.12 client contributes its
--- kicks to everyone else's tab. Always-on (not gated on the panel being open),
--- and it sends the real remaining time, so talent-reduced cooldowns and the
--- poll delay both come out right.
-local myKickReady = true
-local kickPollAccum = 0
-local kickPoll = CreateFrame("Frame")
-kickPoll:SetScript("OnUpdate", function()
-    kickPollAccum = kickPollAccum + (arg1 or 0)
-    if kickPollAccum < 0.2 then return end
-    kickPollAccum = 0
-    if not MyClassKicks() then return end
-    local sp = MyInterrupt()
-    if not sp then return end
-    local start, dur = GetSpellCooldown(sp.index, "spell")
-    local rem = 0
-    if start and dur and dur > 1.5 then rem = start + dur - GetTime() end
-    if rem > 0 then
-        if myKickReady and AegisRP_SendKick then AegisRP_SendKick(rem) end
-        myKickReady = false
-    else
-        myKickReady = true
-    end
-end)
-
--- Test mode can't fake GetSpellCooldown, so the simulation stamps my kick here
--- instead and KickRemaining reads it while testing.
-local testMyKickUntil = 0
-
 -- remaining cooldown (seconds) for a member, or 0 when ready/unknown.
-local function KickRemaining(name)
+local function RotRemaining(r, name)
     if name == Me() then
+        -- test mode can't fake GetSpellCooldown, so the simulation stamps
+        -- r.testUntil instead and we read that while testing
         if AegisRP.IsTestMode() then
-            local r = testMyKickUntil - GetTime()
-            return (r > 0) and r or 0
+            local t = r.testUntil - GetTime()
+            return (t > 0) and t or 0
         end
-        local sp = MyInterrupt()
+        local sp = MyAbility(r)
         if not sp then return 0 end
         local start, dur = GetSpellCooldown(sp.index, "spell")
         if start and dur and dur > 1.5 then
-            local r = start + dur - GetTime()
-            if r > 0 then return r end
+            local t = start + dur - GetTime()
+            if t > 0 then return t end
         end
         return 0
     end
-    local r = kickReady[name]
-    if r and r > GetTime() then return r - GetTime() end
+    local t = r.ready[name]
+    if t and t > GetTime() then return t - GetTime() end
     return 0
 end
+
+-- Announce MY cooldown the moment it starts, so members who can't see me still
+-- get an exact timer. This reads my OWN cooldown rather than a cast event, so
+-- it needs no SuperWoW - even a bare 1.12 client contributes to everyone else's
+-- tab. Always-on (not gated on the panel being open), and it sends the real
+-- remaining time, so talent-reduced cooldowns and the poll delay both come out
+-- right. One poller drives both rotations: a protection warrior has an
+-- interrupt AND a taunt, and that shouldn't cost two OnUpdates.
+local rotPollAccum = 0
+local rotPoll = CreateFrame("Frame")
+rotPoll:SetScript("OnUpdate", function()
+    rotPollAccum = rotPollAccum + (arg1 or 0)
+    if rotPollAccum < 0.2 then return end
+    rotPollAccum = 0
+    for k = 1, table.getn(ROT_KINDS) do
+        local r = ROT[ROT_KINDS[k]]
+        if MyClassHas(r) then
+            local sp = MyAbility(r)
+            if sp then
+                local start, dur = GetSpellCooldown(sp.index, "spell")
+                local rem = 0
+                if start and dur and dur > 1.5 then rem = start + dur - GetTime() end
+                if rem > 0 then
+                    if r.myReady then
+                        local send = getglobal(r.send)
+                        if send then send(rem) end
+                    end
+                    r.myReady = false
+                else
+                    r.myReady = true
+                end
+            end
+        end
+    end
+end)
 
 --------------------------------------------------------------------------
 -- WHOSE TURN IS IT? - derived, never stored.
 --
--- The rotation is only a priority ORDER. Who kicks next is "the first person
--- in that order whose interrupt is actually available", so using a kick puts
--- you on cooldown and hands the top spot to the next person by itself. No turn
--- pointer exists to drift between clients, survive a wipe wrongly, or need
--- syncing - every client computes the same answer from the same shared data.
+-- A rotation is only a priority ORDER. Who is up is "the first person in that
+-- order whose ability is actually available", so using it puts you on cooldown
+-- and hands the top spot to the next person by itself. No turn pointer exists
+-- to drift between clients, survive a wipe wrongly, or need syncing - every
+-- client computes the same answer from the same shared data.
 --------------------------------------------------------------------------
 
 -- raid/party unit token for a name, or nil when they aren't grouped with us
@@ -1976,10 +2032,10 @@ local function UnitTokenOf(name)
     return nil
 end
 
--- Can `name` kick right now? Off cooldown, present and alive. A dead or absent
--- kicker is skipped rather than stalling the whole rotation behind them.
-local function KickAvailable(name)
-    if KickRemaining(name) > 0 then return false end
+-- Can `name` act right now? Off cooldown, present and alive. A dead or absent
+-- member is skipped rather than stalling the whole rotation behind them.
+local function RotAvailable(r, name)
+    if RotRemaining(r, name) > 0 then return false end
     if AegisRP.IsTestMode() then return true end   -- preview raid is always "there"
     local unit = UnitTokenOf(name)
     if not unit then return false end              -- left the group
@@ -1987,68 +2043,65 @@ local function KickAvailable(name)
     return true
 end
 
--- The ordered available kickers: [1] is up now, [2] is on deck.
-local function KickQueue()
-    local order = A.GetKickOrder()
+-- The ordered available members: [1] is up now, [2] is on deck.
+local function RotQueue(r)
+    local order = A.GetRotation(r.kind)
     local out = {}
     for i = 1, table.getn(order) do
-        if KickAvailable(order[i]) then table.insert(out, order[i]) end
+        if RotAvailable(r, order[i]) then table.insert(out, order[i]) end
     end
     return out
 end
 
 -- My standing: "now" | "deck" | "hold" | "cd" | nil (not in the rotation)
-local function MyKickState()
+local function MyRotState(r)
     local me = Me()
-    if not A.KickIndexOf(me) then return nil end
-    if KickRemaining(me) > 0 then return "cd" end
-    local q = KickQueue()
+    if not A.RotationIndexOf(r.kind, me) then return nil end
+    if RotRemaining(r, me) > 0 then return "cd" end
+    local q = RotQueue(r)
     if q[1] == me then return "now" end
     if q[2] == me then return "deck" end
     return "hold"
 end
 
 --------------------------------------------------------------------------
--- THE KICK STRIP - your personal cue, not a roster.
+-- THE ROTATION STRIPS - your personal cue, not a roster.
 --
--- The panel's Kick tab is where a rotation gets PLANNED; this is where it gets
--- USED, so it answers exactly one question at a glance: is it me? Colours keep
--- the addon's language - red means act, never "you're fine" - so it reads the
--- same way as every other strip under pressure.
+-- The panel's Rotations tab is where a rotation gets PLANNED; a strip is where
+-- it gets USED, so it answers exactly one question at a glance: is it me?
+-- Colours keep the addon's language - red means act, never "you're fine" - so
+-- it reads the same way as every other strip under pressure.
 --------------------------------------------------------------------------
 
-local kickStrip
-local lastKickState                -- for the "it's your turn" cue edge
-
-local KICK_STATE = {
-    now  = { label = "|cffff4040KICK NOW|r",  state = "need" },
-    deck = { label = "|cffffcc00On deck|r",   state = "warn" },
-    hold = { label = "|cff5be07aHolding|r",   state = "good" },
-    cd   = { label = "|cff888888Cooldown|r",  state = "off"  },
+local ROT_STATE = {
+    now  = { state = "need" },                              -- label is built per rotation
+    deck = { label = "|cffffcc00On deck|r",  state = "warn" },
+    hold = { label = "|cff5be07aHolding|r",  state = "good" },
+    cd   = { label = "|cff888888Cooldown|r", state = "off"  },
 }
 
-function AegisRP.BuildKickStrip()
-    if kickStrip then return kickStrip end
-    kickStrip = AegisRP.NewStrip("kick", "Kick")
-    kickStrip:AddButton{
+local function BuildRotStrip(r)
+    if r.strip then return r.strip end
+    r.strip = AegisRP.NewStrip(r.kind, r.title)
+    r.strip:AddButton{
         key = "rotation",
         refresh = function(b)
-            local st = MyKickState()
-            local sp, info = MyInterrupt()
+            local st = MyRotState(r)
+            local sp, info = MyAbility(r)
             b:SetIcon((sp and sp.texture) or (info and info.icon))
             if not st then
                 -- not in the rotation: say so rather than implying readiness
-                b:SetLabel("|cffffd100Kick|r")
+                b:SetLabel("|cffffd100" .. r.title .. "|r")
                 b:SetSub("|cff888888not in rotation|r")
                 b:SetTimer(""); b:SetState("off")
                 return
             end
-            local d = KICK_STATE[st]
-            b:SetLabel(d.label)
+            local d = ROT_STATE[st]
+            b:SetLabel(d.label or ("|cffff4040" .. string.upper(r.verb) .. " NOW|r"))
             b:SetState(d.state)
-            local rem = KickRemaining(Me())
+            local rem = RotRemaining(r, Me())
             b:SetTimer(rem > 0 and AegisRP.FmtTime(rem) or "")
-            local q = KickQueue()
+            local q = RotQueue(r)
             if st == "now" then
                 b:SetSub(q[2] and ("|cff999999then " .. q[2] .. "|r") or "")
             elseif q[1] then
@@ -2059,15 +2112,16 @@ function AegisRP.BuildKickStrip()
         end,
         onClick = function() if AegisRP_AssignPanelToggle then AegisRP_AssignPanelToggle() end end,
         tooltip = function(b, tt)
-            tt:AddLine("Kick rotation", 1, 1, 1)
-            local order = A.GetKickOrder()
+            tt:AddLine(r.title .. " rotation", 1, 1, 1)
+            local order = A.GetRotation(r.kind)
             if table.getn(order) == 0 then
-                tt:AddLine("No rotation set - a leader sets one on the panel's Kick tab.", 0.7, 0.7, 0.7)
+                tt:AddLine("No rotation set - a leader sets one on the panel's Rotations tab.",
+                    0.7, 0.7, 0.7)
             else
                 for i = 1, table.getn(order) do
                     local nm = order[i]
-                    local mark = KickAvailable(nm) and "|cff5be07a*|r " or "|cff777777-|r "
-                    local rem = KickRemaining(nm)
+                    local mark = RotAvailable(r, nm) and "|cff5be07a*|r " or "|cff777777-|r "
+                    local rem = RotRemaining(r, nm)
                     tt:AddLine(mark .. i .. ". " .. nm
                         .. (rem > 0 and ("  |cffff6060" .. math.floor(rem + 0.5) .. "s|r") or ""),
                         0.85, 0.85, 0.85)
@@ -2077,141 +2131,167 @@ function AegisRP.BuildKickStrip()
             tt:AddLine("Click: open the assignment panel.", 0.6, 0.6, 0.6)
         end,
     }
-    kickStrip:Finish()
-    return kickStrip
+    r.strip:Finish()
+    return r.strip
 end
 
--- True when the player's class has an interrupt at all (drives whether the
--- strip and its options exist). Exported for the Options tab.
-function AegisRP.HasInterrupt()
-    return MyClassKicks()
-end
+-- True when the player's class has the ability at all (drives whether the strip
+-- and its options exist). Exported for the Options tab.
+function AegisRP.HasInterrupt() return MyClassHas(ROT.kick) end
+function AegisRP.HasTaunt()     return MyClassHas(ROT.taunt) end
 
--- Build the strip once, for classes that actually have an interrupt. Deferred
+function AegisRP.BuildKickStrip()  return BuildRotStrip(ROT.kick)  end
+function AegisRP.BuildTauntStrip() return BuildRotStrip(ROT.taunt) end
+
+-- Build the strips once, for classes that actually have the ability. Deferred
 -- to login because it needs the player's class. Hiding works exactly like every
--- other strip - /rpc kick, and the strip engine remembers the choice.
-local kickInit = CreateFrame("Frame")
-kickInit:RegisterEvent("PLAYER_LOGIN")
-kickInit:SetScript("OnEvent", function()
-    if not AegisRP.HasInterrupt() then return end
-    local ok, err = pcall(AegisRP.BuildKickStrip)
-    if not ok then
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff5555Aegis error:|r " .. tostring(err)
-            .. " |cffaaaaaa(kick strip)|r")
+-- other strip - /rpc kick, /rpc taunt - and the strip engine remembers it.
+local rotInit = CreateFrame("Frame")
+rotInit:RegisterEvent("PLAYER_LOGIN")
+rotInit:SetScript("OnEvent", function()
+    for k = 1, table.getn(ROT_KINDS) do
+        local r = ROT[ROT_KINDS[k]]
+        if MyClassHas(r) then
+            local ok, err = pcall(BuildRotStrip, r)
+            if not ok then
+                DEFAULT_CHAT_FRAME:AddMessage("|cffff5555Aegis error:|r " .. tostring(err)
+                    .. " |cffaaaaaa(" .. r.kind .. " strip)|r")
+            end
+        end
     end
 end)
 
--- /rpc kick - show/hide it (also builds on first use for a class that has one)
-function AegisRP_ToggleKickStrip()
-    if not AegisRP.HasInterrupt() then
-        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r your class has no interrupt.")
+-- /rpc kick, /rpc taunt - show/hide (also builds on first use)
+local function ToggleRotStrip(r)
+    if not MyClassHas(r) then
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r your class has no " .. r.noun .. ".")
         return
     end
-    local s = AegisRP.BuildKickStrip()
+    local s = BuildRotStrip(r)
     if s and s.Toggle then s:Toggle() end
 end
+
+function AegisRP_ToggleKickStrip()  ToggleRotStrip(ROT.kick)  end
+function AegisRP_ToggleTauntStrip() ToggleRotStrip(ROT.taunt) end
 
 --------------------------------------------------------------------------
 -- TEST-MODE SIMULATION - watch a rotation actually run, solo.
 --
--- Every few seconds a pretend mob starts casting and whoever is up kicks it,
--- which starts their cooldown and hands the top spot to the next person. The
--- point is that YOUR strip cycles through all four states on its own - up,
--- cooldown, holding, on deck - so the thing can be judged without a raid.
--- The whole rotation is the preview one (a separate store), so nothing here
--- touches a real raid's plan or the wire.
+-- Every few seconds a pretend mob casts (or drops threat) and whoever is up
+-- handles it, which starts their cooldown and hands the top spot to the next
+-- person. The point is that YOUR strip cycles through all four states on its
+-- own - up, cooldown, holding, on deck - so the thing can be judged without a
+-- raid. The rotations used are the preview ones (a separate store), so nothing
+-- here touches a real raid's plan or the wire.
 --------------------------------------------------------------------------
 
-local SIM_PERIOD = 4              -- a simulated interruptible cast this often
-local simAccum = 0
-local simSeeded = false
+local SIM_PERIOD = 4              -- a simulated event this often, per rotation
 
--- preview kickers: me first (so the strip has something to say), then one of
--- each interrupt class from the fake raid, so every cooldown length is in play
-local SIM_ROSTER = { "Grommash", "Valeera", "Thrall", "Jaina", "Guldan" }
-
-local function SeedSimRotation()
-    if table.getn(A.GetKickOrder()) > 0 then return true end
+local function SeedSimRotation(r)
+    if table.getn(A.GetRotation(r.kind)) > 0 then return true end
     local list = {}
-    for i = 1, table.getn(SIM_ROSTER) do
-        local nm = SIM_ROSTER[i]
-        -- only seat preview names the fake raid actually has an interrupt for
-        if INTERRUPTS[MemberClass(nm)] then table.insert(list, nm) end
+    for i = 1, table.getn(r.sim) do
+        local nm = r.sim[i]
+        -- only seat preview names the fake raid actually has the ability for
+        if r.cat[MemberClass(nm)] then table.insert(list, nm) end
     end
     -- The preview raid is seated asynchronously when test mode turns on, so an
     -- empty result means "not ready yet" - report failure and retry next tick
     -- rather than locking in a rotation of one.
     if table.getn(list) == 0 then return false end
-    if INTERRUPTS[MemberClass(Me())] then table.insert(list, 1, Me()) end
-    return A.SetKickOrder(list)
+    if r.cat[MemberClass(Me())] then table.insert(list, 1, Me()) end
+    return A.SetRotation(r.kind, list)
 end
 
-local function SimKick(who)
-    local info = INTERRUPTS[MemberClass(who)]
+local function SimAct(r, who)
+    local info = r.cat[MemberClass(who)]
     local cd = (info and info.cd) or 10
     if who == Me() then
-        testMyKickUntil = GetTime() + cd
+        r.testUntil = GetTime() + cd
     else
-        kickReady[who] = GetTime() + cd
-        kickSrc[who] = "sync"
+        r.ready[who] = GetTime() + cd
+        r.src[who] = "sync"
     end
     DEFAULT_CHAT_FRAME:AddMessage("|cffff8800[test]|r "
-        .. ((who == Me()) and "|cff5be07ayou|r" or who) .. " interrupted the cast ("
+        .. ((who == Me()) and "|cff5be07ayou|r" or who) .. " " .. r.act .. " ("
         .. cd .. "s cooldown).")
 end
 
-local kickSim = CreateFrame("Frame")
-kickSim:SetScript("OnUpdate", function()
+local rotSim = CreateFrame("Frame")
+rotSim:SetScript("OnUpdate", function()
     if not AegisRP.IsTestMode() then
-        simSeeded = false                 -- re-seed next time test mode comes on
+        for k = 1, table.getn(ROT_KINDS) do
+            ROT[ROT_KINDS[k]].seeded = false      -- re-seed next time test mode comes on
+        end
         return
     end
-    if not simSeeded then
-        simSeeded = SeedSimRotation() and true or false
-        if not simSeeded then return end  -- can't edit the rotation here; don't sim
-        simAccum = 0
-        return
+    for k = 1, table.getn(ROT_KINDS) do
+        local r = ROT[ROT_KINDS[k]]
+        if not r.seeded then
+            r.seeded = SeedSimRotation(r) and true or false
+            r.simAccum = 0
+        elseif MyClassHas(r) then
+            -- only simulate rotations the player is actually in: a mage
+            -- watching taunts cycle would just be noise in their chat
+            r.simAccum = (r.simAccum or 0) + (arg1 or 0)
+            if r.simAccum >= SIM_PERIOD then
+                r.simAccum = 0
+                local q = RotQueue(r)
+                if q[1] then
+                    SimAct(r, q[1])
+                else
+                    DEFAULT_CHAT_FRAME:AddMessage("|cffff8800[test]|r a " .. r.verb
+                        .. " was needed - everyone was on cooldown.")
+                end
+            end
+        end
     end
-    simAccum = simAccum + (arg1 or 0)
-    if simAccum < SIM_PERIOD then return end
-    simAccum = 0
-    local q = KickQueue()
-    if not q[1] then
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff8800[test]|r a cast went through - "
-            .. "everyone's kick was on cooldown.")
-        return
-    end
-    SimKick(q[1])
 end)
 
 -- The "you're up" cue. Fires on the edge into `now` only, so it can't machine-
--- gun while you sit at the top of the rotation waiting for a cast.
-local kickCueAccum = 0
-local kickCue = CreateFrame("Frame")
-kickCue:SetScript("OnUpdate", function()
-    kickCueAccum = kickCueAccum + (arg1 or 0)
-    if kickCueAccum < 0.2 then return end
-    kickCueAccum = 0
-    if not MyClassKicks() then return end
-    local st = MyKickState()
-    if st == "now" and lastKickState ~= "now" and AegisRP_Settings.kickSound ~= false then
-        PlaySoundFile("Interface\\Addons\\Aegis_RallyPower\\Sounds\\ding.mp3")
+-- gun while you sit at the top of a rotation waiting.
+local rotCueAccum = 0
+local rotCue = CreateFrame("Frame")
+rotCue:SetScript("OnUpdate", function()
+    rotCueAccum = rotCueAccum + (arg1 or 0)
+    if rotCueAccum < 0.2 then return end
+    rotCueAccum = 0
+    for k = 1, table.getn(ROT_KINDS) do
+        local r = ROT[ROT_KINDS[k]]
+        if MyClassHas(r) then
+            local st = MyRotState(r)
+            if st == "now" and r.lastState ~= "now"
+               and AegisRP_Settings[r.sound] ~= false then
+                PlaySoundFile("Interface\\Addons\\Aegis_RallyPower\\Sounds\\ding.mp3")
+            end
+            r.lastState = st
+        end
     end
-    lastKickState = st
 end)
 
-local kickCells = {}
-local KICK_COLS, KICK_ROWS = 2, 16
-local KICK_CELL_W = 344
+--------------------------------------------------------------------------
+-- THE ROTATIONS TAB - one grid, two views.
+--
+-- Kicks and taunts get one tab rather than two because the panel's tab row is
+-- full at six and because they are the same list with a different ability
+-- column; the view switch is the same control the Raid Buffs tab already uses.
+--------------------------------------------------------------------------
 
--- interrupt-capable members: you first, then everyone else in class order.
-local function KickMembers()
+local ROT_COLS, ROT_ROWS = 2, 15
+local ROT_CELL_W = 344
+
+local function RotView()
+    return ROT[AegisRP_Settings.rotView or "kick"] or ROT.kick
+end
+
+-- capable members: you first, then everyone else in class order.
+local function RotMembers(r)
     local me = Me()
     local _, mytok = UnitClass("player")
     local all = AllMembers()
     local out = {}
-    if mytok and INTERRUPTS[mytok] then table.insert(out, me) end
-    for _, tok in ipairs(KICK_ORDER) do
+    if mytok and r.cat[mytok] then table.insert(out, me) end
+    for _, tok in ipairs(r.order) do
         for i = 1, table.getn(all) do
             local nm = all[i]
             if nm ~= me and MemberClass(nm) == tok then table.insert(out, nm) end
@@ -2220,14 +2300,15 @@ local function KickMembers()
     return out
 end
 
-local function KickCellTip()
+local function RotCellTip()
     if AegisRP_Settings.tooltips == false then return end
+    local r = RotView()
     local name = this.member
     local tok = MemberClass(name)
-    local info = tok and INTERRUPTS[tok]
+    local info = tok and r.cat[tok]
     local shown = false
     if name == Me() then
-        local _, _, nm = MyInterrupt()
+        local _, _, nm = MyAbility(r)
         if nm then shown = SpellTip(this, nm) end
     end
     if not shown then
@@ -2235,23 +2316,23 @@ local function KickCellTip()
         GameTooltip:SetText(name, 1, 1, 1)
     end
     if info then
-        GameTooltip:AddLine((info.label or "Interrupt") .. "  -  " .. info.cd .. "s CD", 0.7, 0.9, 0.7)
+        GameTooltip:AddLine((info.label or r.title) .. "  -  " .. info.cd .. "s CD", 0.7, 0.9, 0.7)
     end
-    local rem = KickRemaining(name)
+    local rem = RotRemaining(r, name)
     if rem > 0 then
         GameTooltip:AddLine("On cooldown: " .. math.floor(rem + 0.5) .. "s", 1, 0.5, 0.4)
     else
         GameTooltip:AddLine("Ready", 0.4, 0.9, 0.5)
     end
     if name ~= Me() then
-        local src = kickSrc[name]
+        local src = r.src[name]
         if src == "sync" then
             GameTooltip:AddLine("Exact - reported by their Aegis, any distance.", 0.5, 0.8, 0.6)
         elseif src == "seen" then
             GameTooltip:AddLine("Observed from their cast (needed them in range).", 0.55, 0.55, 0.62)
         else
             GameTooltip:AddLine(SUPERWOW_VERSION
-                and "No data yet - they report it when they kick, or we watch them cast."
+                and "No data yet - they report it when they use it, or we watch them cast."
                 or "Others' live cooldowns need SuperWoW, or Aegis on their client.",
                 0.55, 0.55, 0.62)
         end
@@ -2262,30 +2343,61 @@ end
 -- Click a row to put someone in the rotation (or take them out); wheel moves
 -- them up and down it. Both are leader-gated by the model, so a member just
 -- gets told rather than silently having nothing happen.
-local function KickCellClick()
-    if not A.ToggleKicker(this.member) then
-        if table.getn(A.GetKickOrder()) >= A.MaxKickers() and not A.KickIndexOf(this.member) then
-            Msg("The rotation is full (" .. A.MaxKickers() .. ").")
+local function RotCellClick()
+    local r = RotView()
+    if not A.ToggleRotationMember(r.kind, this.member) then
+        if table.getn(A.GetRotation(r.kind)) >= A.MaxRotation()
+           and not A.RotationIndexOf(r.kind, this.member) then
+            Msg("The rotation is full (" .. A.MaxRotation() .. ").")
         else
-            Msg("Only the raid leader / assist can set the kick rotation (or turn on Free Assign).")
+            Msg("Only the raid leader / assist can set the " .. r.verb
+                .. " rotation (or turn on Free Assign).")
         end
         return
     end
     RefreshCurrent()
 end
 
-local function KickCellWheel()
-    if not A.KickIndexOf(this.member) then return end     -- not in the rotation
-    if not A.MoveKicker(this.member, (arg1 > 0) and -1 or 1) then return end
+local function RotCellWheel()
+    local r = RotView()
+    if not A.RotationIndexOf(r.kind, this.member) then return end   -- not in it
+    if not A.MoveRotationMember(r.kind, this.member, (arg1 > 0) and -1 or 1) then return end
     RefreshCurrent()
 end
 
-local function BuildKick(p)
-    for i = 1, KICK_COLS * KICK_ROWS do
-        local col = math.mod(i - 1, KICK_COLS)
-        local rowN = math.floor((i - 1) / KICK_COLS)
-        local b = MakeCell(p, KICK_CELL_W, 24)
-        b:SetPoint("TOPLEFT", p, "TOPLEFT", col * (KICK_CELL_W + 8), -44 - rowN * 26)
+local function RotViewToggle()
+    AegisRP_Settings.rotView = (AegisRP_Settings.rotView == "taunt") and "kick" or "taunt"
+    RefreshCurrent()
+end
+
+local function RotViewTip()
+    if AegisRP_Settings.tooltips == false then return end
+    GameTooltip:SetOwner(this, "ANCHOR_LEFT")
+    GameTooltip:SetText("Rotation", 1, 1, 1)
+    GameTooltip:AddLine("Kick - who interrupts, in what order.", 0.7, 0.7, 0.7, 1)
+    GameTooltip:AddLine("Taunt - who picks the boss up, in what order.", 0.7, 0.7, 0.7, 1)
+    GameTooltip:AddLine("They are separate lists and sync separately; each has its "
+        .. "own strip.", 0.55, 0.55, 0.62, 1)
+    GameTooltip:Show()
+end
+
+local function BuildRotTab(p)
+    -- view toggle, parked on the panel so it costs no file-scope local
+    local tg = MakeCell(p, 92, 18)
+    tg:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, -20)
+    tg.label = Fnt(tg, 10, GOLD, "CENTER")
+    tg.label:SetWidth(92); tg.label:SetHeight(11)
+    tg.label:SetPoint("CENTER", tg, "CENTER", 0, 0)
+    tg:SetScript("OnClick", RotViewToggle)
+    tg:SetScript("OnEnter", SafeTip(RotViewTip))
+    tg:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    p.rotToggle = tg
+
+    for i = 1, ROT_COLS * ROT_ROWS do
+        local col = math.mod(i - 1, ROT_COLS)
+        local rowN = math.floor((i - 1) / ROT_COLS)
+        local b = MakeCell(p, ROT_CELL_W, 24)
+        b:SetPoint("TOPLEFT", p, "TOPLEFT", col * (ROT_CELL_W + 8), -44 - rowN * 26)
         local ic = b:CreateTexture(nil, "ARTWORK")
         ic:SetWidth(18); ic:SetHeight(18)
         ic:SetPoint("LEFT", b, "LEFT", 6, 0)
@@ -2299,40 +2411,45 @@ local function BuildKick(p)
         b.pos = Fnt(b, 11, GOLD, "RIGHT")
         b.pos:SetWidth(46); b.pos:SetHeight(12)
         b.pos:SetPoint("RIGHT", b, "RIGHT", -100, 0)
-        b:SetScript("OnEnter", SafeTip(KickCellTip))
+        b:SetScript("OnEnter", SafeTip(RotCellTip))
         b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        b:SetScript("OnClick", KickCellClick)
-        b:SetScript("OnMouseWheel", KickCellWheel)
+        b:SetScript("OnClick", RotCellClick)
+        b:SetScript("OnMouseWheel", RotCellWheel)
         b:EnableMouseWheel(true)
         b:Hide()
-        kickCells[i] = b
+        p.rotCells = p.rotCells or {}
+        p.rotCells[i] = b
     end
 end
 
-local function RefreshKick(p)
-    local members = KickMembers()
-    local cap = KICK_COLS * KICK_ROWS
+local function RefreshRotTab(p)
+    local r = RotView()
+    if p.rotToggle then
+        p.rotToggle.label:SetText("|cffd8b98a" .. r.title .. " \226\150\190|r")
+    end
+    local members = RotMembers(r)
+    local cap = ROT_COLS * ROT_ROWS
     local ready, oncd = 0, 0
-    local q = KickQueue()
+    local q = RotQueue(r)
     local upNow, upNext = q[1], q[2]
     for i = 1, cap do
-        local b = kickCells[i]
+        local b = p.rotCells[i]
         local name = members[i]
         if name then
             b.member = name
             local tok = MemberClass(name)
-            local info = tok and INTERRUPTS[tok]
+            local info = tok and r.cat[tok]
             local cc = (tok and CLASS_RGB[tok]) or INK
             b.name:SetText(name)
             b.name:SetTextColor(cc[1], cc[2], cc[3])
             local tex = info and info.icon
             if name == Me() then
-                local sp = MyInterrupt()
+                local sp = MyAbility(r)
                 if sp and sp.texture then tex = sp.texture end
             end
             if tex then b.icon:SetTexture(tex); b.icon:Show() else b.icon:Hide() end
             -- rotation position, and who is actually up right now
-            local slot = A.KickIndexOf(name)
+            local slot = A.RotationIndexOf(r.kind, name)
             if slot then
                 if name == upNow then
                     b.pos:SetText("|cffff6060UP|r")
@@ -2344,7 +2461,7 @@ local function RefreshKick(p)
             else
                 b.pos:SetText("")
             end
-            local rem = KickRemaining(name)
+            local rem = RotRemaining(r, name)
             if rem > 0 then
                 oncd = oncd + 1
                 b.stat:SetText("|cffff6060" .. math.floor(rem + 0.5) .. "s|r")
@@ -2360,14 +2477,19 @@ local function RefreshKick(p)
         end
     end
     p.note:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
-    local rot = table.getn(A.GetKickOrder())
+    local rot = table.getn(A.GetRotation(r.kind))
     p.note:SetText(ready .. " ready, " .. oncd .. " on CD"
         .. (rot > 0 and ("  |cffaa9966|  rotation of " .. rot
             .. (upNow and (" - |cffff6060" .. upNow .. "|r|cffaa9966 is up") or " - none ready")
             .. "|r") or ""))
-    p.cover:SetText("")
-    p.hint:SetText("Click a name to put them in the kick rotation; wheel moves them up or down it. "
-        .. "Whoever sits highest AND is off cooldown is up next, so a kick hands the "
+    if table.getn(members) == 0 then
+        p.cover:SetText("|cffaa8866Nobody here has a " .. r.verb .. ".|r")
+    else
+        p.cover:SetText("")
+    end
+    p.hint:SetText("Click a name to put them in the " .. r.verb
+        .. " rotation; wheel moves them up or down it. "
+        .. "Whoever sits highest AND is off cooldown is up next, so using it hands the "
         .. "spot to the next person automatically and the dead or absent get skipped. "
         .. "Your own cooldown is exact; others report theirs over sync, or are observed "
         .. "from their casts when in range.")
@@ -2712,7 +2834,7 @@ local function RefreshInner()
     if currentTab == 1 then RefreshBlessings(p)
     elseif currentTab == 2 then RefreshTotems(p)
     elseif currentTab == 3 then RefreshBuffTab(p)
-    elseif currentTab == 5 then RefreshKick(p)
+    elseif currentTab == 5 then RefreshRotTab(p)
     elseif currentTab == 6 then RefreshRoles(p)
     elseif DUTY_TAB[currentTab] then RefreshDutyTab(p, currentTab) end
 end
@@ -2776,8 +2898,15 @@ local function ClearCurrentTab()
         end
         Msg("Assignments on this tab cleared.")
     elseif currentTab == 5 then
-        for k in pairs(kickReady) do kickReady[k] = nil end
-        Msg("Interrupt timers reset.")
+        -- clear the view you're looking at, not both: the two rotations are
+        -- separate plans and wiping the hidden one would be invisible damage
+        local r = RotView()
+        for k in pairs(r.ready) do r.ready[k] = nil end
+        if A.ClearRotation(r.kind) then
+            Msg(r.title .. " rotation and timers cleared.")
+        else
+            Msg(r.title .. " timers reset (only a leader can clear the rotation).")
+        end
     elseif currentTab == 6 then
         A.ClearTankSlots()
         for _, name in ipairs(AllMembers()) do
@@ -2902,7 +3031,7 @@ local function CreatePanel()
         { "Totems", "Which totem each shaman drops per element, and which group they cover." },
         { "Raid buff coverage", "Which buff each priest, mage and druid gives every class - their strips follow their rows." },
         { "Target debuff duty", "Who maintains each debuff on the kill target." },
-        { "Interrupts", "Who has a kick and whose kick is off cooldown." },
+        { "Rotations", "Who interrupts and who taunts, in what order, and whose is off cooldown." },
         { "Raid roles", "Main Tank + off-tanks (dropdowns), healers, and each tank's own blessing." },
     }
     for i = 1, table.getn(TAB_INFO) do
@@ -2934,7 +3063,7 @@ local function CreatePanel()
     BuildBuffGrid(panels[3])
     BuildGroupGrid(panels[3])
     BuildDutyTab(panels[4], 4)
-    BuildKick(panels[5])
+    BuildRotTab(panels[5])
     BuildRoles(panels[6])
 
     -- bottom buttons: the classic PallyPower frame's row, on our panel
