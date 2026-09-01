@@ -3,8 +3,9 @@
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
 [![Discord](https://img.shields.io/badge/Discord-join%20us-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/hsgPTNkSX)
+[![RavenCraft](https://img.shields.io/badge/RavenCraft-1.18.1-1e1e1e?style=flat-square&labelColor=555)](https://ravencraft.io/)
+[![CapyCraft](https://img.shields.io/badge/CapyCraft-1.18.1-8B5A2B?style=flat-square&labelColor=555)](https://capycraft.io/)
 [![Octo WoW](https://img.shields.io/badge/Octo%20WoW-1.18.1-8A2BE2?style=flat-square&labelColor=555)](https://octowow.st/)
-[![Capy WoW](https://img.shields.io/badge/Capy%20WoW-1.18.1-8B5A2B?style=flat-square&labelColor=555)](https://capycraft.io/)
 
 [![SuperWoW](https://img.shields.io/badge/SuperWoW-Recommended-ff8c00?style=flat-square&labelColor=555)](https://github.com/balakethelock/SuperWoW)
 [![UnitXP_SP3](https://img.shields.io/badge/UnitXP__SP3-Recommended-ff8c00?style=flat-square&labelColor=555)](https://codeberg.org/konaka/UnitXP_SP3)
