@@ -280,6 +280,116 @@ function A.GetClassBuff(caster, classID)
     return c and c.cbuff and c.cbuff[classID]
 end
 
+--------------------------------------------------------------------------
+-- group-buff domain: caster x raid group (1-8) -> SET of buff spell names.
+--
+-- Deliberately separate from the class-buff domain above. Assigning by CLASS
+-- is a PALADIN mechanic - Greater Blessings are cast per class, which is why
+-- PallyPower is class-shaped and why blessings keep that model untouched. But
+-- a priest/mage/druid group buff (Prayer of Fortitude, Arcane Brilliance,
+-- Gift of the Wild) lands on a PARTY, so "Priest 1 covers groups 2 and 3" is
+-- the shape raids actually organise around. The class grid was inherited from
+-- the paladin design, where it fits, into a place where it does not.
+--
+-- The two answer different questions and both stay: cbuff is "which buff do I
+-- give class X" (what the strip's per-class wheel drives); gbuff is "which
+-- groups do I cover, and with what".
+--
+-- A group holds a SET, not a single value, so one caster can own both Spirit
+-- and Stamina for group 2.
+--------------------------------------------------------------------------
+
+local MAX_GROUPS = 8            -- a 40-man raid is 8 groups of 5
+
+function A.MaxGroups() return MAX_GROUPS end
+
+local function ValidGroup(g)
+    g = tonumber(g)
+    if not g or g < 1 or g > MAX_GROUPS then return nil end
+    return g
+end
+
+-- Catalog of buffs the caster's class can give, in declaration order.
+local function BuffCatalogFor(caster, c)
+    local token = (c and c.class) or ClassKnown(caster)
+    local m = token and AegisRP.classes and AegisRP.classes[token]
+    return (m and m.buffs) or {}
+end
+
+-- `on` true adds, false/nil removes. Returns false when not permitted.
+function A.SetGroupBuff(caster, group, buffName, on)
+    group = ValidGroup(group)
+    if not group or not buffName then return false end
+    if not Editable(caster) then return false end
+    local c = Block(caster, true)
+    c.gbuff = c.gbuff or {}
+    if on then
+        c.gbuff[group] = c.gbuff[group] or {}
+        c.gbuff[group][buffName] = true
+    elseif c.gbuff[group] then
+        c.gbuff[group][buffName] = nil
+        -- drop an emptied group so serialisation stays tight
+        local any = nil
+        for _ in pairs(c.gbuff[group]) do any = true; break end
+        if not any then c.gbuff[group] = nil end
+    end
+    Touch(c, caster)
+    Notify("gbuff", caster)
+    return true
+end
+
+function A.HasGroupBuff(caster, group, buffName)
+    group = ValidGroup(group)
+    local c = group and Block(caster)
+    return (c and c.gbuff and c.gbuff[group]
+            and c.gbuff[group][buffName]) and true or false
+end
+
+function A.ToggleGroupBuff(caster, group, buffName)
+    return A.SetGroupBuff(caster, group, buffName,
+                          not A.HasGroupBuff(caster, group, buffName))
+end
+
+-- Buff names this caster covers for `group`, in catalog order so the panel
+-- and the wire agree on sequence. Always returns a table (possibly empty).
+function A.GetGroupBuffs(caster, group)
+    local out = {}
+    group = ValidGroup(group)
+    local c = group and Block(caster)
+    if not (c and c.gbuff and c.gbuff[group]) then return out end
+    local cat = BuffCatalogFor(caster, c)
+    for i = 1, table.getn(cat) do
+        local nm = cat[i].name or cat[i].group
+        if nm and c.gbuff[group][nm] then table.insert(out, nm) end
+    end
+    return out
+end
+
+-- Every group this caster covers at all, ascending. Used by the panel's
+-- coverage line and by the report.
+function A.GetCoveredGroups(caster)
+    local out = {}
+    local c = Block(caster)
+    if not (c and c.gbuff) then return out end
+    for g = 1, MAX_GROUPS do
+        if c.gbuff[g] then
+            for _ in pairs(c.gbuff[g]) do table.insert(out, g); break end
+        end
+    end
+    return out
+end
+
+-- leader-gated bulk clear for one caster's whole group plan
+function A.ClearGroupBuffs(caster)
+    if not Editable(caster) then return false end
+    local c = Block(caster)
+    if not (c and c.gbuff) then return true end
+    c.gbuff = nil
+    Touch(c, caster)
+    Notify("gbuff", caster)
+    return true
+end
+
 function A.GetDuty(caster, dutyKey)
     local c = Block(caster)
     return c and c.duty and c.duty[dutyKey]
