@@ -2085,11 +2085,60 @@ local ROT_STATE = {
     cd   = { label = "|cff888888Cooldown|r", state = "off"  },
 }
 
+-- "|cffRRGGBB" for a class token, so a strip row can colour a name the way the
+-- panel grid does. (%02x is string.format's escape, not the banned % operator.)
+local function ClassHex(tok)
+    local c = tok and CLASS_RGB[tok]
+    if not c then return "|cffcccccc" end
+    return string.format("|cff%02x%02x%02x",
+        math.floor(c[1] * 255), math.floor(c[2] * 255), math.floor(c[3] * 255))
+end
+
+local function RotRowsOn() return AegisRP_Settings.rotQueue and true or false end
+
+-- One queue row: the Nth name in the rotation ORDER, not the Nth available
+-- person. Rows therefore keep the same names while cooldowns tick, instead of
+-- reshuffling under your eye every time someone's ability comes back - the
+-- live part is the status on the right, and "UP" marks whoever is actually on.
+local function RotRowRefresh(r, idx, b)
+    local name = A.GetRotation(r.kind)[idx]
+    if not name then
+        b:SetIcon("Interface\\Icons\\INV_Misc_QuestionMark")
+        b:SetLabel("|cff666666" .. idx .. ". -|r")
+        b:SetSub(""); b:SetTimer(""); b:SetState("off")
+        return
+    end
+    local tok = MemberClass(name)
+    local info = tok and r.cat[tok]
+    local tex = info and info.icon
+    if name == Me() then
+        local sp = MyAbility(r)
+        if sp and sp.texture then tex = sp.texture end
+    end
+    b:SetIcon(tex)
+    b:SetLabel(ClassHex(tok) .. idx .. ". " .. name .. "|r")
+    local rem = RotRemaining(r, name)
+    b:SetTimer(rem > 0 and AegisRP.FmtTime(rem) or "")
+    local q = RotQueue(r)
+    if name == q[1] then
+        b:SetSub("|cffff4040UP|r");            b:SetState("need")
+    elseif rem > 0 then
+        b:SetSub("|cff888888cooldown|r");      b:SetState("off")
+    elseif RotAvailable(r, name) then
+        b:SetSub("|cff5be07aready|r");         b:SetState("good")
+    else
+        b:SetSub("|cff888888away|r");          b:SetState("off")
+    end
+end
+
 local function BuildRotStrip(r)
     if r.strip then return r.strip end
     r.strip = AegisRP.NewStrip(r.kind, r.title)
     r.strip:AddButton{
-        key = "rotation",
+        -- keyed per rotation, not "rotation": Reflow gates a button on
+        -- AegisRP_Settings["btn_" .. key], so a shared key would make hiding
+        -- the kick button hide the taunt one with it
+        key = r.kind,
         refresh = function(b)
             local st = MyRotState(r)
             local sp, info = MyAbility(r)
@@ -2136,6 +2185,46 @@ local function BuildRotStrip(r)
             tt:AddLine("Click: open the assignment panel.", 0.6, 0.6, 0.6)
         end,
     }
+    -- The optional "next three" rows (Options > Settings > Show the next three).
+    -- Off by default: the one button above answers "is it me", which is all
+    -- most people want mid-pull, and three more rows is a lot of screen for a
+    -- question the tooltip already answers on demand.
+    for i = 1, 3 do
+        local idx = i
+        r.strip:AddButton{
+            key = r.kind .. "q" .. idx,
+            visible = RotRowsOn,
+            refresh = function(b) RotRowRefresh(r, idx, b) end,
+            onClick = function()
+                if AegisRP_AssignPanelToggle then AegisRP_AssignPanelToggle() end
+            end,
+            tooltip = function(b, tt)
+                local name = A.GetRotation(r.kind)[idx]
+                if not name then
+                    tt:AddLine(r.title .. " rotation", 1, 1, 1)
+                    tt:AddLine("Slot " .. idx .. " is empty - a leader fills it on the "
+                        .. "panel's Rotations tab.", 0.7, 0.7, 0.7)
+                    return
+                end
+                tt:AddLine(name, 1, 1, 1)
+                local info = r.cat[MemberClass(name)]
+                if info then
+                    tt:AddLine((info.label or r.title) .. "  -  " .. info.cd .. "s CD",
+                        0.7, 0.9, 0.7)
+                end
+                local rem = RotRemaining(r, name)
+                if rem > 0 then
+                    tt:AddLine("On cooldown: " .. math.floor(rem + 0.5) .. "s", 1, 0.5, 0.4)
+                elseif RotAvailable(r, name) then
+                    tt:AddLine("Ready", 0.4, 0.9, 0.5)
+                else
+                    tt:AddLine("Dead or out of the group - the rotation skips them.",
+                        0.8, 0.5, 0.5)
+                end
+                tt:AddLine("#" .. idx .. " in the " .. r.verb .. " rotation.", 0.55, 0.55, 0.62)
+            end,
+        }
+    end
     r.strip:Finish()
     return r.strip
 end
