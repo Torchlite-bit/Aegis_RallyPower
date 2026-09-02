@@ -169,7 +169,7 @@ M.optionsInfo = {
 -- Thunder Clap / Demoralizing Shout are catalog-only).
 if AegisRP.Assign then
     local D = AegisRP.Assign.RegisterDuty
-    D{ key="SUNDER",      wid=7, class="WARRIOR", tab="debuff", spell="Sunder Armor",       target="none", multi=false, dur=30 }
+    D{ key="SUNDER",      wid=7, class="WARRIOR", tab="debuff", spell="Sunder Armor",       target="none", multi=true,  dur=30 }
     -- Thunder Clap / Demoralizing Shout are group-utility debuffs, not the
     -- "one caster maintains it on the kill target" kind; hidden from the
     -- Debuffs tab (wids stay reserved, and the model/sync still carry them).

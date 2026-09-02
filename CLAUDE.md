@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.1.1**. See `CHANGELOG.md` for the full history and
+Current version: **1.5.0**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -88,9 +88,14 @@ other.
 
    Every file-scope `local` a function references costs one upvalue. A big
    builder function plus a few new layout constants is all it takes.
-   **We are already at 28**: `CreatePanel` in `Core/Aegis_AssignPanel.lua`
-   (lines 2483–2697). Four more file-scope locals in that file, referenced from
-   that function, and the addon stops loading.
+   **We are already at 29**: `CreatePanel` in `Core/Aegis_AssignPanel.lua`.
+   Three more file-scope locals in that file, referenced from that function,
+   and the addon stops loading.
+
+   The group-buff grid is the worked example: its nine layout constants went
+   into one `GBUF` table, so `CreatePanel` grew by exactly **one** upvalue (the
+   builder it calls) instead of ten. As nine separate locals it would have hit
+   38 and the addon would not have loaded.
 
    **Nothing local catches this.** `verify.py` won't, and a Lua 5.1 harness
    won't — 5.1's limit is 60. The only signal is:
@@ -170,6 +175,7 @@ under `scripts/test_*.lua`, run with any Lua (the addon files are
 
 ```
 lua scripts/test_groupbuff.lua   # group-buff model + RPCX round-trip
+lua scripts/test_rotation.lua    # kick/taunt rotations + KO/TO/KICK/TNT wire
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -267,7 +273,7 @@ All three steps shipped and were confirmed on a two-client Turtle test:
    and tank-slot (`TS`) sharing. **Verified**: a leader's MT/OT plan appears on
    a second client, which shows `lead=no` and the leader's slots.
 3. **Assignment panel** — `Core/Aegis_AssignPanel.lua`, six tabs: Blessings,
-   Totems, Raid Buffs, Debuffs, Kick, Roles.
+   Totems, Raid Buffs, Debuffs, Rotations, Roles.
 
 **Cast observation is validated.** `UNIT_CASTEVENT` fires on Turtle 1.18.1,
 `UnitName()` resolves GUIDs, `SpellInfo()` resolves ids, and `evt` is `CAST` on
@@ -291,8 +297,30 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
 
 - **Raid-wide interrupt timers — DONE, validated in-game.** Members broadcast
   their own interrupt cooldown over `RPCX` (`KICK`, `Aegis_Sync.lua`), which
-  reaches any distance and needs no SuperWoW on the sender; the Kick tab
-  distinguishes a synced report from a locally observed one (`kickSrc`).
+  reaches any distance and needs no SuperWoW on the sender; the Rotations tab
+  distinguishes a synced report from a locally observed one (`r.src`).
+- **Rotations are one engine, two records — untested in-game.** Kick and taunt
+  are the same problem, so `ROT` in `Aegis_AssignPanel.lua` holds both (catalog,
+  cooldown state, strip, sim) and every function takes a record. `A.*Rotation*`
+  in `Aegis_Assign.lua` is keyed the same way; the `A.*Kick*` names survive as
+  wrappers because the panel, strip and sync layer all call them. Adding a third
+  rotation is a `ROT` entry plus a `ROT_KIND` entry plus a wire tag — do it that
+  way, never by copying the engine. **Turtle-unverified:** the `TAUNTS` catalog
+  has Warrior Taunt and Druid Growl only; if Turtle gives its tanking paladins
+  or shamans a taunt, one entry there is the whole fix.
+- **Pet auto-buffing is Hunter-only — untested in-game.** `IsHunterPet` in
+  `Aegis_Core.lua` gates the roster-scan path (`FindUnitToBuff`) so `pet=true`
+  buffs (Fortitude, Mark of the Wild) only auto-target a Hunter's pet, never a
+  Warlock's demon — a demon gets resummoned mid-fight and the buff is usually
+  wasted the moment it dies or gets banished. Ownership is read off the raid
+  index a pet token shares with its owner (`PetOwnerUnit`); a manually
+  targeted pet (the `"target"` shortcut) is unaffected, since that's an
+  explicit click, not the automatic scan.
+- **Remaining from the Phase 2 roadmap, not yet started:** the kick/taunt
+  strip's own visibility toggle plus a "next 3" queue display and screen-edge
+  snapping (currently shows only up-now/on-deck); individual player overrides
+  on the pop-out rows via mousewheel, so a leader can override one member
+  without retargeting their whole class row.
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and

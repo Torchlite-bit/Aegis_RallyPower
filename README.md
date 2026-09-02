@@ -1,4 +1,4 @@
-# Aegis: RallyPower (v1.1.1)
+# Aegis: RallyPower (v1.5.0)
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
@@ -53,28 +53,30 @@ Every class gets a dedicated buff bar with its own tracking, UI, and controls:
 Coordinate assignments across the raid with real-time sync:
 
 - **Blessings tab** — PallyPower's assignment grid with exact ranks/Symbol counts (byte-compatible with stock PallyPower)
-- **Raid Buffs** — Caster × class matrix for Priest/Mage/Druid buffs
+- **Raid Buffs** — Caster × **raid group** matrix for Priest/Mage/Druid, several buffs per group ("Priest 1 covers groups 2 and 3 with Fort + Spirit"). Toggle to the older per-class view for retargeting a caster's strip buttons
 - **Totems** — Shaman totem assignments (auto-grouped, icon labels)
 - **Debuffs** — Warrior Sunder, Mage Scorch duty tracking
-- **Kick tab** — The interrupt **rotation**: click a name to add them, mouse-wheel to reorder. Whoever sits highest and is off cooldown is up next
+- **Rotations tab** — Two rotations, one grid: **Kick** (who interrupts) and **Taunt** (who picks the boss up). Click a name to add them, mouse-wheel to reorder. Whoever sits highest and is off cooldown is up next
 - **Roles** — Mark Main Tank/Off-Tanks, set per-tank blessings, mark healers
 
 Test mode seats a full 40-player preview raid so you can test on low-level characters.
 
-### 🦶 Kick Rotation
-Set a priority order of interrupters; the whole raid gets it. Your strip then answers the one question that matters mid-pull:
+### 🦶 Kick & Taunt Rotations
+Set a priority order — of interrupters, of tanks, or both; the whole raid gets it. Your strip then answers the one question that matters mid-pull:
 
 **🔴 KICK NOW** · **🟡 On deck** · **🟢 Holding** · **⚫ Cooldown**
 
-Whose turn it is isn't a counter anyone advances — it's *whoever sits highest in the order and is actually off cooldown*. Kicking puts you on cooldown, which hands the top spot to the next person automatically, and anyone dead, absent or on cooldown gets skipped instead of stalling the rotation. Nothing to drift out of sync, because there's no turn pointer to drift.
+Whose turn it is isn't a counter anyone advances — it's *whoever sits highest in the order and is actually off cooldown*. Using your kick (or your taunt) puts you on cooldown, which hands the top spot to the next person automatically, and anyone dead, absent or on cooldown gets skipped instead of stalling the rotation. Nothing to drift out of sync, because there's no turn pointer to drift.
 
 A sound fires when you reach the top — you're watching the boss, not the strip.
+
+Kicks and taunts are separate lists with separate strips (`/rpc kick`, `/rpc taunt`), so a protection warrior can sit in both at once.
 
 ### 📡 Shared Assignment Sync (RPCX Protocol)
 - Broadcast your assignments + receive others' over a dedicated addon channel
 - Leader-gated edits; Free Assignment mode lets members edit freely
 - Automatic message chunking for large assignment blocks
-- Shares the tank plan and the kick rotation; members broadcast their own interrupt cooldowns, so the Kick tab is right even for people you can't see
+- Shares the tank plan and both rotations; members broadcast their own interrupt and taunt cooldowns, so the Rotations tab is right even for people you can't see
 - No impact on blessings — they stay on PLPWR (stock PallyPower compatible)
 
 ### ⏱️ Cast-Exact Timers
@@ -110,6 +112,7 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 | `/rpc options` | Open settings (or right-click minimap icon) |
 | `/rpc assign` | Open the assignment panel (or right-click a strip title) |
 | `/rpc kick` | Show/hide the kick-rotation strip (interrupt classes) |
+| `/rpc taunt` | Show/hide the taunt-rotation strip (warriors, druids) |
 | `/rpc test` | Test mode — preview buffs on all specs |
 | `/rpc sync` | Force a full assignment resync |
 | `/rpc slots` | Tank plan, plus whether sync is actually reaching you |
@@ -135,7 +138,8 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 - **Cast-exact shared timers** — buffs *other* people cast are timed, not guessed
 - **Raid-wide interrupt timers** — members broadcast their own kick cooldowns, so distance doesn't matter
 - **Kick rotation** — shared priority order, personal strip, cooldown/dead auto-skip
-- Test mode with 40-player preview raid, including a live kick-rotation simulation
+- **Taunt rotation** — the same, for warriors and druids, on its own list and its own strip
+- Test mode with 40-player preview raid, including live rotation simulations
 - Full Options UI with per-class toggles and settings
 
 ### ⏳ Next

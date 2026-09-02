@@ -40,7 +40,9 @@
 --     group     = exact group/greater spell name (optional, right-click cast)
 --     ids       = { spellID, ... } applied-aura spell id(s)  [SuperWoW path]
 --     icons     = { "IconBaseName", ... } applied-aura icon basename(s) [fallback]
---     pet       = true to also track the buff on pets (optional)
+--     pet       = true to also track the buff on pets (optional). Scoped to
+--                 HUNTER pets only - a warlock's demon is resummoned mid-fight
+--                 and a buff on it is usually wasted (see IsHunterPet)
 --     dur/gdur  = single/group buff duration in seconds (drives the timer)
 --     selfcast  = true for shouts/auras cast on yourself that buff nearby party
 --                 (e.g. Battle Shout): a click just casts it, no per-member aim
@@ -279,6 +281,31 @@ local function BuildRoster(out, withPets)
     return n
 end
 
+-- Owner unit for a pet token ("pet" -> "player", "partypet3" -> "party3",
+-- "raid12pet" is never produced by BuildRoster - ours is "raidpetN"), or nil
+-- for anything that isn't a pet token. Vanilla has no "is this a pet" query,
+-- so ownership is read off the index the pet shares with its owner.
+local function PetOwnerUnit(u)
+    if u == "pet" then return "player" end
+    local _, _, n = string.find(u, "^partypet(%d+)$")
+    if n then return "party" .. n end
+    _, _, n = string.find(u, "^raidpet(%d+)$")
+    if n then return "raid" .. n end
+    return nil
+end
+
+-- Hunter pets are permanent raid members; a warlock's demon is resummoned
+-- mid-fight and a buff cast on it is usually wasted the moment it dies or gets
+-- banished. Auto-buffing pets is scoped to hunters only for that reason - a
+-- manually targeted pet (the "target" shortcut below) is unaffected, since
+-- that's an explicit click, not the automatic roster scan.
+local function IsHunterPet(u)
+    local owner = PetOwnerUnit(u)
+    if not owner then return false end
+    local _, cls = UnitClass(owner)
+    return cls == "HUNTER"
+end
+
 -- English class token for a unit ("WARRIOR", "PRIEST", ...). Used to bucket the
 -- roster by class for the grid. (Pets aren't bucketed; the grid is players-only.)
 local function UnitClassToken(unit)
@@ -432,7 +459,7 @@ local function FindUnitToBuff(b, renew)
         -- never wastes itself on someone across the zone.
         if UnitIsBuffable(u) and UnitIsVisible(u) and InLoS(u) then
             local isPet = (string.find(u, "pet") ~= nil)
-            if (not isPet or b.pet) then
+            if (not isPet or (b.pet and IsHunterPet(u))) then
                 if not UnitHasBuff(u, b) then
                     cursor[key] = idx
                     return u                       -- missing it: top priority
@@ -1858,9 +1885,13 @@ SlashCmdList["AEGISRP"] = function(msg)
         return
     end
 
-    -- Show/hide the personal kick-rotation strip (interrupt classes only).
+    -- Show/hide the personal rotation strips (classes that have the ability).
     if msg == "kick" then
         if AegisRP_ToggleKickStrip then AegisRP_ToggleKickStrip() end
+        return
+    end
+    if msg == "taunt" then
+        if AegisRP_ToggleTauntStrip then AegisRP_ToggleTauntStrip() end
         return
     end
 

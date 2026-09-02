@@ -14,6 +14,138 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-09-02
+### Added (pet auto-buffing is Hunter-only)
+- **Auto-buffing pets now only targets Hunter pets.** A buff flagged
+  `pet=true` (Fortitude, Mark of the Wild) used to consider every pet in the
+  raid a valid target for the round-robin scan and the smart-buff key,
+  including a Warlock's demon. A demon is resummoned mid-fight and gets
+  banished, dismissed or dies far more often than a Hunter's pet does, so a
+  buff cast on one is usually wasted the moment that happens. The scan now
+  checks the pet's owner (`IsHunterPet`, `Core/Aegis_Core.lua`) and skips
+  anything that isn't a Hunter's.
+- **Manually targeting a pet is unaffected.** The `"target"` shortcut in
+  `FindUnitToBuff` — buff whatever you have targeted first, before the roster
+  scan runs — still buffs any friendly pet you've explicitly clicked, Warlock
+  demons included. Only the *automatic* scan is scoped to Hunters; and
+  explicit target always wins.
+
+## [1.4.1] — 2026-09-02
+### Fixed
+- **The Raid Buffs tab's By Class / By Group switch overlapped the class icon
+  header.** It anchored at `NAME_W, -40` while the class icons start at
+  `NAME_W+9, -42`, so the pill was painted directly on top of Warrior and
+  Rogue's icons, and its 92px box was too narrow for "View: By Class" /
+  "View: By Group" besides. Moved to the panel's top-right corner — the same
+  spot the Rotations tab's own view switch already uses without incident —
+  and widened so the label fits inside its border.
+
+## [1.4.0] — 2026-09-01
+### Added (taunt rotation)
+- **There is now a taunt rotation, and it works exactly like the kick one.**
+  Set a priority order of tanks; whoever sits highest and is off cooldown is
+  up. Taunting puts you on cooldown and hands the top spot to the next person
+  by itself, and anyone dead, absent or on cooldown is skipped — so nothing
+  has to be advanced by hand and there is no turn pointer to drift out of sync.
+- **Its own strip** (`/rpc taunt`), with the same four states the kick strip
+  has — **TAUNT NOW** / On deck / Holding / Cooldown — and its own sound
+  toggle in Options. A protection warrior has a kick *and* a taunt, so both
+  strips can be up at once and they track independently.
+- **Warrior Taunt and Druid Growl only.** Mocking Blow is a taunt too, but at a
+  two-minute cooldown it is never part of a rotation, and one cooldown per
+  class means listing it would time every warrior's Taunt wrong. Turtle's
+  tanking paladins and shamans hold threat without a taunt as far as we have
+  verified on-realm; if that changes, one line in the `TAUNTS` catalog is the
+  whole fix.
+- **Taunt cooldowns sync like kick ones.** Members broadcast their own over
+  `RPCX` (`TNT`), which is exact and reaches any distance without SuperWoW on
+  the sender; with SuperWoW we also observe casts as a fallback for people
+  running a plain client. The shared order rides `TO`, leader-gated like `KO`.
+
+### Changed
+- **The Kick tab is now the Rotations tab**, with a Kick/Taunt switch in its
+  top-right — the same control the Raid Buffs tab uses. Two tabs would have
+  been the obvious thing, but the tab row is full at six and the two grids are
+  the same list with a different ability column, so a view switch beats a
+  cramped seventh tab. **Clear** on that tab now clears the rotation you are
+  looking at, not just its timers, and never touches the hidden one.
+- **Kicks and taunts are one implementation, not two.** `ROT` holds a record
+  per rotation (catalog, cooldown state, strip, simulation) and every engine
+  function takes one, so a fix to the rotation rules lands in both and a third
+  rotation costs a table entry rather than another 400 lines. The model layer
+  is keyed the same way (`A.GetRotation("taunt")`); the older `A.GetKickOrder`
+  family survives as wrappers, so nothing calling them changed.
+- One cooldown poller and one turn-cue ticker now serve both rotations instead
+  of one each — a warrior with both abilities costs the same `OnUpdate` work
+  as a rogue with one.
+- Test mode simulates whichever rotations you are actually in, so a mage no
+  longer gets taunt chatter and a druid no longer gets interrupt chatter.
+- Roster pruning drops leavers from every rotation at once, so adding a
+  rotation can't quietly leave stale names in it.
+
+### Testing
+- New `scripts/test_rotation.lua` (42 checks): the two rotations stay
+  independent stores, the kick-named wrappers still behave, the cap and the
+  leader gate hold, pruning reaches both, each rotation rides its own wire
+  message without leaking into the other, `-` clears, and `KICK`/`TNT` route to
+  the right rotation while nonsense values are dropped.
+
+## [1.3.0] — 2026-09-01
+### Added (several people can own the same debuff)
+- **Stacking debuffs now take as many owners as you want.** Sunder Armor and
+  Scorch are cumulative — a real raid runs two or three warriors on Sunder and
+  a pair of mages on Scorch — but the Debuffs tab could only ever name **one**
+  person per duty, so the assignment never matched what the raid was actually
+  doing. Clicking a stacking card now **adds** an owner rather than replacing
+  the last one; right-click drops the most recently added. Cycling past the
+  last candidate clears the duty, as before.
+- **Non-stacking duties are unchanged and stay single-owner.** Curses and
+  Expose Armor overwrite each other on the target, so exactly one person should
+  hold them; those cards still cycle one name at a time. The card tooltip has
+  always said which kind a duty is (“any number” vs “one owner”) — now the
+  panel behaves that way too.
+- Each owner still broadcasts **their own** claim in **their own** `RPCX`
+  block, so multi-owner duties need no protocol change and mixed-version raids
+  degrade to what an older client understands. Asserted by
+  `scripts/test_groupbuff.lua`.
+
+### Fixed
+- **Class names no longer bleed through the Raid Buffs group grid.** Switching
+  the tab to the group view hid the class *icons* but left their *labels*
+  drawn, so “Warrior”, “Shaman”, “Priest” and “Pet” sat underneath the
+  group headers. The builder now keeps a reference to each label so the view
+  switch can hide it with its icon.
+
+## [1.2.0] — 2026-09-01
+### Added (Raid Buffs tab: assign by raid group)
+- **The Raid Buffs tab can now assign by raid group.** Rows are still your
+  priests, mages and druids; columns are now **groups 1–8**, and each cell
+  holds one small toggle per buff that caster can give — so *"Priest 1 covers
+  groups 2 and 3, and group 2 gets Fortitude **and** Spirit"* is a few clicks
+  in one row, rather than something the panel simply couldn't express.
+- **Why by group.** A priest/mage/druid group buff (Prayer of Fortitude,
+  Arcane Brilliance, Gift of the Wild) lands on a **party**. Assigning by class
+  is a *paladin* mechanic — Greater Blessings are cast per class, which is why
+  PallyPower is class-shaped — and the class grid had been inherited into a
+  place it doesn't fit.
+- **Coverage now reads per group**: "No buffer for group: 4, 7" instead of by
+  class, because that's the gap that actually matters for these buffs.
+- **The per-class view is still there**, behind a *View: By Group / By Class*
+  toggle at the top of the tab (remembered per character). It wasn't deleted
+  because it does one thing nothing else can: a leader editing it retargets
+  that caster's own strip buttons. The strip's mouse-wheel only ever sets your
+  own.
+- **Clear only clears the view you're looking at.** The two are separate plans,
+  and wiping the hidden one would be invisible destruction. Asserted by test.
+
+### Notes
+- Untested in-game — the grid is visual and needs a real client. `/rpc test`
+  seats the preview raid, so the tab can be exercised solo.
+- `CreatePanel` went from **28 to 29** of the 32-upvalue ceiling. The nine new
+  layout constants live in one `GBUF` table on purpose: as separate file-scope
+  locals they would have pushed it to 38, and Lua 5.0 refuses to *load* a file
+  that breaks the limit — the whole addon, not just the tab.
+
 ## [1.1.1] — 2026-09-01
 ### Added (group-buff assignment model — foundation, no UI yet)
 - **Raid buffs can now be assigned by raid group, with several buffs per

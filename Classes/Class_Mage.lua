@@ -32,5 +32,5 @@ end
 if AegisRP.Assign then
     local D = AegisRP.Assign.RegisterDuty
     D{ key="INTELLECT", wid=4,  class="MAGE", tab="raidbuff", spell="Arcane Intellect", target="none", multi=false, dur=30*60 }
-    D{ key="SCORCH",    wid=13, class="MAGE", tab="debuff",   spell="Scorch",           target="none", multi=false, dur=30 }
+    D{ key="SCORCH",    wid=13, class="MAGE", tab="debuff",   spell="Scorch",           target="none", multi=true,  dur=30 }
 end

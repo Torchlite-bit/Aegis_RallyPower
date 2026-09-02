@@ -140,6 +140,23 @@ check("group 5 emptied", table.getn(A.GetGroupBuffs(ME, 5)), 0)
 check("emptied group leaves coverage", table.concat(A.GetCoveredGroups(ME), ","), "2")
 
 --------------------------------------------------------------------------
+-- 2b. ClearGroupBuffs wipes the whole group plan (the panel's Clear button,
+--     which must NOT touch the separate per-class plan)
+--------------------------------------------------------------------------
+A.SetGroupBuff(ME, 4, "Divine Spirit", true)
+A.SetClassBuff(ME, 0, "Power Word: Fortitude")     -- the other domain
+check("clear returns true", A.ClearGroupBuffs(ME), true)
+check("all groups gone", table.getn(A.GetCoveredGroups(ME)), 0)
+check("class plan untouched by group clear", A.GetClassBuff(ME, 0),
+      "Power Word: Fortitude")
+A.SetClassBuff(ME, 0, nil)
+-- clearing an already-empty plan is a no-op, not an error
+check("clear is idempotent", A.ClearGroupBuffs(ME), true)
+-- rebuild the state the wire test below expects
+A.SetGroupBuff(ME, 2, "Power Word: Fortitude", true)
+A.SetGroupBuff(ME, 2, "Divine Spirit", true)
+
+--------------------------------------------------------------------------
 -- 3. Bounds: groups outside 1..8 are rejected, not stored
 --------------------------------------------------------------------------
 check("group 0 rejected", A.SetGroupBuff(ME, 0, "Divine Spirit", true), false)
@@ -172,6 +189,28 @@ if blk then
     check("round-trip: absent group stays absent",
           A.HasGroupBuff("Priest2", 4, "Divine Spirit"), false)
 end
+
+--------------------------------------------------------------------------
+-- 4b. Multi-owner duties: several casters hold the SAME duty at once.
+--     Each caster owns their own block, so this has to survive the wire as
+--     two independent BLKs rather than one shared list.
+--------------------------------------------------------------------------
+A.RegisterDuty{ key = "SUNDER", wid = 7, class = "WARRIOR", tab = "debuff",
+                spell = "Sunder Armor", target = "none", multi = true, dur = 30 }
+A.SetDuty("War1", "SUNDER", true)
+A.SetDuty("War2", "SUNDER", true)
+A.SetDuty("War3", "SUNDER", true)
+check("three owners on one duty", table.getn(A.GetDutyCasters("SUNDER")), 3)
+A.ClearDuty("War2", "SUNDER")
+check("dropping one leaves the others", table.getn(A.GetDutyCasters("SUNDER")), 2)
+
+-- and each owner's claim rides its own block
+sent = {}
+pumpFrames(1.0)
+local w1 = lastBlockFor("War1")
+local w3 = lastBlockFor("War3")
+check("owner 1 broadcast its own claim", w1 ~= nil and string.find(w1, "d7", 1, true) ~= nil, true)
+check("owner 2 broadcast its own claim", w3 ~= nil and string.find(w3, "d7", 1, true) ~= nil, true)
 
 --------------------------------------------------------------------------
 -- 5. FORWARD COMPATIBILITY, both directions
