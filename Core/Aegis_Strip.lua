@@ -206,11 +206,28 @@ local function Btn_SetIcon2(self, tex)
     else self.icon2:Hide() end
 end
 
+-- Effective backdrop alpha for a button's state colour.
+--
+-- Transparency is a single global multiplier on the ONE thing that carries
+-- state: green covered / red needed / amber expiring / grey off. Near zero
+-- every state paints the same nothing - and because SetBackdropColor only
+-- touches the fill, the SKIN border keeps drawing, so you get outlined boxes
+-- with empty middles. That reads as "the addon is broken", not as "I chose a
+-- transparent backdrop", and nothing on screen says which. Hence a floor:
+-- still very see-through, never unreadable. The setting is per character, so
+-- one alt looking flat while another looks right is the signature of this.
+local ALPHA_FLOOR = 0.15
+
+function AegisRP.StripAlpha(fallback)
+    local a = AegisRP_Settings.stripAlpha
+    if a == nil then a = fallback or 0.5 end
+    if a < ALPHA_FLOOR then a = ALPHA_FLOOR end
+    return a
+end
+
 local function Btn_SetState(self, st)
     local c = COLORS[st] or COLORS.off
-    local a = AegisRP_Settings.stripAlpha
-    if a == nil then a = c[4] end                 -- Transparency slider (default 0.5)
-    self:SetBackdropColor(c[1], c[2], c[3], a)
+    self:SetBackdropColor(c[1], c[2], c[3], AegisRP.StripAlpha(c[4]))
     self.icon:SetAlpha(st == "good" and 1 or 0.55)
     if self.icon2 then self.icon2:SetAlpha(st == "good" and 1 or 0.55) end
 end

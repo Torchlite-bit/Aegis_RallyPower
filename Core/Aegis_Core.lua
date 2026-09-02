@@ -1297,7 +1297,9 @@ local function ClassButtonDef(ct)
                 b:SetState("need")                              -- red: someone needs it
                 b:SetTimer("|cffffffff" .. need .. "|r")
             elseif mr and mr <= WARN_TIME then
-                b:SetBackdropColor(1, 1, 0.5, AegisRP_Settings.stripAlpha or 0.5)   -- yellow: covered but expiring
+                -- yellow: covered but expiring. Shares the strip's alpha floor
+                -- so this state can't be the one that vanishes.
+                b:SetBackdropColor(1, 1, 0.5, AegisRP.StripAlpha(0.5))
                 b.icon:SetAlpha(1)
                 if b.icon2 then b.icon2:SetAlpha(1) end
                 local m = math.floor(mr / 60)

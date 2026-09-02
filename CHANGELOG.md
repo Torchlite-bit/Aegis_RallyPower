@@ -14,6 +14,30 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-09-02
+### Fixed
+- **Transparency could turn a whole strip into empty outlines.** The
+  Transparency slider went down to 0, and it is a single global multiplier on
+  the one thing that carries state — green covered, red needed, amber expiring,
+  grey off. Near zero every state paints the same nothing, and because
+  `SetBackdropColor` only affects the fill, the border keeps drawing: you get
+  outlined boxes with empty middles, which reads as a broken addon rather than
+  a transparent one, with nothing on screen saying why. The setting is **per
+  character**, so the giveaway is one alt looking flat while another looks
+  right.
+- The slider now floors at **0.15** — still very see-through, never
+  unreadable — and the floor is applied on *read* as well, so a character that
+  already had it at 0 fixes itself without touching the slider. The
+  covered-but-expiring colour goes through the same floor, so it can't be the
+  one state that vanishes.
+
+### Testing
+- `scripts/test_snap.lua` is now `scripts/test_strip.lua` and covers both
+  pieces of strip-engine arithmetic (35 checks): the existing snapping cases,
+  plus the alpha floor — unset falling back to the colour's own alpha, a set
+  value passing through, 0 and 0.05 being raised to the floor, and the floor
+  and full opacity being left alone.
+
 ## [1.6.0] — 2026-09-02
 ### Added (frames snap to edges)
 - **Drop a strip near a screen edge and it lines up flush.** Within 12 pixels

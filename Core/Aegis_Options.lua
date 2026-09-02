@@ -449,8 +449,10 @@ local function SettingsTabEntries()
           min = 0.5, max = 1.5, step = 0.05, default = 1.0,
           onChange = function() AegisRP_ApplyUIScale() end },
         { type = "slider", key = "stripAlpha", label = "Transparency",
-          min = 0, max = 1, step = 0.05, default = 0.5,
-          tip = "Backdrop opacity of the strip buttons." },
+          min = 0.15, max = 1, step = 0.05, default = 0.5,
+          tip = "Backdrop opacity of the strip buttons.\nThe floor is 0.15: the "
+             .. "backdrop is what shows covered/needed/expiring, so it never goes "
+             .. "fully invisible." },
         { type = "check", key = "stripHorizontal", label = "Horizontal layout", default = false,
           tip = "Lay the strip buttons left-to-right instead of stacked.",
           onChange = function() if AegisRP.ReflowStrips then AegisRP.ReflowStrips() end end },

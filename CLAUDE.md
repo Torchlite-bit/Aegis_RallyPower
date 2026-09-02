@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.6.0**. See `CHANGELOG.md` for the full history and
+Current version: **1.6.1**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -176,7 +176,7 @@ under `scripts/test_*.lua`, run with any Lua (the addon files are
 ```
 lua scripts/test_groupbuff.lua   # group-buff model + RPCX round-trip
 lua scripts/test_rotation.lua    # kick/taunt rotations + KO/TO/KICK/TNT wire
-lua scripts/test_snap.lua        # strip edge snapping (screen + strip-to-strip)
+lua scripts/test_strip.lua       # strip engine: edge snapping + alpha floor
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -323,10 +323,17 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   arithmetic happens in the DRAGGED frame's own coordinate space — each strip
   carries its own grip scale, so another strip's `GetLeft()` has to be
   converted by the scale ratio or the snap lands visibly wrong at any scale but
-  1.0. Covered by `scripts/test_snap.lua`. The rotation strips can also show
+  1.0. Covered by `scripts/test_strip.lua`. The rotation strips can also show
   three rows for slots 1-3 of the order (`rotQueue`, off by default); the rows
   follow the ORDER rather than the availability queue so names don't reshuffle
   as cooldowns tick.
+- **Transparency has a floor (`AegisRP.StripAlpha`, `Aegis_Strip.lua`).** The
+  backdrop is the only carrier of button state, so an alpha near 0 makes every
+  state paint identically while the border keeps drawing — outlined boxes with
+  empty middles, which players read as a broken addon. The floor is 0.15,
+  applied on read as well as in the slider's range, so an existing 0 heals
+  itself. Anything new that paints a strip backdrop must go through
+  `AegisRP.StripAlpha` rather than reading `stripAlpha` directly.
 - **Remaining from the Phase 2 roadmap, not yet started:** individual player
   overrides on the pop-out rows via mousewheel, so a leader can override one
   member without retargeting their whole class row.
