@@ -454,6 +454,9 @@ local function SettingsTabEntries()
         { type = "check", key = "stripHorizontal", label = "Horizontal layout", default = false,
           tip = "Lay the strip buttons left-to-right instead of stacked.",
           onChange = function() if AegisRP.ReflowStrips then AegisRP.ReflowStrips() end end },
+        { type = "check", key = "stripSnap", label = "Snap frames to edges", default = true,
+          tip = "Dropping a strip within a few pixels of a screen edge - or of another "
+             .. "strip - lines it up flush instead of nearly flush." },
         MinimapSkinEntry(),
         ShowMinimapButtonEntry(),
         { type = "check", key = "locked", label = "Lock frame positions", default = false },
@@ -518,6 +521,14 @@ local function ButtonsTabEntries()
     if AegisRP.HasTaunt and AegisRP.HasTaunt() then
         table.insert(entries, { type = "check", key = "tauntSound", label = "Sound when it's your turn to taunt", default = true,
             tip = "Plays when you reach the top of the taunt rotation.\nHide the strip itself with /rpc taunt." })
+    end
+    if (AegisRP.HasInterrupt and AegisRP.HasInterrupt())
+       or (AegisRP.HasTaunt and AegisRP.HasTaunt()) then
+        table.insert(entries, { type = "check", key = "rotQueue", label = "Show the next three in the rotation", default = false,
+            tip = "Adds three rows under the rotation strip: who holds slots 1-3, and "
+               .. "whether each is up, ready, or on cooldown.\nOff by default - the one "
+               .. "button already answers \"is it me\", and the tooltip lists the whole order.",
+            onChange = function() if AegisRP.ReflowStrips then AegisRP.ReflowStrips() end end })
     end
     table.insert(entries, { type = "check", label = "UnitXP SP3 line-of-sight", default = false,
         tip = "Use UnitXP.dll (if loaded) to skip out-of-line-of-sight targets.",

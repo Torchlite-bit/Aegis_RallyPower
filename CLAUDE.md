@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.5.0**. See `CHANGELOG.md` for the full history and
+Current version: **1.6.0**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -176,6 +176,7 @@ under `scripts/test_*.lua`, run with any Lua (the addon files are
 ```
 lua scripts/test_groupbuff.lua   # group-buff model + RPCX round-trip
 lua scripts/test_rotation.lua    # kick/taunt rotations + KO/TO/KICK/TNT wire
+lua scripts/test_snap.lua        # strip edge snapping (screen + strip-to-strip)
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -316,11 +317,19 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   index a pet token shares with its owner (`PetOwnerUnit`); a manually
   targeted pet (the `"target"` shortcut) is unaffected, since that's an
   explicit click, not the automatic scan.
-- **Remaining from the Phase 2 roadmap, not yet started:** the kick/taunt
-  strip's own visibility toggle plus a "next 3" queue display and screen-edge
-  snapping (currently shows only up-now/on-deck); individual player overrides
-  on the pop-out rows via mousewheel, so a leader can override one member
-  without retargeting their whole class row.
+- **Strip snapping and the rotation "next three" — untested in-game.**
+  `SnapStrip` in `Aegis_Strip.lua` runs on every strip's `OnDragStop` and lines
+  a strip up flush with a screen edge or another strip within 12px. All of its
+  arithmetic happens in the DRAGGED frame's own coordinate space — each strip
+  carries its own grip scale, so another strip's `GetLeft()` has to be
+  converted by the scale ratio or the snap lands visibly wrong at any scale but
+  1.0. Covered by `scripts/test_snap.lua`. The rotation strips can also show
+  three rows for slots 1-3 of the order (`rotQueue`, off by default); the rows
+  follow the ORDER rather than the availability queue so names don't reshuffle
+  as cooldowns tick.
+- **Remaining from the Phase 2 roadmap, not yet started:** individual player
+  overrides on the pop-out rows via mousewheel, so a leader can override one
+  member without retargeting their whole class row.
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and

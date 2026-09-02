@@ -307,6 +307,77 @@ function AegisRP.AddScaleGrip(frame, scaleKey, onChanged)
     return grip
 end
 
+--------------------------------------------------------------------------
+-- EDGE SNAPPING - let go of a strip near a screen edge, or near another
+-- strip, and it lines up flush instead of a few pixels off.
+--
+-- Everything is converted into the DRAGGED frame's own coordinate space
+-- first. Each strip carries its own grip scale, so another strip's GetLeft()
+-- is measured in a different space; comparing them raw would snap to visibly
+-- the wrong place at any scale but 1.0.
+--------------------------------------------------------------------------
+local SNAP_PX = 12          -- how close an edge has to be before it grabs
+
+-- nearest candidate to v within SNAP_PX, else v unchanged
+local function NearestSnap(v, cands)
+    local best, bestD = v, SNAP_PX
+    for i = 1, table.getn(cands) do
+        local d = cands[i] - v
+        if d < 0 then d = -d end
+        if d < bestD then best, bestD = cands[i], d end
+    end
+    return best
+end
+
+local function SnapStrip(f)
+    if AegisRP_Settings.stripSnap == false then return end
+    local es = f:GetEffectiveScale()
+    local left, top = f:GetLeft(), f:GetTop()
+    if not (es and es > 0 and left and top) then return end
+    local w, h = f:GetWidth(), f:GetHeight()
+    local sw = UIParent:GetWidth() * UIParent:GetEffectiveScale() / es
+    local sh = UIParent:GetHeight() * UIParent:GetEffectiveScale() / es
+
+    -- screen edges. GetTop() measures from the screen BOTTOM, so a frame sits
+    -- flush against the bottom at top == h, and against the top at top == sh.
+    local xs = { 0, sw - w }
+    local ys = { h, sh }
+
+    -- every other visible strip: align edges with it, or sit against it
+    for _, other in pairs(AegisRP.strips) do
+        local o = other.frame
+        if o and o ~= f and o:IsShown() then
+            local os, ol, ot = o:GetEffectiveScale(), o:GetLeft(), o:GetTop()
+            if os and ol and ot then
+                local k = os / es                  -- their space -> ours
+                ol, ot = ol * k, ot * k
+                local ow, oh = o:GetWidth() * k, o:GetHeight() * k
+                local oright, obottom = ol + ow, ot - oh
+                table.insert(xs, ol)               -- left edges flush
+                table.insert(xs, oright - w)       -- right edges flush
+                table.insert(xs, oright)           -- sit to its right
+                table.insert(xs, ol - w)           -- sit to its left
+                table.insert(ys, ot)               -- top edges flush
+                table.insert(ys, obottom + h)      -- bottom edges flush
+                table.insert(ys, obottom)          -- sit under it
+                table.insert(ys, ot + h)           -- sit above it
+            end
+        end
+    end
+
+    local nx, ny = NearestSnap(left, xs), NearestSnap(top, ys)
+    if nx == left and ny == top then return end
+    -- TOPLEFT->BOTTOMLEFT is the anchor pair the scale grip already persists,
+    -- so a snapped strip survives a later rescale the same way a dragged one does
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", nx, ny)
+end
+
+-- Exposed as the seam for scripts/test_snap.lua. The arithmetic here (edge
+-- candidates, and the scale conversion between two strips) is the kind that is
+-- silently wrong rather than visibly broken, so it gets an off-client test.
+AegisRP.SnapStrip = SnapStrip
+
 function AegisRP.NewStrip(key, title)
     local S = { key = key, buttons = {} }
     local posKey = "stripPos_" .. key
@@ -328,6 +399,7 @@ function AegisRP.NewStrip(key, title)
     end)
     f:SetScript("OnDragStop", function()
         f:StopMovingOrSizing()
+        SnapStrip(f)                  -- may re-anchor, so snap BEFORE saving
         -- keep the relative point: grip-scaling re-anchors TOPLEFT->BOTTOMLEFT
         local p, _, rp, x, y = f:GetPoint()
         AegisRP_Settings[posKey] = { p = p, rel = rp, x = x, y = y }

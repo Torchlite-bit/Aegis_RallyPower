@@ -14,6 +14,47 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-09-02
+### Added (frames snap to edges)
+- **Drop a strip near a screen edge and it lines up flush.** Within 12 pixels
+  of an edge — of the screen, or of another strip — the strip snaps rather than
+  landing nearly-but-not-quite aligned. Strips snap to each other four ways per
+  axis: edges flush, or sitting directly against one another, so stacking a
+  Kick strip under a Taunt strip is one drag instead of a pixel hunt.
+- **Scale is handled properly.** Every strip carries its own grip scale, so
+  another strip's coordinates are in a different space; the snapper converts
+  them into the dragged frame's space by the scale ratio first. Getting that
+  backwards would still "work" while parking the frame somewhere visibly wrong,
+  which is why it has a test rather than only a look in-game.
+- Toggle in **Options > Settings > Snap frames to edges** (on by default).
+
+### Added (the next three in a rotation)
+- **The Kick and Taunt strips can show three rows for slots 1-3 of the order** —
+  who holds each, and whether they are up, ready, on cooldown, or dead/away.
+  **Options > Settings > Show the next three in the rotation**, off by default:
+  the single button already answers "is it me", and the tooltip already lists
+  the whole order on demand.
+- **The rows follow the ORDER, not the availability queue.** Position 2 is
+  always the same person until a leader changes the rotation, so the rows stay
+  put and your eye learns them; only the status on the right moves. Rows that
+  tracked "the next three who are ready" would reshuffle every few seconds as
+  cooldowns came back, which is the opposite of useful under pressure.
+
+### Fixed
+- **The Kick and Taunt strips shared one button-visibility key.** Both used
+  `rotation`, and `Reflow` gates a button on `AegisRP_Settings["btn_" .. key]`,
+  so anything that hid one strip's button would have hidden the other's with
+  it. They are keyed per rotation now. Latent rather than reachable — the
+  Buttons tab is generated from the active class module and never listed
+  either — but it would have bitten the moment they were surfaced.
+
+### Testing
+- New `scripts/test_snap.lua` (27 checks): screen edges on both axes, the
+  12px threshold being exclusive at exactly 12, strip-to-strip alignment in all
+  four directions, a strip ignoring its own and hidden strips' edges, the scale
+  conversion in the direction that matters, the settings gate, and an
+  unpositioned frame being skipped rather than erroring.
+
 ## [1.5.0] — 2026-09-02
 ### Added (pet auto-buffing is Hunter-only)
 - **Auto-buffing pets now only targets Hunter pets.** A buff flagged
