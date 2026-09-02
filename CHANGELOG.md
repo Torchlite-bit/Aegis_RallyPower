@@ -14,6 +14,22 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-09-02
+### Added (pet auto-buffing is Hunter-only)
+- **Auto-buffing pets now only targets Hunter pets.** A buff flagged
+  `pet=true` (Fortitude, Mark of the Wild) used to consider every pet in the
+  raid a valid target for the round-robin scan and the smart-buff key,
+  including a Warlock's demon. A demon is resummoned mid-fight and gets
+  banished, dismissed or dies far more often than a Hunter's pet does, so a
+  buff cast on one is usually wasted the moment that happens. The scan now
+  checks the pet's owner (`IsHunterPet`, `Core/Aegis_Core.lua`) and skips
+  anything that isn't a Hunter's.
+- **Manually targeting a pet is unaffected.** The `"target"` shortcut in
+  `FindUnitToBuff` — buff whatever you have targeted first, before the roster
+  scan runs — still buffs any friendly pet you've explicitly clicked, Warlock
+  demons included. Only the *automatic* scan is scoped to Hunters; and
+  explicit target always wins.
+
 ## [1.4.1] — 2026-09-02
 ### Fixed
 - **The Raid Buffs tab's By Class / By Group switch overlapped the class icon

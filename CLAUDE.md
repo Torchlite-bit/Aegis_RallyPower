@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.4.1**. See `CHANGELOG.md` for the full history and
+Current version: **1.5.0**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -308,6 +308,19 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   way, never by copying the engine. **Turtle-unverified:** the `TAUNTS` catalog
   has Warrior Taunt and Druid Growl only; if Turtle gives its tanking paladins
   or shamans a taunt, one entry there is the whole fix.
+- **Pet auto-buffing is Hunter-only — untested in-game.** `IsHunterPet` in
+  `Aegis_Core.lua` gates the roster-scan path (`FindUnitToBuff`) so `pet=true`
+  buffs (Fortitude, Mark of the Wild) only auto-target a Hunter's pet, never a
+  Warlock's demon — a demon gets resummoned mid-fight and the buff is usually
+  wasted the moment it dies or gets banished. Ownership is read off the raid
+  index a pet token shares with its owner (`PetOwnerUnit`); a manually
+  targeted pet (the `"target"` shortcut) is unaffected, since that's an
+  explicit click, not the automatic scan.
+- **Remaining from the Phase 2 roadmap, not yet started:** the kick/taunt
+  strip's own visibility toggle plus a "next 3" queue display and screen-edge
+  snapping (currently shows only up-now/on-deck); individual player overrides
+  on the pop-out rows via mousewheel, so a leader can override one member
+  without retargeting their whole class row.
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and
