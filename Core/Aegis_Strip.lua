@@ -34,6 +34,10 @@ AegisRP_Settings = AegisRP_Settings or {}
 -- Registry of live strips ([key] = strip object). The options UI iterates it
 -- for re-flow, scale and position resets; only the active class's strip exists.
 AegisRP.strips = AegisRP.strips or {}
+-- ...and the same keys in creation order. pairs() over the registry is
+-- unordered, so anything the player READS - the Options list of strips - walks
+-- this instead, or the rows would shuffle between logins.
+AegisRP.stripOrder = AegisRP.stripOrder or {}
 
 local SKIN = {
     bgFile   = "Interface\\AddOns\\Aegis_RallyPower\\Skins\\Smooth",
@@ -402,6 +406,7 @@ function AegisRP.NewStrip(key, title)
 
     local f = CreateFrame("Frame", "AegisRP_Strip_" .. key, UIParent)
     S.frame = f
+    if not AegisRP.strips[key] then table.insert(AegisRP.stripOrder, key) end
     AegisRP.strips[key] = S
     f:SetWidth(STRIP_W)
     -- per-strip grip scale wins; the global slider resets it (see Core)
@@ -570,14 +575,31 @@ function AegisRP.NewStrip(key, title)
         if AegisRP_Settings[hidKey] then f:Hide() else f:Show() end
     end
 
-    function S:Toggle()
-        if f:IsShown() then f:Hide(); AegisRP_Settings[hidKey] = true
-        else f:Show(); AegisRP_Settings[hidKey] = false end
-    end
-
-    function S:Show() f:Show(); AegisRP_Settings[hidKey] = false end
+    function S:Toggle() AegisRP.SetStripShown(key, not f:IsShown()) end
+    function S:Show()   AegisRP.SetStripShown(key, true) end
 
     return S
+end
+
+--------------------------------------------------------------------------
+-- Show/hide by key. The slash commands, the Options checkboxes and a strip's
+-- own Toggle all come through here, so the frame's shown state and its saved
+-- flag can never disagree - and showing defers to AegisRP_ApplyVisibility so
+-- the solo/party/raid rules still get the last word (asking for a strip while
+-- "Show when solo" is off writes the flag but correctly leaves it hidden).
+--------------------------------------------------------------------------
+
+function AegisRP.IsStripShown(key)
+    return not AegisRP_Settings["stripHidden_" .. key]
+end
+
+function AegisRP.SetStripShown(key, shown)
+    AegisRP_Settings["stripHidden_" .. key] = (not shown) and true or false
+    local S = AegisRP.strips[key]
+    if not (S and S.frame) then return end          -- flag remembered for when it builds
+    if not shown then S.frame:Hide()
+    elseif AegisRP_ApplyVisibility then AegisRP_ApplyVisibility()
+    else S.frame:Show() end
 end
 
 -- Options hook: re-flow every live strip after a per-button enable changed.

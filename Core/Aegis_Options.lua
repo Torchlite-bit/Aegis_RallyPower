@@ -404,6 +404,43 @@ local function ShowMinimapButtonEntry()
         "MinimapButtonOptionChk", "PallyPower_MinimapButtonOption", true)
 end
 
+-- One "Show <strip>" check per strip this character actually has, driven by
+-- AegisRP.stripOrder rather than a hardcoded list: a warrior sees Shout, Kick
+-- and Taunt, a priest sees only their buff strip, and a third rotation or a new
+-- class strip appears here on its own without touching this file.
+--
+-- The label is the strip's own title, so it matches the header drawn above the
+-- buttons - that is what tells you which frame on screen a row refers to.
+-- Bound through AegisRP.SetStripShown so these agree with /rpc kick, /rpc taunt
+-- and a strip's own Toggle instead of being a second, rival writer.
+local SLASH_FOR_STRIP = { kick = "/rpc kick", taunt = "/rpc taunt", classbuffs = "/rpc" }
+
+local function AppendStripToggles(entries)
+    if not (AegisRP.stripOrder and AegisRP.SetStripShown) then return end
+    local added = false
+    for i = 1, table.getn(AegisRP.stripOrder) do
+        local k = AegisRP.stripOrder[i]
+        local S = AegisRP.strips[k]
+        if S and S.frame then
+            if not added then
+                table.insert(entries, { type = "header", label = "Strips" })
+                added = true
+            end
+            local key = k
+            local slash = SLASH_FOR_STRIP[key]
+            table.insert(entries, {
+                type = "check",
+                label = "Show " .. (S.title or key),
+                tip = "Show or hide this strip."
+                    .. (slash and ("\nSame as " .. slash .. ".") or "")
+                    .. "\nThe when-to-show rules above still apply.",
+                get = function() return AegisRP.IsStripShown(key) end,
+                set = function(v) AegisRP.SetStripShown(key, v and true or false) end,
+            })
+        end
+    end
+end
+
 -- The Settings tab is class-aware: non-Paladins get the strip/grid controls;
 -- Paladins get the merged frame-level engine settings instead (our show
 -- rules / uiScale / lock only touch the strip+grid frames, which Paladins
@@ -444,7 +481,6 @@ local function SettingsTabEntries()
           onChange = function() AegisRP_ApplyVisibility() end },
         { type = "check", key = "tooltips",  label = "Show tooltips",   default = true },
         TestModeEntry(),
-        { type = "header", label = "Looks" },
         { type = "slider", key = "uiScale", label = "UI scale",
           min = 0.5, max = 1.5, step = 0.05, default = 1.0,
           onChange = function() AegisRP_ApplyUIScale() end },
@@ -465,6 +501,7 @@ local function SettingsTabEntries()
         { type = "button", label = "Reset Frames", func = ResetFramePositions,
           tip = "Move every Aegis: RallyPower frame back to its default position." },
     }
+    AppendStripToggles(entries)
     return entries
 end
 

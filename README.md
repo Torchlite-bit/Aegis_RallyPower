@@ -1,4 +1,4 @@
-# Aegis: RallyPower (v1.6.1)
+# Aegis: RallyPower (v1.7.0)
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
@@ -54,6 +54,7 @@ Coordinate assignments across the raid with real-time sync:
 
 - **Blessings tab** — PallyPower's assignment grid with exact ranks/Symbol counts (byte-compatible with stock PallyPower)
 - **Raid Buffs** — Caster × **raid group** matrix for Priest/Mage/Druid, several buffs per group ("Priest 1 covers groups 2 and 3 with Fort + Spirit"). Toggle to the older per-class view for retargeting a caster's strip buttons
+- **Per-player overrides** — mouse-wheel a name in the hover pop-out to give that one person a different buff from the rest of their class row; wheel round to clear it
 - **Totems** — Shaman totem assignments (auto-grouped, icon labels)
 - **Debuffs** — Warrior Sunder, Mage Scorch duty tracking
 - **Rotations tab** — Two rotations, one grid: **Kick** (who interrupts) and **Taunt** (who picks the boss up). Click a name to add them, mouse-wheel to reorder. Whoever sits highest and is off cooldown is up next
@@ -113,6 +114,7 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 | `/rpc assign` | Open the assignment panel (or right-click a strip title) |
 | `/rpc kick` | Show/hide the kick-rotation strip (interrupt classes) |
 | `/rpc taunt` | Show/hide the taunt-rotation strip (warriors, druids) |
+| | *(every strip also has a show/hide box in Options → Settings)* |
 | `/rpc test` | Test mode — preview buffs on all specs |
 | `/rpc sync` | Force a full assignment resync |
 | `/rpc slots` | Tank plan, plus whether sync is actually reaching you |

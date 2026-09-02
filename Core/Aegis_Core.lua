@@ -373,6 +373,22 @@ local function BuffIsUsable(b)
     return false
 end
 
+-- ACTIVE_BUFFS index this player is individually overridden to, or nil for
+-- "whatever their class row says". An override naming a buff we can't cast
+-- (unlearned, or switched off on the Buttons tab) resolves to nil rather than
+-- to a dead index, so the player falls back to the row instead of silently
+-- dropping out of coverage entirely.
+local function PlayerOverrideIndex(uname)
+    if not (uname and ACTIVE_BUFFS and AegisRP.Assign) then return nil end
+    local want = AegisRP.Assign.GetPlayerBuff(UnitName("player"), uname)
+    if not want then return nil end
+    for i = 1, table.getn(ACTIVE_BUFFS) do
+        local b = ACTIVE_BUFFS[i]
+        if (b.name == want or b.group == want) and BuffIsUsable(b) then return i end
+    end
+    return nil
+end
+
 --=============================================================================
 -- SHARED LOOK  (the class-buff UI is a strip: Core\Aegis_Strip.lua
 -- builds the frame and buttons; only the pop-out geometry lives here)
@@ -1032,7 +1048,8 @@ local function PopoutPlayerOnClick()
         RefreshPopout()
         return
     end
-    local bi = RowBuffIndex(popoutClass)
+    -- this player's own override first, then the class row's buff
+    local bi = PlayerOverrideIndex(UnitName(unit)) or RowBuffIndex(popoutClass)
     local b = bi and ACTIVE_BUFFS[bi]
     if not b then return end
     if b.selfcast then return end                 -- shouts/auras have no per-player cast
@@ -1068,6 +1085,39 @@ local function PopoutPlayerOnClick()
     auraDirty = true; lastScan = ScanInterval()
 end
 
+-- Mouse-wheel a player row to give THAT player a different buff from the rest
+-- of their class row - the raid's one warrior who wants Shadow Protection,
+-- without retargeting the row and hand-fixing everyone else.
+--
+-- The cycle runs through the usable buffs and then back to "no override", so
+-- wheeling all the way round always returns to the class default. An override
+-- you can set but not obviously clear is a trap, and this is a hover panel
+-- with no room for a clear button.
+local function PopoutPlayerOnWheel()
+    local unit = this.unit
+    if not (unit and UnitExists(unit) and ACTIVE_BUFFS and AegisRP.Assign) then return end
+    local nm = UnitName(unit)
+    if not nm then return end
+    local list = {}
+    for i = 1, table.getn(ACTIVE_BUFFS) do
+        if BuffIsUsable(ACTIVE_BUFFS[i]) then table.insert(list, i) end
+    end
+    local n = table.getn(list)
+    if n == 0 then return end
+    -- position in the cycle: 0 = no override, 1..n = list[k]
+    local cur, at = PlayerOverrideIndex(nm), 0
+    for k = 1, n do if list[k] == cur then at = k end end
+    at = at + ((arg1 and arg1 > 0) and 1 or -1)
+    if at > n then at = 0 elseif at < 0 then at = n end
+    local bd = (at > 0) and ACTIVE_BUFFS[list[at]] or nil
+    if not AegisRP.Assign.SetPlayerBuff(UnitName("player"), nm,
+                                       bd and (bd.name or bd.group) or nil) then
+        return
+    end
+    auraDirty = true; lastScan = ScanInterval()   -- recount coverage for the row
+    RefreshPopout()
+end
+
 -- Refresh each visible player row with the official popup states:
 --   not visible -> C_SPECIAL (blue), dim icon, red R
 --   dead        -> C_NEEDALL (red),  dim icon, green R, red D
@@ -1077,17 +1127,22 @@ end
 function RefreshPopout()
     if not popout or not popoutClass then return end
     local bi = RowBuffIndex(popoutClass)
-    local b = bi and ACTIVE_BUFFS[bi]
+    local rowB = bi and ACTIVE_BUFFS[bi]
     local units = classUnits[popoutClass] or {}
     local now = GetTime()
-    local iconTex = b and b.icons and ("Interface\\Icons\\" .. (b.icons[1] or "INV_Misc_QuestionMark"))
     for i = 1, table.getn(popoutRows) do
         local pr = popoutRows[i]
         local unit = units[i]
+        local nm = unit and UnitName(unit)
+        -- Each row resolves its OWN buff: an overridden player is shown, timed
+        -- and coloured against the buff they actually get, not the row's.
+        local ovIdx = PlayerOverrideIndex(nm)
+        local b = (ovIdx and ACTIVE_BUFFS[ovIdx]) or rowB
+        pr.override = ovIdx and true or false
         if unit and b and UnitExists(unit) then
             pr.unit = unit
-            local nm = UnitName(unit)
-            pr.name:SetText(nm or "?")
+            pr.name:SetText((nm or "?") .. (ovIdx and " |cffffd100*|r" or ""))
+            local iconTex = b.icons and ("Interface\\Icons\\" .. (b.icons[1] or "INV_Misc_QuestionMark"))
             if iconTex then pr.icon:SetTexture(iconTex) end
             local timerText = ""
             if not UnitIsVisible(unit) then
@@ -1205,6 +1260,8 @@ local function GetPopoutRow(i)
     pr.tank = tank
 
     pr:SetScript("OnClick", PopoutPlayerOnClick)
+    pr:EnableMouseWheel(true)
+    pr:SetScript("OnMouseWheel", PopoutPlayerOnWheel)
     popoutRows[i] = pr
     return pr
 end
@@ -1514,9 +1571,15 @@ local function ScanRoster()
                 local uname = UnitName(unit)
                 CollectUnitBuffs(unit)              -- ONE buff-list read per unit
                 local isPlayer = UnitIsUnit(unit, "player")
+                -- An overridden player counts ONLY toward their override's
+                -- buff; everyone else still counts toward every buff, which is
+                -- what lets the row's wheel switch without waiting for a
+                -- rescan. So the class row stops calling an overridden member
+                -- "missing Fortitude" when he was never meant to get it.
+                local ovIdx = PlayerOverrideIndex(uname)
                 for i = 1, table.getn(ACTIVE_BUFFS) do
                     local b = ACTIVE_BUFFS[i]
-                    if BuffIsUsable(b) then
+                    if BuffIsUsable(b) and (not ovIdx or ovIdx == i) then
                         if not HasCollected(b) then
                             rowNeed[ct][i] = (rowNeed[ct][i] or 0) + 1
                             NEEDCOUNT[i] = NEEDCOUNT[i] + 1

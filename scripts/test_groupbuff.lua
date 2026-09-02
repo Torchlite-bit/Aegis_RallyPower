@@ -213,6 +213,53 @@ check("owner 1 broadcast its own claim", w1 ~= nil and string.find(w1, "d7", 1, 
 check("owner 2 broadcast its own claim", w3 ~= nil and string.find(w3, "d7", 1, true) ~= nil, true)
 
 --------------------------------------------------------------------------
+-- 4c. Per-player overrides: the exception to a class row.
+--     One name -> one buff, replacing (not adding to) what that player's
+--     class row would give them. The name rides the wire literally, so the
+--     round-trip is where a separator bug would show up.
+--------------------------------------------------------------------------
+check("set an override", A.SetPlayerBuff(ME, "Bob", "Shadow Protection"), true)
+check("read it back", A.GetPlayerBuff(ME, "Bob"), "Shadow Protection")
+check("someone else has none", A.GetPlayerBuff(ME, "Carol"), nil)
+
+-- it REPLACES rather than accumulating: setting again overwrites
+A.SetPlayerBuff(ME, "Bob", "Divine Spirit")
+check("setting again replaces", A.GetPlayerBuff(ME, "Bob"), "Divine Spirit")
+
+A.SetPlayerBuff(ME, "Carol", "Power Word: Fortitude")
+check("two overrides held", table.getn(A.GetPlayerBuffs(ME)), 2)
+check("listed name-sorted", A.GetPlayerBuffs(ME)[1].player, "Bob")
+
+-- nil clears one player back onto their class row
+A.SetPlayerBuff(ME, "Bob", nil)
+check("nil clears just that player", A.GetPlayerBuff(ME, "Bob"), nil)
+check("...and leaves the others", A.GetPlayerBuff(ME, "Carol"), "Power Word: Fortitude")
+
+-- wire round-trip
+A.SetPlayerBuff(ME, "Bob", "Shadow Protection")
+sent = {}
+pumpFrames(1.0)
+local pblk = lastBlockFor(ME)
+check("a BLK carried the p section", pblk and string.find(pblk, "pBob%.3") ~= nil, true)
+check("...and Carol's too", pblk and string.find(pblk, "Carol%.1") ~= nil, true)
+if pblk then
+    local asOther = string.gsub(pblk, "BLK " .. ME .. " ", "BLK Priest9 ", 1)
+    deliver(asOther, "Priest9")
+    check("round-trip: Bob's override", A.GetPlayerBuff("Priest9", "Bob"), "Shadow Protection")
+    check("round-trip: Carol's override", A.GetPlayerBuff("Priest9", "Carol"),
+          "Power Word: Fortitude")
+    check("round-trip: nobody else gained one", A.GetPlayerBuff("Priest9", "Dave"), nil)
+end
+
+-- an override naming a buff outside the caster's catalog is dropped on
+-- receive rather than installed as a name nothing can cast
+deliver("1 BLK Priest8 1 cPRIEST;pZed.9", "Priest8")
+check("out-of-range buff index dropped", A.GetPlayerBuff("Priest8", "Zed"), nil)
+
+A.ClearPlayerBuffs(ME)
+check("clear drops them all", table.getn(A.GetPlayerBuffs(ME)), 0)
+
+--------------------------------------------------------------------------
 -- 5. FORWARD COMPATIBILITY, both directions
 --------------------------------------------------------------------------
 -- a v1 payload (no g section) must still parse everything it does know

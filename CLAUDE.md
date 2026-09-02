@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.6.1**. See `CHANGELOG.md` for the full history and
+Current version: **1.7.0**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -334,9 +334,20 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   applied on read as well as in the slider's range, so an existing 0 heals
   itself. Anything new that paints a strip backdrop must go through
   `AegisRP.StripAlpha` rather than reading `stripAlpha` directly.
-- **Remaining from the Phase 2 roadmap, not yet started:** individual player
-  overrides on the pop-out rows via mousewheel, so a leader can override one
-  member without retargeting their whole class row.
+- **Per-player buff overrides — DONE, untested in-game.** `pbuff` in
+  `Aegis_Assign.lua` (caster x player name -> one buff name, replacing what
+  their class row would give), riding an additive `p` section on `RPCX`.
+  `PlayerOverrideIndex` in `Aegis_Core.lua` resolves it, and the scan gives an
+  overridden player to their own buff index ONLY, while un-overridden players
+  still count toward every index so the row's wheel stays instant. An override
+  naming an uncastable buff resolves to nil, so the player falls back to the
+  row rather than dropping out of coverage.
+- **Strip show/hide has one writer: `AegisRP.SetStripShown`.** The Options
+  checkboxes, `/rpc kick`, `/rpc taunt` and `S:Toggle` all route through it, so
+  the frame and its saved flag cannot disagree. Options builds its list from
+  `AegisRP.stripOrder` (creation order - `pairs()` over `AegisRP.strips` is
+  unordered and would shuffle the rows between logins), so a new strip appears
+  there on its own. Never write `stripHidden_*` directly.
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and
