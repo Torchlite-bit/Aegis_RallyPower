@@ -1301,11 +1301,16 @@ local function BuffViewTip()
 end
 
 local function BuildGroupGrid(p)
-    -- view toggle, parked on the panel so it costs no file-scope local
-    local tg = MakeCell(p, 92, 18)
-    tg:SetPoint("TOPLEFT", p, "TOPLEFT", NAME_W, -40)
+    -- view toggle, parked on the panel so it costs no file-scope local.
+    -- Anchored top-right (the same corner the Rotations tab's view switch
+    -- uses) rather than at NAME_W: that spot sat right on top of the class
+    -- icon header row (icons start at NAME_W+9, y-42; the toggle was at
+    -- NAME_W, y-40), so the pill painted over Warrior/Rogue's icons and its
+    -- own text overflowed a box too narrow for "View: By Class/Group".
+    local tg = MakeCell(p, 120, 18)
+    tg:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, -20)
     tg.label = Fnt(tg, 10, GOLD, "CENTER")
-    tg.label:SetWidth(92); tg.label:SetHeight(11)
+    tg.label:SetWidth(116); tg.label:SetHeight(13)
     tg.label:SetPoint("CENTER", tg, "CENTER", 0, 0)
     tg:SetScript("OnClick", BuffViewToggle)
     tg:SetScript("OnEnter", SafeTip(BuffViewTip))

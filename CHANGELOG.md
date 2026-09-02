@@ -14,6 +14,16 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-09-02
+### Fixed
+- **The Raid Buffs tab's By Class / By Group switch overlapped the class icon
+  header.** It anchored at `NAME_W, -40` while the class icons start at
+  `NAME_W+9, -42`, so the pill was painted directly on top of Warrior and
+  Rogue's icons, and its 92px box was too narrow for "View: By Class" /
+  "View: By Group" besides. Moved to the panel's top-right corner — the same
+  spot the Rotations tab's own view switch already uses without incident —
+  and widened so the label fits inside its border.
+
 ## [1.4.0] — 2026-09-01
 ### Added (taunt rotation)
 - **There is now a taunt rotation, and it works exactly like the kick one.**
