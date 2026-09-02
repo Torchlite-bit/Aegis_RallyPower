@@ -1,4 +1,5 @@
--- Off-client test for strip edge snapping (Core/Aegis_Strip.lua).
+-- Off-client tests for the strip engine's isolable arithmetic
+-- (Core/Aegis_Strip.lua): edge snapping, and the backdrop alpha floor.
 --
 -- Loads the REAL strip engine against stubbed 1.12 APIs and drives
 -- AegisRP.SnapStrip with fabricated frame geometry. Snapping is arithmetic
@@ -13,7 +14,7 @@
 -- equals its own height, and against the screen top when its top equals the
 -- screen height.
 --
--- Run:  lua scripts/test_snap.lua
+-- Run:  lua scripts/test_strip.lua
 
 --------------------------------------------------------------------------
 -- 1.12 API stubs
@@ -89,7 +90,7 @@ local function asStrip(key, f)
     return f
 end
 
-print("strip edge snapping")
+print("strip engine - edge snapping")
 
 --------------------------------------------------------------------------
 -- 1. Screen edges
@@ -201,9 +202,43 @@ local ok = pcall(drop, f)
 check("a frame with no position is skipped", ok and f.anchor == nil, true)
 
 --------------------------------------------------------------------------
+-- BACKDROP ALPHA FLOOR
+--
+-- Transparency is one global multiplier on the only thing that carries state
+-- (green covered / red needed / grey off). At 0 every state paints the same
+-- nothing while the SKIN border keeps drawing, so the strip reads as broken
+-- rather than transparent - and because the setting is per character, one alt
+-- looks flat while another looks fine. The floor is what stops that.
+--------------------------------------------------------------------------
+print("")
+print("strip engine - backdrop alpha floor")
+
+AegisRP_Settings.stripAlpha = nil
+check("unset falls back to the colour's own alpha", AegisRP.StripAlpha(0.5), 0.5)
+check("unset honours a different fallback", AegisRP.StripAlpha(0.8), 0.8)
+
+AegisRP_Settings.stripAlpha = 0.75
+check("a set value is used as-is", AegisRP.StripAlpha(0.5), 0.75)
+
+AegisRP_Settings.stripAlpha = 0
+check("zero is floored, not obeyed", AegisRP.StripAlpha(0.5), 0.15)
+check("...so the state colour still paints", AegisRP.StripAlpha(0.5) > 0, true)
+
+AegisRP_Settings.stripAlpha = 0.05
+check("below the floor is raised to it", AegisRP.StripAlpha(0.5), 0.15)
+
+AegisRP_Settings.stripAlpha = 0.15
+check("exactly the floor is kept", AegisRP.StripAlpha(0.5), 0.15)
+
+AegisRP_Settings.stripAlpha = 1
+check("fully opaque is untouched", AegisRP.StripAlpha(0.5), 1)
+
+AegisRP_Settings.stripAlpha = nil
+
+--------------------------------------------------------------------------
 print("")
 if failures == 0 then
-    print("PASS - screen edges, strip-to-strip, scale conversion and the gate")
+    print("PASS - snapping (edges, strips, scale, gate) and the alpha floor")
     os.exit(0)
 end
 print("FAIL - " .. failures .. " check(s)")
