@@ -169,7 +169,7 @@ M.optionsInfo = {
 -- Thunder Clap / Demoralizing Shout are catalog-only).
 if AegisRP.Assign then
     local D = AegisRP.Assign.RegisterDuty
-    D{ key="SUNDER",      wid=7, class="WARRIOR", tab="debuff", spell="Sunder Armor",       target="none", multi=true,  dur=30 }
+    D{ key="SUNDER",      wid=7, class="WARRIOR", tab="debuff", spell="Sunder Armor",       target="none", multi=true,  dur=30, icon="Interface\\Icons\\Ability_Warrior_Sunder" }
     -- Thunder Clap and Demoralizing Shout are the raid's attack-speed and
     -- attack-power debuffs. They were hidden as "group utility rather than
     -- something one caster maintains on the kill target" - but a raid does
@@ -177,6 +177,6 @@ if AegisRP.Assign then
     -- the mitigation the tanks are counting on, so they belong on the tab.
     -- Single-owner: they refresh rather than stack, so a second owner adds
     -- nothing but confusion about whose job it is.
-    D{ key="THUNDERCLAP", wid=8, class="WARRIOR", tab="debuff", spell="Thunder Clap",       target="none", multi=false, dur=30 }
-    D{ key="DEMOSHOUT",   wid=9, class="WARRIOR", tab="debuff", spell="Demoralizing Shout", target="none", multi=false, dur=30 }
+    D{ key="THUNDERCLAP", wid=8, class="WARRIOR", tab="debuff", spell="Thunder Clap",       target="none", multi=false, dur=30, icon="Interface\\Icons\\Spell_Nature_ThunderClap" }
+    D{ key="DEMOSHOUT",   wid=9, class="WARRIOR", tab="debuff", spell="Demoralizing Shout", target="none", multi=false, dur=30, icon="Interface\\Icons\\Ability_Warrior_WarCry" }
 end

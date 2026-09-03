@@ -112,32 +112,6 @@ local CELL_BD = {
 
 -- Icon paths are DISPLAY-ONLY fallbacks for duties of other classes (your own
 -- class resolves from the spellbook first). Verify on Turtle; fix here.
-local DUTY_ICONS = {
-    FORTITUDE   = "Interface\\Icons\\Spell_Holy_WordFortitude",
-    SPIRIT      = "Interface\\Icons\\Spell_Holy_DivineSpirit",
-    SHADOWPROT  = "Interface\\Icons\\Spell_Shadow_AntiShadow",
-    INTELLECT   = "Interface\\Icons\\Spell_Holy_MagicalSentry",
-    MARK        = "Interface\\Icons\\Spell_Nature_Regeneration",
-    THORNS      = "Interface\\Icons\\Spell_Nature_Thorns",
-    SUNDER      = "Interface\\Icons\\Ability_Warrior_Sunder",
-    THUNDERCLAP = "Interface\\Icons\\Spell_Nature_ThunderClap",
-    DEMOSHOUT   = "Interface\\Icons\\Ability_Warrior_WarCry",
-    EXPOSE      = "Interface\\Icons\\Ability_Warrior_Riposte",
-    SCORCH      = "Interface\\Icons\\Spell_Fire_SoulBurn",
-    CURSE_ELEMENTS     = "Interface\\Icons\\Spell_Shadow_ChillTouch",
-    CURSE_SHADOW       = "Interface\\Icons\\Spell_Shadow_CurseOfAchimonde",
-    CURSE_WEAKNESS     = "Interface\\Icons\\Spell_Shadow_CurseOfMannoroth",
-    CURSE_RECKLESSNESS = "Interface\\Icons\\Spell_Shadow_UnholyStrength",
-    CURSE_TONGUES      = "Interface\\Icons\\Spell_Shadow_CurseOfTounges",
-    CURSE_AGONY        = "Interface\\Icons\\Spell_Shadow_CurseOfSargeras",
-    CURSE_DOOM         = "Interface\\Icons\\Spell_Shadow_AuraOfDarkness",
-    STING_SERPENT = "Interface\\Icons\\Ability_Hunter_Quickshot",
-    STING_VIPER   = "Interface\\Icons\\Ability_Hunter_AimedShot",
-    STING_SCORPID = "Interface\\Icons\\Ability_Hunter_CriticalShot",
-    SOULSTONE   = "Interface\\Icons\\Spell_Shadow_SoulGem",
-    FEARWARD    = "Interface\\Icons\\Spell_Holy_Excorcism",
-    INNERVATE   = "Interface\\Icons\\Spell_Nature_Lightning",
-}
 
 -- Totem chip icons, keyed by full spell name. Display-only fallbacks for
 -- shamans other than yourself (your own spellbook resolves first, exactly);
@@ -1511,12 +1485,21 @@ local function DutyList(tabkey)
     return out
 end
 
+-- Your own spellbook first (exact, right rank), then the icon the duty
+-- carries. The fallback matters for everyone ELSE's duties: a mage looking at
+-- the Debuffs tab can't resolve Faerie Fire from their spellbook, and a card
+-- with no icon is what a missing fallback looks like.
+--
+-- The icon rides on the duty definition rather than a lookup table in this
+-- file on purpose - as a parallel table it was a second place to remember, and
+-- Faerie Fire and Demoralizing Roar shipped blank in 1.8.0 for exactly that
+-- reason. scripts/test_duties.lua now fails if a duty has no icon.
 local function DutyIcon(def)
     if def.spell then
         local sp = AegisRP.FindSpell and AegisRP.FindSpell(def.spell)
         if sp and sp.texture then return sp.texture end
     end
-    return DUTY_ICONS[def.key]
+    return def.icon
 end
 
 -- Holders text: "-", "Name", "Name +2" (tooltip lists everyone)

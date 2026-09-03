@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.8.0**. See `CHANGELOG.md` for the full history and
+Current version: **1.8.1**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -364,10 +364,18 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   still fit `DUTY_POOL`; overflow is silent, so a surplus duty just never
   draws. `DUTY_POOL` is 18 (2x9) and 9 rows is the ceiling — a tenth renders
   under the tab's hint text.
+- **A duty carries its own `icon=`.** The card falls back to it whenever the
+  viewer can't resolve the spell from their own spellbook — which is everyone
+  looking at another class's duty, so a duty without one renders blank for
+  almost the whole raid. It used to live in a `DUTY_ICONS` table in the panel;
+  as a second place to remember it was promptly forgotten, and Faerie Fire and
+  Demoralizing Roar shipped iconless in 1.8.0. `test_duties.lua` now fails on
+  a duty with no icon.
 - **Phase 3 remaining:** crowd-control assignments, and raid markers + roles.
-  Markers are **blocked on an unverified prerequisite**: confirm
-  `SetRaidTarget` / `GetRaidTargetIndex` exist on Turtle 1.18.1 before building
-  anything on them.
+  **`SetRaidTarget` is CONFIRMED present on Turtle 1.18.1** (`/run
+  print(SetRaidTarget)` returns a function), so markers are no longer blocked.
+  `GetRaidTargetIndex` still wants the same one-line check before anything
+  reads a mark back.
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and

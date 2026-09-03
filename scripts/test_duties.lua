@@ -78,17 +78,25 @@ print("duty catalog")
 local n = table.getn(A.dutyOrder)
 check("duties registered", n > 0, true)
 
-local missingWid, missingSpell, badTab = {}, {}, {}
+local missingWid, missingSpell, badTab, noIcon = {}, {}, {}, {}
 local TABS = { debuff = true, raidbuff = true, utility = true }
 for i = 1, n do
     local d = A.duties[A.dutyOrder[i]]
     if not d.wid then table.insert(missingWid, d.key) end
     if not d.spell then table.insert(missingSpell, d.key) end
     if not TABS[d.tab or ""] then table.insert(badTab, d.key) end
+    if not d.icon then table.insert(noIcon, d.key) end
 end
 check("every duty has a wid", table.concat(missingWid, ","), "")
 check("every duty names a spell", table.concat(missingSpell, ","), "")
 check("every duty sits on a known tab", table.concat(badTab, ","), "")
+
+-- A card falls back to the duty's own icon whenever the viewer can't resolve
+-- the spell from their spellbook - which is everyone looking at another
+-- class's duty. Faerie Fire and Demoralizing Roar shipped blank in 1.8.0
+-- because the icon lived in a parallel table in the panel that was easy to
+-- forget; it rides on the duty now, and this is what keeps it there.
+check("every duty carries a fallback icon", table.concat(noIcon, ","), "")
 
 --------------------------------------------------------------------------
 -- 2. Wids are UNIQUE. This is the one that matters: duties cross the wire as

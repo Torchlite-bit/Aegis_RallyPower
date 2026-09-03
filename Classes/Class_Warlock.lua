@@ -345,14 +345,14 @@ M.optionsInfo = {
 -- append-only (21-25 were added after the first catalog batch - never renumber).
 if AegisRP.Assign then
     local D = AegisRP.Assign.RegisterDuty
-    D{ key="CURSE_ELEMENTS",     wid=11, class="WARLOCK", tab="debuff",  spell="Curse of the Elements",  target="none",   multi=false, dur=5*60 }
-    D{ key="CURSE_SHADOW",       wid=12, class="WARLOCK", tab="debuff",  spell="Curse of Shadow",        target="none",   multi=false, dur=5*60 }
-    D{ key="SOULSTONE",          wid=17, class="WARLOCK", tab="utility", spell="Soulstone Resurrection", target="player", multi=true,  dur=0 }
-    D{ key="CURSE_WEAKNESS",     wid=21, class="WARLOCK", tab="debuff",  spell="Curse of Weakness",      target="none",   multi=false, dur=2*60 }
-    D{ key="CURSE_RECKLESSNESS", wid=22, class="WARLOCK", tab="debuff",  spell="Curse of Recklessness",  target="none",   multi=false, dur=2*60 }
-    D{ key="CURSE_TONGUES",      wid=23, class="WARLOCK", tab="debuff",  spell="Curse of Tongues",       target="none",   multi=false, dur=30 }
+    D{ key="CURSE_ELEMENTS",     wid=11, class="WARLOCK", tab="debuff",  spell="Curse of the Elements",  target="none",   multi=false, dur=5*60, icon="Interface\\Icons\\Spell_Shadow_ChillTouch" }
+    D{ key="CURSE_SHADOW",       wid=12, class="WARLOCK", tab="debuff",  spell="Curse of Shadow",        target="none",   multi=false, dur=5*60, icon="Interface\\Icons\\Spell_Shadow_CurseOfAchimonde" }
+    D{ key="SOULSTONE",          wid=17, class="WARLOCK", tab="utility", spell="Soulstone Resurrection", target="player", multi=true,  dur=0, icon="Interface\\Icons\\Spell_Shadow_SoulGem" }
+    D{ key="CURSE_WEAKNESS",     wid=21, class="WARLOCK", tab="debuff",  spell="Curse of Weakness",      target="none",   multi=false, dur=2*60, icon="Interface\\Icons\\Spell_Shadow_CurseOfMannoroth" }
+    D{ key="CURSE_RECKLESSNESS", wid=22, class="WARLOCK", tab="debuff",  spell="Curse of Recklessness",  target="none",   multi=false, dur=2*60, icon="Interface\\Icons\\Spell_Shadow_UnholyStrength" }
+    D{ key="CURSE_TONGUES",      wid=23, class="WARLOCK", tab="debuff",  spell="Curse of Tongues",       target="none",   multi=false, dur=30, icon="Interface\\Icons\\Spell_Shadow_CurseOfTounges" }
     -- Agony / Doom are personal DPS DoTs, not a raid-maintained utility
     -- debuff; hidden from the Debuffs tab (wids reserved, model/sync keep them)
-    D{ key="CURSE_AGONY",        wid=24, class="WARLOCK", tab="debuff",  spell="Curse of Agony",         target="none",   multi=false, dur=24, hidden=true }
-    D{ key="CURSE_DOOM",         wid=25, class="WARLOCK", tab="debuff",  spell="Curse of Doom",          target="none",   multi=false, dur=60, hidden=true }
+    D{ key="CURSE_AGONY",        wid=24, class="WARLOCK", tab="debuff",  spell="Curse of Agony",         target="none",   multi=false, dur=24, hidden=true, icon="Interface\\Icons\\Spell_Shadow_CurseOfSargeras" }
+    D{ key="CURSE_DOOM",         wid=25, class="WARLOCK", tab="debuff",  spell="Curse of Doom",          target="none",   multi=false, dur=60, hidden=true, icon="Interface\\Icons\\Spell_Shadow_AuraOfDarkness" }
 end

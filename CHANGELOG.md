@@ -14,6 +14,20 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.8.1] — 2026-09-03
+### Fixed
+- **Faerie Fire and Demoralizing Roar had blank icons on the Debuffs tab.** A
+  duty card resolves its icon from your own spellbook first and falls back to a
+  stored one — and the fallback is what almost everyone sees, since a mage
+  can't resolve a druid spell. The two new duties in 1.8.0 had no fallback, so
+  they rendered as empty squares for anyone who wasn't a druid.
+- **The icon now rides on the duty definition instead of a parallel
+  `DUTY_ICONS` table in the panel.** That table was a second place to remember
+  when adding a duty, and it was promptly forgotten — which is the whole reason
+  1.8.0 shipped two blank cards. The icon sits next to the wid, spell and
+  duration it belongs with, and `scripts/test_duties.lua` now fails on any duty
+  without one (verified by deliberately removing one).
+
 ## [1.8.0] — 2026-09-03
 ### Added (the Debuffs tab covers the raid's actual mitigation)
 - **Faerie Fire and Demoralizing Roar are now druid duties**, with strip

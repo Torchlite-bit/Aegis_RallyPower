@@ -217,5 +217,6 @@ M.optionsInfo = {
 -- Assignment model: Rogue debuff duty. Wid is stable.
 if AegisRP.Assign then
     AegisRP.Assign.RegisterDuty{ key="EXPOSE", wid=10, class="ROGUE", tab="debuff",
-        spell="Expose Armor", target="none", multi=false, dur=30 }
+        spell="Expose Armor", target="none", multi=false, dur=30,
+        icon="Interface\\Icons\\Ability_Warrior_Riposte" }
 end

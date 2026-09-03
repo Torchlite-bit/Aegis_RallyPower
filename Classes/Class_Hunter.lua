@@ -196,7 +196,7 @@ if AegisRP.Assign then
     local D = AegisRP.Assign.RegisterDuty
     -- Serpent Sting is a personal DPS DoT, not a raid-maintained utility
     -- debuff; hidden from the Debuffs tab (the sting wheel still uses it)
-    D{ key="STING_SERPENT", wid=14, class="HUNTER", tab="debuff", spell="Serpent Sting", target="none", multi=false, dur=15, hidden=true }
-    D{ key="STING_VIPER",   wid=15, class="HUNTER", tab="debuff", spell="Viper Sting",   target="none", multi=false, dur=8  }
-    D{ key="STING_SCORPID", wid=16, class="HUNTER", tab="debuff", spell="Scorpid Sting", target="none", multi=false, dur=20 }
+    D{ key="STING_SERPENT", wid=14, class="HUNTER", tab="debuff", spell="Serpent Sting", target="none", multi=false, dur=15, hidden=true, icon="Interface\\Icons\\Ability_Hunter_Quickshot" }
+    D{ key="STING_VIPER",   wid=15, class="HUNTER", tab="debuff", spell="Viper Sting",   target="none", multi=false, dur=8, icon="Interface\\Icons\\Ability_Hunter_AimedShot" }
+    D{ key="STING_SCORPID", wid=16, class="HUNTER", tab="debuff", spell="Scorpid Sting", target="none", multi=false, dur=20, icon="Interface\\Icons\\Ability_Hunter_CriticalShot" }
 end
