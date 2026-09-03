@@ -45,7 +45,13 @@ local NAME_W   = 170         -- caster-name + skills column (blessings tab)
 local ROW_H    = 40
 local CELL_H   = 36          -- concept cells, scaled to fit ten columns
 local MAX_ROWS = 8           -- pooled caster rows per grid tab
-local DUTY_POOL = 16         -- pooled duty cards (2 columns x 8 rows)
+-- Pooled duty cards, 2 columns x 9 rows. Cards are 46 tall on a 48 pitch from
+-- y-46, so row 9 ends at -476; p.hint sits in the bottom ~36px of the panel,
+-- which puts the real ceiling just under -493. Do NOT raise this to 20 without
+-- moving the hint - the extra row would render underneath it. Overflow is
+-- silent (surplus duties simply never draw), so scripts/test_duties.lua
+-- asserts the visible debuff duties still fit; raise the copy there too.
+local DUTY_POOL = 18
 
 local GOLD        = { 0.78, 0.67, 0.43 }
 local GOLD_BRIGHT = { 0.96, 0.88, 0.66 }

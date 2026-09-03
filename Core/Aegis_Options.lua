@@ -326,20 +326,31 @@ end
 -- tab descriptors
 --------------------------------------------------------------------------
 
+-- Put the frames back to stock: position, per-strip grip scale AND
+-- transparency. Transparency belongs here because it is per character and
+-- silently makes a strip look broken rather than look transparent - "why does
+-- this alt look wrong" needs a one-click answer that doesn't require knowing
+-- which slider did it.
 local function ResetFramePositions()
     local kill = {}
     for k in pairs(AegisRP_Settings) do
-        if string.find(k, "^stripPos_") then table.insert(kill, k) end
+        if string.find(k, "^stripPos_") or string.find(k, "^stripScale_") then
+            table.insert(kill, k)
+        end
     end
     for _, k in ipairs(kill) do AegisRP_Settings[k] = nil end
+    AegisRP_Settings.stripAlpha = nil            -- back to the colours' own 0.5
     if AegisRP.strips then
         for _, S in pairs(AegisRP.strips) do
             S.frame:ClearAllPoints()
             S.frame:SetPoint("CENTER", UIParent, "CENTER", 260, 0)
+            S.frame:SetScale(AegisRP_Settings.uiScale or 1)
+            if S.Refresh then S:Refresh() end     -- repaint at the restored alpha
         end
     end
     AegisRP_ResetBarPosition()
-    DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r Frame positions reset.")
+    DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r Frame positions, scale and "
+        .. "transparency reset.")
 end
 
 --------------------------------------------------------------------------
@@ -485,10 +496,12 @@ local function SettingsTabEntries()
           min = 0.5, max = 1.5, step = 0.05, default = 1.0,
           onChange = function() AegisRP_ApplyUIScale() end },
         { type = "slider", key = "stripAlpha", label = "Transparency",
-          min = 0.15, max = 1, step = 0.05, default = 0.5,
-          tip = "Backdrop opacity of the strip buttons.\nThe floor is 0.15: the "
+          min = 0.3, max = 1, step = 0.05, default = 0.5,
+          tip = "Backdrop opacity of the strip buttons.\nThe floor is 0.3: the "
              .. "backdrop is what shows covered/needed/expiring, so it never goes "
-             .. "fully invisible." },
+             .. "so faint the colours stop reading.\nThis is a PER-CHARACTER "
+             .. "setting - if one alt looks washed out next to another, this is "
+             .. "why. Reset Frames puts it back to 0.5." },
         { type = "check", key = "stripHorizontal", label = "Horizontal layout", default = false,
           tip = "Lay the strip buttons left-to-right instead of stacked.",
           onChange = function() if AegisRP.ReflowStrips then AegisRP.ReflowStrips() end end },
@@ -499,7 +512,8 @@ local function SettingsTabEntries()
         ShowMinimapButtonEntry(),
         { type = "check", key = "locked", label = "Lock frame positions", default = false },
         { type = "button", label = "Reset Frames", func = ResetFramePositions,
-          tip = "Move every Aegis: RallyPower frame back to its default position." },
+          tip = "Put every Aegis: RallyPower frame back to stock: position, scale "
+             .. "and transparency." },
     }
     AppendStripToggles(entries)
     return entries

@@ -1,4 +1,4 @@
-# Aegis: RallyPower (v1.7.0)
+# Aegis: RallyPower (v1.8.0)
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
@@ -56,7 +56,7 @@ Coordinate assignments across the raid with real-time sync:
 - **Raid Buffs** — Caster × **raid group** matrix for Priest/Mage/Druid, several buffs per group ("Priest 1 covers groups 2 and 3 with Fort + Spirit"). Toggle to the older per-class view for retargeting a caster's strip buttons
 - **Per-player overrides** — mouse-wheel a name in the hover pop-out to give that one person a different buff from the rest of their class row; wheel round to clear it
 - **Totems** — Shaman totem assignments (auto-grouped, icon labels)
-- **Debuffs** — Warrior Sunder, Mage Scorch duty tracking
+- **Debuffs** — who maintains each debuff on the kill target: armor (Sunder, Expose, Faerie Fire), attack power (Demoralizing Shout/Roar, Curse of Weakness), attack speed (Thunder Clap), the warlock curses, Scorch and stings
 - **Rotations tab** — Two rotations, one grid: **Kick** (who interrupts) and **Taunt** (who picks the boss up). Click a name to add them, mouse-wheel to reorder. Whoever sits highest and is off cooldown is up next
 - **Roles** — Mark Main Tank/Off-Tanks, set per-tank blessings, mark healers
 
@@ -119,6 +119,7 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 | `/rpc sync` | Force a full assignment resync |
 | `/rpc slots` | Tank plan, plus whether sync is actually reaching you |
 | `/rpc castdbg` | Log raw cast events (SuperWoW only; for debugging) |
+| `/rpc alpha` | Report what colour each strip button is actually painted |
 | `/rpc reset` | Put the bar back if it ends up off-screen |
 | `/rpc icon` | Cycle the minimap icon skin (or shift-click the icon) |
 | `/pp`, `/pallypower`, `/rp`, `/rallypower` | PallyPower grid / buff bar (Paladins) |

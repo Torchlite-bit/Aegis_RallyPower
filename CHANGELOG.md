@@ -14,6 +14,62 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-09-03
+### Added (the Debuffs tab covers the raid's actual mitigation)
+- **Faerie Fire and Demoralizing Roar are now druid duties**, with strip
+  buttons to match. Faerie Fire has two spells — the caster one and the Feral
+  talent version usable in forms — and both are listed, so a feral gets a
+  button they can press while shifted; they apply the same debuff and share an
+  icon, so tracking covers either. An untalented druid never sees the Feral
+  one. Durations are Vanilla defaults (40s / 30s) and **Turtle-unverified**.
+- **One duty per effect, not per spell.** The raid plan cares that Faerie Fire
+  is up, not which of the two spells put it there.
+
+### Changed
+- **Thunder Clap and Demoralizing Shout are visible on the Debuffs tab.** They
+  had been hidden as "group utility rather than something one caster maintains
+  on the kill target" — but a raid assigns them exactly that way, and they are
+  the attack-speed and attack-power halves of the mitigation the tanks are
+  counting on. They stay single-owner: they refresh rather than stack, so a
+  second owner adds nothing but confusion about whose job it is.
+- The duty-card pool grew from 16 to 18 (two columns of nine). Fourteen debuff
+  duties are visible now, and overflow is *silent* — a surplus duty simply
+  never draws — so the extra room matters. Nine rows is the ceiling: a tenth
+  would render underneath the tab's hint text.
+
+### Testing
+- New `scripts/test_duties.lua`: loads the real model and all eight class
+  modules and checks the catalog whole — every duty well-formed, **wids
+  unique**, the retired wid 19 never reused, and the visible debuff duties
+  still fitting the card pool. Wids are what duties travel as on the wire, so a
+  collision silently merges two duties on every remote client with no error
+  anywhere; that is not something inspection catches across eight files.
+
+## [1.7.1] — 2026-09-03
+### Fixed
+- **The Transparency floor was still too low to do its own job.** 1.6.1 added a
+  floor of 0.15 so the backdrop — the only thing carrying covered/needed/
+  expiring — could never go fully invisible. But a saturated green at 0.15 over
+  a dark game background is not meaningfully different from grey: the state was
+  legible in principle and invisible in practice, which is why an affected
+  character still looked flat next to a healthy one. The floor is now **0.3**.
+  Every colour carries 0.5 as its natural alpha, so 0.3 leaves a real range to
+  adjust within while guaranteeing the colour actually reads.
+- **Reset Frames now restores transparency and per-strip scale, not just
+  position.** Transparency is per character and makes a strip look *broken*
+  rather than look transparent, so "why does this one alt look wrong" needed a
+  one-click answer that doesn't require knowing which slider caused it. The
+  button and its tooltip say so.
+- The Transparency tooltip now states that it is a per-character setting — that
+  is precisely the clue that explains one alt looking washed out beside another.
+
+### Added
+- **`/rpc alpha`** reports what each strip button is *actually* painted:
+  the stored and effective transparency, and the live RGBA of every visible
+  button. A washed-out green and a plain grey are indistinguishable by eye, so
+  this separates "wrong state" from "right state, too transparent" instead of
+  leaving it to be guessed from a screenshot.
+
 ## [1.7.0] — 2026-09-02
 ### Added (per-player buff overrides)
 - **Mouse-wheel a player's row in the hover pop-out to give that one person a
