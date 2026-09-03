@@ -326,9 +326,29 @@ local function ApplyBackdropColor(r, preset)
     r:SetBackdropColor(preset.r, preset.g, preset.b, preset.t)
 end
 
+-- The blessing this row's player actually gets: PallyPower's individual
+-- assignment when there is one and we know that blessing, otherwise the class
+-- one on the hovered button.
+--
+-- This MUST resolve the same way the cast path does (see the right-click
+-- branch in the click handler). It used to be read once outside the row loop
+-- from curBtn.buffID and stamped on every row, so a paladin who had assigned
+-- Wisdom to one player saw Might on every row while a click correctly cast
+-- Wisdom - the pop-out told you the opposite of what it would do.
+local function RowBlessingIcon(pname, classIcon)
+    if not (GetNormalBlessings and BlessingIcon and curBtn) then return classIcon end
+    local me = UnitName("player")
+    local ind = GetNormalBlessings(me, curBtn.classID, pname)
+    if ind and ind ~= -1 and AllPallys and AllPallys[me] and AllPallys[me][ind]
+       and BlessingIcon[ind] then
+        return BlessingIcon[ind]
+    end
+    return classIcon
+end
+
 RefreshPopout = function()
     if not popout or not curBtn then return end
-    local icon = curBtn.buffID and BlessingIcon and BlessingIcon[curBtn.buffID]
+    local classIcon = curBtn.buffID and BlessingIcon and BlessingIcon[curBtn.buffID]
     local list = Collect(curBtn)
     local n = table.getn(list)
     local y = 0
@@ -339,6 +359,7 @@ RefreshPopout = function()
         r:ClearAllPoints()
         r:SetPoint("TOPLEFT", popout, "TOPLEFT", 0, y)
 
+        local icon = RowBlessingIcon(d.name, classIcon)
         if icon then r.buffIcon:SetTexture(icon) end
         r.name:SetText(d.name)
         r.time:SetText(d.timer)
