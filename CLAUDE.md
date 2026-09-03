@@ -68,7 +68,22 @@ other.
 
    **Never inline in a stormable handler:** `GetItemInfo` per item, any
    `GameTooltip:Set*` per item, a full bag or inventory walk, or a list
-   repaint. If a handler needs one, it needs a dirty flag.
+   repaint.
+
+   **The three shapes that are safe** (from Aegis: Exchange, which declares
+   this rule suite-wide and is the reference case for it). Pick whichever
+   fits — all three are already in this repo:
+
+   - **O(1) / bounded, no item queries.** One pass reading only cheap fields,
+     repainting nothing unless the thing is on screen. It cannot participate
+     in a cache storm no matter how often it fires.
+   - **State-gated.** `Aegis_Sync.lua`'s `CHAT_MSG_ADDON` path does real work
+     only for a prefix it owns; the rotation pollers return immediately unless
+     `MyClassHas(r)`. Repeat fires cost a comparison.
+   - **Dirty flag + once-per-frame flush.** Set a boolean in the handler, do
+     the work in an existing `OnUpdate`. Use this whenever the work is a full
+     rescan that cannot be made cheap — `auraDirty` in `Aegis_Core.lua` and
+     `MarkDirty`/`Flush` in `Aegis_Sync.lua` are the worked examples.
 
    Stormable events we touch: `BAG_UPDATE`, `UNIT_AURA`,
    `PLAYER_AURAS_CHANGED`, `CHAT_MSG_ADDON`, `UNIT_CASTEVENT`.
@@ -162,12 +177,58 @@ matching is exact; if a Turtle rename breaks a lookup, fix the name string.
 After **every** edit:
 
 ```
-python3 scripts/verify.py
+./scripts/check.sh
 ```
 
-Checks structural balance and Lua 5.1-isms across `Core/` + `Classes/` +
-`PallyPower/`. The vendored engine is scanned as a tripwire — it should stay
-untouched, and a failure there means something edited it.
+One command for everything mechanical in the self-check below: `verify.py`
+(structural balance + Lua 5.1-isms across `Core/` + `Classes/` + `PallyPower/`,
+the vendored engine scanned as a tripwire), the four lints ported from **Aegis:
+Exchange**, every off-client test, and the `PallyPower/` byte-identity check.
+
+```
+python3 scripts/verify.py            # balance + language rules
+python3 scripts/lint/upvalues.py     # the 32-upvalue ceiling
+python3 scripts/lint/scoping.py      # a file-scope local read as a nil global
+python3 scripts/lint/definitions.py  # a definition lost to a scripted edit
+python3 scripts/lint/version.py      # the three bump sites agree
+```
+
+The last four each catch a failure that **compiles cleanly and fails only at
+runtime, or not visibly at all** — which is why they exist as tools rather than
+checkboxes. `scoping.py` is the automated form of hard rule 12; it works off
+`luac -l` bytecode rather than the source text, because the source reads
+identically either way.
+
+### Sabotage mode — does the suite actually notice?
+
+```
+./scripts/check.sh --sabotage      # or: python3 scripts/sabotage.py [name]
+```
+
+A green suite proves nothing on its own. It might be green because the code is
+right, or because the assertions **cannot tell right from wrong** — and the
+second kind is indistinguishable from the first until something ships broken.
+`test_duties.lua` was green while Faerie Fire and Demoralizing Roar rendered as
+blank squares, because it did not yet check for an icon at all.
+
+So `scripts/sabotage.py` plants real bugs — the exact mistakes the code is
+written to avoid — in a throwaway copy and requires the named suite to **fail**.
+A sabotage that slips through is reported loudly: that suite is not testing what
+its name claims.
+
+**It has already paid for itself.** `groupbuffs-insertion-order` replaced the
+catalog-ordered walk in `GetGroupBuffs` with `pairs()`, and the suite passed:
+the ordering check used two buffs, and Lua's hash order for those two names
+happens to match catalog order. The check now uses all three, where it doesn't.
+The assertion was real and under-powered, which is precisely the failure no
+amount of green can reveal.
+
+Run it after adding or changing a test, and before trusting a green suite you
+have not exercised. When a sabotage goes **stale** (the `find` string no longer
+matches), the code moved — update the entry rather than deleting it.
+
+Nothing under `scripts/` is in the `.toc`, so adding to it is never a
+**restart** release and never a version bump.
 
 Behavioural logic that can be isolated from the WoW API gets an off-client test
 under `scripts/test_*.lua`, run with any Lua (the addon files are
@@ -396,6 +457,47 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   it as a *third optional tier* behind SuperWoW, never a dependency. Note `#`
   and `%` stay forbidden regardless — they're syntax, not library functions.
 
+## Two rules that keep being relearned (suite-wide)
+
+Both come from **Aegis: SBR**, and both bite here for the same reasons.
+
+- **A detection that cannot answer must never close a gate.** Range,
+  visibility, another player's cooldown, a pet's owner and a member's class
+  all have a third value — "cannot tell" — and every caller must treat it as
+  permission, not refusal. This addon is full of them: `UNIT_CASTEVENT` only
+  reaches units the client has seen, `MemberClass` returns nil off-roster,
+  and `GetSpellCooldown` says nothing about anyone else. The symptom when it
+  is broken is always the same: something silently stops and nothing says
+  why. `PlayerOverrideIndex` returning nil for an uncastable buff — so the
+  player falls back to their class row rather than dropping out of coverage —
+  is this rule applied correctly; copy that shape.
+- **A capability is established, not assumed.** Where a source may simply
+  never answer on a given client, latch the first real answer and run a safe
+  fallback until then. `r.src` (`"sync"` / `"seen"` / nil) and the tri-state
+  `r.myHas` (nil = not resolved yet, not "no") are the pattern. SBR's
+  cautionary tale is a throttle stamped only on a confirmation that never
+  arrived on the reporter's client, so the protection did not exist at all.
+  Design intent that quietly evaporates on someone else's setup is worse than
+  no design, because it looks correct in the source.
+
+## House style (suite-wide)
+
+- **Write short, neutral and factual.** Changelog entries, PR bodies, commit
+  messages and code comments state what changed, why, and what it affects. No
+  jokes, no irony, no dramatic framing, no rhetorical questions, no long prose
+  where two sentences do. Keep measured numbers and technical detail; cut the
+  framing around them. Prefer a short list to paragraphs.
+- **Never quote a play report verbatim.** Reports arrive as relayed chat
+  messages, and none of it belongs in `CHANGELOG.md`, `README.md`, a code
+  comment or a PR body — the person was talking, not writing for publication.
+  Paraphrase what the observation ESTABLISHED and drop the wording, the name
+  and any characterisation of the remark. Numbers, symptoms and measurements
+  are the useful part and carry none of the risk. **Named credit is the
+  exception, and only when the user asks for it.**
+- **Comments explain WHY, not what.** Don't introduce new dependencies. Don't
+  refactor unrelated code inside a feature change. **When you fix a class of
+  bug, add a one-line note to this file so it isn't relearned.**
+
 ## README / CHANGELOG upkeep
 
 - **The badge block at the top of `README.md` is maintained by the project
@@ -449,6 +551,23 @@ vendored engine and is not ours to bump.)
 PATCH. So is a colour, a rename, a refactor, and a corrected calculation — even
 when the diff is large. Ask what the player can now DO, never how much moved.
 
+**Where this went wrong elsewhere in the suite** (Aegis: Exchange, worth
+knowing because the same mistake is easy to make here):
+
+- Ten releases in its 1.x line were numbered MINOR for work that only fixed or
+  polished. That is how its number ran to **1.49.1 while `main` sat at
+  1.21.1** — the version stopped describing anything.
+- **v1.51.0 was numbered MINOR for rebuilding three buttons on a different
+  widget template and moving two of them a few pixels** — a large diff, a
+  rewritten styling path and a new test suite. The player got the same three
+  buttons doing the same three things in a better-looking box. It shipped
+  again as **1.50.2**.
+
+**Why every shipped change bumps, rather than once per merge.** The number is a
+running account of what happened, which is what makes "quote the version" worth
+asking a reporter for: someone on 1.8.1 and someone on 1.8.4 are not running the
+same code, and a scheme that only bumps at merge time cannot tell them apart.
+
 **When a release does both**, it is a MINOR — the larger claim wins.
 
 **Every shipped change bumps**, not once per merge. A branch that adds a
@@ -462,10 +581,11 @@ and edits to `CLAUDE.md` itself. None of it ships.
 
 ## Quick self-check before committing Lua
 
-`python3 scripts/verify.py` covers the language rules and structural balance
-across `Core/` + `Classes/` + `PallyPower/`. It does **not** cover upvalues,
-definition order, or anything visual — those still need the checks below and a
-real client.
+**Most of this list is now automated — run `./scripts/check.sh`.** What it
+deliberately does **not** cover is anything visual: layout, colour, clipping,
+whether a strip reads right under pressure. That still needs a real client and
+a person looking at it. A green run is permission to commit, not evidence the
+thing works.
 
 - [ ] No `string.match` / `string.gmatch` / `:match()` — used `string.find` /
       `string.gfind`.
@@ -478,22 +598,40 @@ real client.
       unbounded rescan, a per-item query, or a repaint inline — it is O(1),
       state-gated, or behind a dirty flag flushed once per frame.
 - [ ] No `hooksecurefunc` / secure hooks — saved original + replaced.
-- [ ] **No function exceeds 32 upvalues** —
-      `luac5.1 -l -p <file> | grep upvalues`. `verify.py` and any 5.1 harness
-      will NOT catch this; the client refuses to load the file.
-      `CreatePanel` in `Aegis_AssignPanel.lua` is already at **28**.
-- [ ] Every `local function` is defined before its first reference (or
-      forward-declared). Re-check after any scripted or multi-line edit.
+- [ ] **No function exceeds 32 upvalues** (`scripts/lint/upvalues.py`).
+      `verify.py` and any 5.1 harness will NOT catch this — 5.1's limit is 60
+      and the file compiles fine; the 1.12 client simply refuses to load it.
+      `CreatePanel` in `Aegis_AssignPanel.lua` is at **29** and warns on every
+      run, which is correct: it is one refactor from not loading.
+- [ ] Every `local function` is defined before its first reference, or
+      forward-declared (`scripts/lint/scoping.py`). A function above the
+      declaration reads a nil **global** of the same name — legal Lua, compiles
+      cleanly, fails only at runtime.
+- [ ] No top-level definition was lost to a scripted edit
+      (`scripts/lint/definitions.py`). Run after ANY multi-line or scripted
+      edit: the file still compiles when a function goes missing, so nothing
+      else notices until a player clicks the thing.
+- [ ] The three version sites agree (`scripts/lint/version.py`).
 - [ ] No stored setting is **read** at file scope (`X = X or {}` init is fine).
 - [ ] `PallyPower/` is byte-identical to stock — `git diff --stat PallyPower/`
       is empty. Extend it by save-and-replace from our side, never by editing.
 - [ ] Any off-client tests under `scripts/test_*.lua` still pass.
+- [ ] If a test was added or changed: `./scripts/check.sh --sabotage` still
+      catches everything, and the new assertion has been shown to FAIL when the
+      thing it guards is broken. An assertion never seen to fail is decoration.
 - [ ] Tested in-game, or explicitly flagged as untested.
 
 ---
 
 ## Working style
 
+- **Read the actual file before editing it** — never edit from memory of a
+  prior version; the code has moved. Re-read after any scripted edit.
+- **Incremental verified batches.** Make a small coherent change, run
+  `./scripts/check.sh`, then proceed. Roll multi-file conversions in batches,
+  not all at once.
+- **Preserve `.toc` load order.** Reordering files breaks the single-pass
+  loader; `PallyPower.xml` and its `.lua` must stay in one folder.
 - When behavior must match PallyPower, **read its source and reuse its data**
   rather than re-implementing (see how the pop-out consumes engine tables).
 - Commit small; test in-game between steps; `/reload` is the loop (except when
