@@ -14,6 +14,22 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.8.3] — 2026-09-03
+### Fixed
+- **The paladin pop-out drew the class blessing on every row, even for players
+  with an individual assignment.** A paladin who had given one member Wisdom
+  while the class row was Might saw Might on both rows — while a right-click on
+  that row correctly cast Wisdom. The pop-out was telling you the opposite of
+  what it would do.
+- Cause: the icon was resolved **once, outside the row loop**, from the hovered
+  button's class-wide `buffID`, then stamped on every row. The cast path had
+  always consulted `GetNormalBlessings` for the individual assignment; only the
+  draw path did not. The two now resolve identically, including the same
+  "do I actually know that blessing" gate, so the icon can't promise a blessing
+  the click would not cast.
+- The class-buff pop-out (Priest/Mage/Druid) was already correct — it has
+  resolved per row since per-player overrides shipped in 1.7.0.
+
 ## [1.8.2] — 2026-09-03
 ### Fixed
 - **`bad argument #1 to 'rad' (number expected, got nil)` on login.** The

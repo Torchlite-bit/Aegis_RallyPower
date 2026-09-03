@@ -20,8 +20,16 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.8.2**. See `CHANGELOG.md` for the full history and
+Current version: **1.8.3**. See `CHANGELOG.md` for the full history,
+`docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
+
+**Where things are written down**, so the two don't drift into duplicating each
+other: `docs/ROADMAP.md` holds **status** — what phase an item is in, whether
+it has been seen working in-game, and what is still open. This file holds
+**rules and invariants** — how a thing must be built and why. A shipped
+feature's constraint ("wids are the wire identity of a duty") belongs here; its
+progress belongs there.
 
 ## HARD RULES — never violate these
 
