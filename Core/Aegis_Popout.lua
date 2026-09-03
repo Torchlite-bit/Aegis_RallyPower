@@ -38,6 +38,56 @@
 -- text tooltip of the same data).
 --=============================================================================
 
+--------------------------------------------------------------------------
+-- STALE PP_PerUser REPAIR (fixes "bad argument #1 to `rad'")
+--
+-- The engine's ADDON_LOADED handler runs, in this order:
+--     PallyPower_AdjustIcons()
+--     PallyPower_MinimapButton_Init()   <- reads PP_PerUser.minimapbuttonpos
+--     PallyPower_InitConfig()           <- the thing that FILLS IN that key
+--
+-- MinimapButton_Init positions the button with cos/sin of that value, and on
+-- this client cos/sin are compat shims that call rad(), so a nil produces
+-- "bad argument #1 to `rad' (number expected, got nil)" before the config has
+-- been initialised at all.
+--
+-- It bites on UPGRADE, not on a fresh install. PallyPower.lua assigns
+-- PP_PerUser a full table of defaults at file scope, but a character's
+-- SavedVariables then REPLACE that table wholesale - so a saved table written
+-- by a version that predates a key comes back missing it, and InitConfig is
+-- one call too late to help.
+--
+-- The obvious patch is `or 0` at the cos/sin call. We can't: PallyPower/ is
+-- vendored and stays byte-identical (extend it by save-and-replace from our
+-- side, never by editing). It would also be the wrong value - the engine's own
+-- default is 30, so `or 0` moves the button - and it would fix one key while
+-- leaving every other absent key to surface as the next bug.
+--
+-- So: snapshot the engine's defaults while they are still readable, and make
+-- PP_PerUser whole before the engine's own first read of it. File scope is the
+-- one moment those defaults exist - our files load after the engine's and
+-- before SavedVariables replace the table - which is also why the snapshot
+-- can't be deferred, even though rule 10 says never to READ a stored setting
+-- at file scope. Nothing here reads a player's saved value; it copies the
+-- engine's hardcoded defaults before any saved value has arrived.
+--------------------------------------------------------------------------
+
+local PP_DEFAULTS = {}
+if type(PP_PerUser) == "table" then
+    for k, v in pairs(PP_PerUser) do PP_DEFAULTS[k] = v end
+end
+
+local orig_PallyPower_MinimapButton_Init = PallyPower_MinimapButton_Init
+if orig_PallyPower_MinimapButton_Init then
+    PallyPower_MinimapButton_Init = function()
+        PP_PerUser = PP_PerUser or {}
+        for k, v in pairs(PP_DEFAULTS) do
+            if PP_PerUser[k] == nil then PP_PerUser[k] = v end
+        end
+        return orig_PallyPower_MinimapButton_Init()
+    end
+end
+
 local ROW_W = 100            -- official popup button size
 local ROW_H = 34
 

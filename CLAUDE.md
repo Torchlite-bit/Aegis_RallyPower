@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.8.1**. See `CHANGELOG.md` for the full history and
+Current version: **1.8.2**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -371,6 +371,18 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   as a second place to remember it was promptly forgotten, and Faerie Fire and
   Demoralizing Roar shipped iconless in 1.8.0. `test_duties.lua` now fails on
   a duty with no icon.
+- **The engine reads `PP_PerUser` BEFORE it initialises it.** Its
+  `ADDON_LOADED` handler runs `PallyPower_MinimapButton_Init()` (which reads
+  `minimapbuttonpos` through `cos`/`sin`) *before* `PallyPower_InitConfig()`,
+  the function that fills the key in. A character's SavedVariables replace the
+  engine's file-scope defaults table wholesale, so a table saved by a version
+  predating a key comes back missing it and the read throws
+  `bad argument #1 to 'rad'` on this client's degree shims. `Aegis_Popout.lua`
+  snapshots the engine's defaults at file scope — the one moment they exist,
+  before SavedVariables land — and save-and-replaces `MinimapButton_Init` to
+  make `PP_PerUser` whole first. **Do not "fix" this by editing
+  `MinimapButton.lua`**: it is vendored, and `or 0` there would also park the
+  button at the wrong angle (the engine's default is 30).
 - **Phase 3 remaining:** crowd-control assignments, and raid markers + roles.
   **`SetRaidTarget` is CONFIRMED present on Turtle 1.18.1** (`/run
   print(SetRaidTarget)` returns a function), so markers are no longer blocked.

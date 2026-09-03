@@ -14,6 +14,28 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.8.2] — 2026-09-03
+### Fixed
+- **`bad argument #1 to 'rad' (number expected, got nil)` on login.** The
+  engine's `ADDON_LOADED` handler calls `PallyPower_MinimapButton_Init()` —
+  which positions the minimap button with `cos`/`sin` of
+  `PP_PerUser.minimapbuttonpos` — *before* `PallyPower_InitConfig()`, the
+  function whose job is to fill that key in. On this client `cos`/`sin` are
+  degree shims that call `rad()`, so a missing value throws there.
+- **It bites on upgrade, not on a fresh install.** The engine assigns
+  `PP_PerUser` a full defaults table at file scope, but a character's
+  SavedVariables then replace that table *wholesale* — so a table saved by a
+  version that predates a key comes back without it, and the repair runs one
+  call too late.
+- Fixed from our side, as the vendored engine requires: `Core/Aegis_Popout.lua`
+  snapshots the engine's own defaults at file scope (the one moment they are
+  readable, before SavedVariables land) and save-and-replaces
+  `PallyPower_MinimapButton_Init` to fill any missing key before the original
+  runs. Values you actually chose are never touched — only absent ones.
+- This repairs **every** key a stale saved table is missing, not just the one
+  that happened to crash, so the next absent key doesn't become the next bug
+  report.
+
 ## [1.8.1] — 2026-09-03
 ### Fixed
 - **Faerie Fire and Demoralizing Roar had blank icons on the Debuffs tab.** A
