@@ -1960,6 +1960,40 @@ SlashCmdList["AEGISRP"] = function(msg)
         return
     end
 
+    -- Diagnostics: what is ACTUALLY painted on the strips.
+    --
+    -- A button's colour is its state times the Transparency setting, and by
+    -- eye the two are indistinguishable - a washed-out green and a plain grey
+    -- both just look dark. GetBackdropColor reports the real values, so this
+    -- separates "wrong state" from "right state, too transparent" instead of
+    -- guessing from a screenshot. Transparency is per character, so run it on
+    -- the character that looks wrong AND one that looks right.
+    if msg == "alpha" then
+        local raw = AegisRP_Settings.stripAlpha
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r stripAlpha stored="
+            .. tostring(raw) .. " (" .. type(raw) .. ")  effective="
+            .. tostring(AegisRP.StripAlpha and AegisRP.StripAlpha(0.5)))
+        local order = AegisRP.stripOrder or {}
+        for i = 1, table.getn(order) do
+            local k = order[i]
+            local S = AegisRP.strips and AegisRP.strips[k]
+            if S and S.buttons then
+                for j = 1, table.getn(S.buttons) do
+                    local b = S.buttons[j]
+                    if b:IsShown() then
+                        local r, g, bl, a = b:GetBackdropColor()
+                        DEFAULT_CHAT_FRAME:AddMessage(string.format(
+                            "  |cff88ccff%s[%d]|r  r=%.2f g=%.2f b=%.2f a=%.2f",
+                            k, j, r or -1, g or -1, bl or -1, a or -1))
+                    end
+                end
+            end
+        end
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaa(covered green is 0,0.70,0 - "
+            .. "needed red 1,0,0 - idle grey 0.25,0.25,0.25)|r")
+        return
+    end
+
     -- Force a full assignment re-sync (request others' + push mine). Every
     -- class; blessings still sync separately over PLPWR.
     if msg == "sync" then

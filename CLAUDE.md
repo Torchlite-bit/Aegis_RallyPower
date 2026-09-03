@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.7.0**. See `CHANGELOG.md` for the full history and
+Current version: **1.7.1**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -331,8 +331,10 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   backdrop is the only carrier of button state, so an alpha near 0 makes every
   state paint identically while the border keeps drawing — outlined boxes with
   empty middles, which players read as a broken addon. The floor is 0.15,
-  applied on read as well as in the slider's range, so an existing 0 heals
-  itself. Anything new that paints a strip backdrop must go through
+  applied on read as well as in the slider's range, so an existing low value
+  heals itself. The floor is **0.3** — 0.15 was tried first and was still too
+  faint for a saturated green to read as anything but grey, so it satisfied the
+  rule on paper and not on screen. Anything new that paints a strip backdrop must go through
   `AegisRP.StripAlpha` rather than reading `stripAlpha` directly.
 - **Per-player buff overrides — DONE, untested in-game.** `pbuff` in
   `Aegis_Assign.lua` (caster x player name -> one buff name, replacing what

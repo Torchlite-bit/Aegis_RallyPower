@@ -223,14 +223,19 @@ AegisRP_Settings.stripAlpha = 0.75
 check("a set value is used as-is", AegisRP.StripAlpha(0.5), 0.75)
 
 AegisRP_Settings.stripAlpha = 0
-check("zero is floored, not obeyed", AegisRP.StripAlpha(0.5), 0.15)
+check("zero is floored, not obeyed", AegisRP.StripAlpha(0.5), 0.3)
 check("...so the state colour still paints", AegisRP.StripAlpha(0.5) > 0, true)
 
 AegisRP_Settings.stripAlpha = 0.05
-check("below the floor is raised to it", AegisRP.StripAlpha(0.5), 0.15)
+check("below the floor is raised to it", AegisRP.StripAlpha(0.5), 0.3)
 
+-- 0.15 was the old floor and was still too faint to read as a colour; it must
+-- now be raised like any other below-floor value rather than passed through
 AegisRP_Settings.stripAlpha = 0.15
-check("exactly the floor is kept", AegisRP.StripAlpha(0.5), 0.15)
+check("the old floor is itself now raised", AegisRP.StripAlpha(0.5), 0.3)
+
+AegisRP_Settings.stripAlpha = 0.3
+check("exactly the floor is kept", AegisRP.StripAlpha(0.5), 0.3)
 
 AegisRP_Settings.stripAlpha = 1
 check("fully opaque is untouched", AegisRP.StripAlpha(0.5), 1)

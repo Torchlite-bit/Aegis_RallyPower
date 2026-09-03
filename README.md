@@ -1,4 +1,4 @@
-# Aegis: RallyPower (v1.7.0)
+# Aegis: RallyPower (v1.7.1)
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
@@ -119,6 +119,7 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 | `/rpc sync` | Force a full assignment resync |
 | `/rpc slots` | Tank plan, plus whether sync is actually reaching you |
 | `/rpc castdbg` | Log raw cast events (SuperWoW only; for debugging) |
+| `/rpc alpha` | Report what colour each strip button is actually painted |
 | `/rpc reset` | Put the bar back if it ends up off-screen |
 | `/rpc icon` | Cycle the minimap icon skin (or shift-click the icon) |
 | `/pp`, `/pallypower`, `/rp`, `/rallypower` | PallyPower grid / buff bar (Paladins) |

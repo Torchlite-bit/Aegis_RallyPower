@@ -14,6 +14,31 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-09-03
+### Fixed
+- **The Transparency floor was still too low to do its own job.** 1.6.1 added a
+  floor of 0.15 so the backdrop — the only thing carrying covered/needed/
+  expiring — could never go fully invisible. But a saturated green at 0.15 over
+  a dark game background is not meaningfully different from grey: the state was
+  legible in principle and invisible in practice, which is why an affected
+  character still looked flat next to a healthy one. The floor is now **0.3**.
+  Every colour carries 0.5 as its natural alpha, so 0.3 leaves a real range to
+  adjust within while guaranteeing the colour actually reads.
+- **Reset Frames now restores transparency and per-strip scale, not just
+  position.** Transparency is per character and makes a strip look *broken*
+  rather than look transparent, so "why does this one alt look wrong" needed a
+  one-click answer that doesn't require knowing which slider caused it. The
+  button and its tooltip say so.
+- The Transparency tooltip now states that it is a per-character setting — that
+  is precisely the clue that explains one alt looking washed out beside another.
+
+### Added
+- **`/rpc alpha`** reports what each strip button is *actually* painted:
+  the stored and effective transparency, and the live RGBA of every visible
+  button. A washed-out green and a plain grey are indistinguishable by eye, so
+  this separates "wrong state" from "right state, too transparent" instead of
+  leaving it to be guessed from a screenshot.
+
 ## [1.7.0] — 2026-09-02
 ### Added (per-player buff overrides)
 - **Mouse-wheel a player's row in the hover pop-out to give that one person a

@@ -213,14 +213,20 @@ end
 -- Effective backdrop alpha for a button's state colour.
 --
 -- Transparency is a single global multiplier on the ONE thing that carries
--- state: green covered / red needed / amber expiring / grey off. Near zero
--- every state paints the same nothing - and because SetBackdropColor only
--- touches the fill, the SKIN border keeps drawing, so you get outlined boxes
--- with empty middles. That reads as "the addon is broken", not as "I chose a
--- transparent backdrop", and nothing on screen says which. Hence a floor:
--- still very see-through, never unreadable. The setting is per character, so
--- one alt looking flat while another looks right is the signature of this.
-local ALPHA_FLOOR = 0.15
+-- state: green covered / red needed / amber expiring / grey off. Turn it far
+-- enough down and every state paints the same nothing - and because
+-- SetBackdropColor only touches the fill, the SKIN border keeps drawing, so
+-- you get outlined boxes with empty middles. That reads as "the addon is
+-- broken", not as "I chose a transparent backdrop", and nothing on screen
+-- says which. The setting is per character, so one alt looking flat while
+-- another looks right is the signature of this.
+--
+-- Hence a floor. It was 0.15 and that was still too low to do its own job: a
+-- saturated green at 0.15 over a dark game background is not meaningfully
+-- different from grey, so the state was legible in principle and invisible in
+-- practice. Every entry in COLORS carries 0.5 as its natural alpha, so 0.3
+-- keeps a real range to adjust within while guaranteeing the colour reads.
+local ALPHA_FLOOR = 0.3
 
 function AegisRP.StripAlpha(fallback)
     local a = AegisRP_Settings.stripAlpha
