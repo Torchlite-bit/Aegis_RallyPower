@@ -45,10 +45,10 @@ end
 -- Assignment model: Priest duties (raid buffs + utility). Wids are stable.
 if AegisRP.Assign then
     local D = AegisRP.Assign.RegisterDuty
-    D{ key="FORTITUDE",  wid=1,  class="PRIEST", tab="raidbuff", spell="Power Word: Fortitude", target="none",   multi=false, dur=30*60 }
-    D{ key="SPIRIT",     wid=2,  class="PRIEST", tab="raidbuff", spell="Divine Spirit",          target="none",   multi=false, dur=30*60 }
-    D{ key="SHADOWPROT", wid=3,  class="PRIEST", tab="raidbuff", spell="Shadow Protection",      target="none",   multi=false, dur=10*60 }
-    D{ key="FEARWARD",   wid=18, class="PRIEST", tab="utility",  spell="Fear Ward",              target="player", multi=false, dur=0 }
+    D{ key="FORTITUDE",  wid=1,  class="PRIEST", tab="raidbuff", spell="Power Word: Fortitude", target="none",   multi=false, dur=30*60, icon="Interface\\Icons\\Spell_Holy_WordFortitude" }
+    D{ key="SPIRIT",     wid=2,  class="PRIEST", tab="raidbuff", spell="Divine Spirit",          target="none",   multi=false, dur=30*60, icon="Interface\\Icons\\Spell_Holy_DivineSpirit" }
+    D{ key="SHADOWPROT", wid=3,  class="PRIEST", tab="raidbuff", spell="Shadow Protection",      target="none",   multi=false, dur=10*60, icon="Interface\\Icons\\Spell_Shadow_AntiShadow" }
+    D{ key="FEARWARD",   wid=18, class="PRIEST", tab="utility",  spell="Fear Ward",              target="player", multi=false, dur=0, icon="Interface\\Icons\\Spell_Holy_Excorcism" }
     -- wid 19 (PW: Shield) is retired - it's spammed reactively, not a
     -- maintained/assigned duty. Never reuse wid 19 (wire stays forward-safe).
 end

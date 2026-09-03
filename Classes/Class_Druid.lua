@@ -48,11 +48,11 @@ end
 -- Assignment model: Druid duties. Wids are stable.
 if AegisRP.Assign then
     local D = AegisRP.Assign.RegisterDuty
-    D{ key="MARK",      wid=5,  class="DRUID", tab="raidbuff", spell="Mark of the Wild", target="none",   multi=false, dur=30*60 }
-    D{ key="THORNS",    wid=6,  class="DRUID", tab="raidbuff", spell="Thorns",           target="none",   multi=false, dur=10*60 }
-    D{ key="INNERVATE", wid=20, class="DRUID", tab="utility",  spell="Innervate",        target="player", multi=true,  dur=0 }
+    D{ key="MARK",      wid=5,  class="DRUID", tab="raidbuff", spell="Mark of the Wild", target="none",   multi=false, dur=30*60, icon="Interface\\Icons\\Spell_Nature_Regeneration" }
+    D{ key="THORNS",    wid=6,  class="DRUID", tab="raidbuff", spell="Thorns",           target="none",   multi=false, dur=10*60, icon="Interface\\Icons\\Spell_Nature_Thorns" }
+    D{ key="INNERVATE", wid=20, class="DRUID", tab="utility",  spell="Innervate",        target="player", multi=true,  dur=0, icon="Interface\\Icons\\Spell_Nature_Lightning" }
     -- One duty per EFFECT, not per spell: the raid plan cares that Faerie Fire
     -- is up, not which of the two spells put it there.
-    D{ key="FAERIEFIRE", wid=26, class="DRUID", tab="debuff",   spell="Faerie Fire",       target="none", multi=false, dur=FAERIE_DUR }
-    D{ key="DEMOROAR",   wid=27, class="DRUID", tab="debuff",   spell="Demoralizing Roar", target="none", multi=false, dur=ROAR_DUR }
+    D{ key="FAERIEFIRE", wid=26, class="DRUID", tab="debuff",   spell="Faerie Fire",       target="none", multi=false, dur=FAERIE_DUR, icon="Interface\\Icons\\Spell_Nature_FaerieFire" }
+    D{ key="DEMOROAR",   wid=27, class="DRUID", tab="debuff",   spell="Demoralizing Roar", target="none", multi=false, dur=ROAR_DUR, icon="Interface\\Icons\\Ability_Druid_DemoralizingRoar" }
 end
