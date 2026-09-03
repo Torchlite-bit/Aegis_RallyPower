@@ -3,15 +3,26 @@
 #
 #   ./scripts/check.sh
 #
+#   ./scripts/check.sh --sabotage    (adds the mutation run, slower)
+#
 # What it does NOT cover, and never will: anything visual. Layout, colour,
 # clipping, whether a strip reads right under pressure - those need a real
 # client and a person looking at it. A green run here is permission to commit,
 # not evidence the thing works.
 #
+# --sabotage answers a different question: not "does the code pass" but "would
+# the suites NOTICE if it didn't". It plants real bugs in a throwaway copy and
+# requires the named suite to fail. It is off by default because it re-runs
+# every suite once per mutation; run it after adding or changing a test, and
+# before trusting a green suite you have not exercised.
+#
 # Nothing under scripts/ is in the .toc, so adding to this is never a release
 # and never a version bump.
 set -u
 cd "$(dirname "$0")/.."
+
+SABOTAGE=0
+[ "${1:-}" = "--sabotage" ] && SABOTAGE=1
 
 fail=0
 run() {   # run <label> <cmd...>
@@ -42,6 +53,13 @@ else
     fail=1
     echo "FAIL PallyPower/ has been edited - extend it by save-and-replace instead"
     git diff --stat PallyPower/
+fi
+
+if [ "$SABOTAGE" -eq 1 ]; then
+    run "sabotage (do the suites notice?)" python3 scripts/sabotage.py
+else
+    printf '\n(skipped sabotage - run ./scripts/check.sh --sabotage to verify\n'
+    printf ' the suites would actually catch a bug)\n'
 fi
 
 printf '\n'

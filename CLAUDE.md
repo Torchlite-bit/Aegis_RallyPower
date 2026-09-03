@@ -199,6 +199,34 @@ checkboxes. `scoping.py` is the automated form of hard rule 12; it works off
 `luac -l` bytecode rather than the source text, because the source reads
 identically either way.
 
+### Sabotage mode — does the suite actually notice?
+
+```
+./scripts/check.sh --sabotage      # or: python3 scripts/sabotage.py [name]
+```
+
+A green suite proves nothing on its own. It might be green because the code is
+right, or because the assertions **cannot tell right from wrong** — and the
+second kind is indistinguishable from the first until something ships broken.
+`test_duties.lua` was green while Faerie Fire and Demoralizing Roar rendered as
+blank squares, because it did not yet check for an icon at all.
+
+So `scripts/sabotage.py` plants real bugs — the exact mistakes the code is
+written to avoid — in a throwaway copy and requires the named suite to **fail**.
+A sabotage that slips through is reported loudly: that suite is not testing what
+its name claims.
+
+**It has already paid for itself.** `groupbuffs-insertion-order` replaced the
+catalog-ordered walk in `GetGroupBuffs` with `pairs()`, and the suite passed:
+the ordering check used two buffs, and Lua's hash order for those two names
+happens to match catalog order. The check now uses all three, where it doesn't.
+The assertion was real and under-powered, which is precisely the failure no
+amount of green can reveal.
+
+Run it after adding or changing a test, and before trusting a green suite you
+have not exercised. When a sabotage goes **stale** (the `find` string no longer
+matches), the code moved — update the entry rather than deleting it.
+
 Nothing under `scripts/` is in the `.toc`, so adding to it is never a
 **restart** release and never a version bump.
 
@@ -588,6 +616,9 @@ thing works.
 - [ ] `PallyPower/` is byte-identical to stock — `git diff --stat PallyPower/`
       is empty. Extend it by save-and-replace from our side, never by editing.
 - [ ] Any off-client tests under `scripts/test_*.lua` still pass.
+- [ ] If a test was added or changed: `./scripts/check.sh --sabotage` still
+      catches everything, and the new assertion has been shown to FAIL when the
+      thing it guards is broken. An assertion never seen to fail is decoration.
 - [ ] Tested in-game, or explicitly flagged as untested.
 
 ---

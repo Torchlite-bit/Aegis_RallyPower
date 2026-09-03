@@ -125,9 +125,30 @@ check("group 3 holds none", table.getn(A.GetGroupBuffs(ME, 3)), 0)
 check("HasGroupBuff true", A.HasGroupBuff(ME, 2, "Divine Spirit"), true)
 check("HasGroupBuff false", A.HasGroupBuff(ME, 3, "Divine Spirit"), false)
 
--- catalog order, not insertion order, so panel and wire agree
+-- Catalog order, not set order, so the panel and the wire agree.
+--
+-- This needs ALL THREE buffs to actually prove anything. With two, Lua's hash
+-- order for these particular names happens to match catalog order, so an
+-- implementation that walked the set with pairs() passed anyway -- which is
+-- exactly what scripts/sabotage.py caught ("groupbuffs-insertion-order").
+-- With three, pairs() yields Divine Spirit first and Fortitude last.
+--
+-- Done on a scratch group and cleaned up, so the coverage and wire
+-- expectations further down still see groups 2 and 5 only.
+A.SetGroupBuff(ME, 7, "Shadow Protection", true)
+A.SetGroupBuff(ME, 7, "Power Word: Fortitude", true)
+A.SetGroupBuff(ME, 7, "Divine Spirit", true)
+local g7 = A.GetGroupBuffs(ME, 7)
+check("returned in catalog order, not set order",
+      table.concat(g7, " / "),
+      "Power Word: Fortitude / Divine Spirit / Shadow Protection")
+A.SetGroupBuff(ME, 7, "Shadow Protection", false)
+A.SetGroupBuff(ME, 7, "Power Word: Fortitude", false)
+A.SetGroupBuff(ME, 7, "Divine Spirit", false)
+check("scratch group cleaned up", table.getn(A.GetGroupBuffs(ME, 7)), 0)
+
 local g2 = A.GetGroupBuffs(ME, 2)
-check("returned in catalog order", g2[1] .. " / " .. g2[2],
+check("two-buff group still ordered", g2[1] .. " / " .. g2[2],
       "Power Word: Fortitude / Divine Spirit")
 
 check("covered groups", table.concat(A.GetCoveredGroups(ME), ","), "2,5")
