@@ -69,6 +69,8 @@ local function Frame(left, top, w, h, scale, shown)
     function f:GetHeight() return self.h end
     function f:GetEffectiveScale() return self.scale end
     function f:IsShown() return self.shown end
+    function f:Hide() self.shown = false end
+    function f:Show() self.shown = true end
     function f:ClearAllPoints() self.cleared = true end
     function f:SetPoint(p, rel, rp, x, y)
         self.anchor = { p = p, rp = rp, x = x, y = y }
@@ -236,9 +238,45 @@ check("fully opaque is untouched", AegisRP.StripAlpha(0.5), 1)
 AegisRP_Settings.stripAlpha = nil
 
 --------------------------------------------------------------------------
+-- STRIP VISIBILITY
+--
+-- SetStripShown is the single writer for a strip's shown state: the slash
+-- commands, the Options checkboxes and a strip's own Toggle all route through
+-- it. The invariant worth pinning is that the frame and its saved flag can
+-- never disagree - two rival writers is exactly how a strip ends up hidden
+-- with a ticked "Show" box, or reappearing on every login after being closed.
+--------------------------------------------------------------------------
+print("")
+print("strip engine - visibility")
+
+AegisRP.strips = {}
+AegisRP_Settings.stripHidden_demo = nil
+local demo = asStrip("demo", Frame(100, 300, W, H))
+
+check("a fresh strip reads as shown", AegisRP.IsStripShown("demo"), true)
+
+AegisRP.SetStripShown("demo", false)
+check("hiding updates the frame", demo:IsShown(), false)
+check("...and the saved flag", AegisRP_Settings.stripHidden_demo, true)
+check("...and IsStripShown agrees", AegisRP.IsStripShown("demo"), false)
+
+AegisRP.SetStripShown("demo", true)
+check("showing updates the frame", demo:IsShown(), true)
+check("...and clears the saved flag", AegisRP_Settings.stripHidden_demo, false)
+check("...and IsStripShown agrees", AegisRP.IsStripShown("demo"), true)
+
+-- a hidden flag must survive for a strip that has not been built yet, so the
+-- choice is not silently lost between logins
+AegisRP.strips = {}
+AegisRP_Settings.stripHidden_notbuilt = nil
+local okUnbuilt = pcall(AegisRP.SetStripShown, "notbuilt", false)
+check("an unbuilt strip does not error", okUnbuilt, true)
+check("...and still remembers the choice", AegisRP.IsStripShown("notbuilt"), false)
+
+--------------------------------------------------------------------------
 print("")
 if failures == 0 then
-    print("PASS - snapping (edges, strips, scale, gate) and the alpha floor")
+    print("PASS - snapping, alpha floor and visibility")
     os.exit(0)
 end
 print("FAIL - " .. failures .. " check(s)")

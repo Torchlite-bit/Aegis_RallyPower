@@ -281,6 +281,59 @@ function A.GetClassBuff(caster, classID)
 end
 
 --------------------------------------------------------------------------
+-- player-override domain: caster x PLAYER NAME -> buff spell name.
+--
+-- The exception that proves the class rule. cbuff answers "which buff does
+-- this caster give class X", which is right for nearly everyone - but a raid
+-- always has the one warrior who wants Shadow Protection while the rest of
+-- his class row takes Fortitude. Without this, honouring that means
+-- retargeting the whole row and hand-fixing everyone else.
+--
+-- An override is a single name, not a set: it REPLACES what that player would
+-- otherwise get rather than adding to it, which is what makes it an override
+-- and not a second assignment. Clearing it (nil) drops the player back onto
+-- their class row, so the row stays the default and this stays the exception.
+--------------------------------------------------------------------------
+
+function A.SetPlayerBuff(caster, player, buffName)
+    if not player then return false end
+    if not Editable(caster) then return false end
+    local c = Block(caster, true)
+    c.pbuff = c.pbuff or {}
+    c.pbuff[player] = buffName          -- nil clears, back to the class row
+    Touch(c, caster)
+    Notify("pbuff", caster)
+    return true
+end
+
+function A.GetPlayerBuff(caster, player)
+    if not player then return nil end
+    local c = Block(caster)
+    return c and c.pbuff and c.pbuff[player]
+end
+
+-- every override this caster holds, as { {player=, buff=}, ... } sorted by
+-- name so the panel and the wire both see a stable order
+function A.GetPlayerBuffs(caster)
+    local c, out = Block(caster), {}
+    if not (c and c.pbuff) then return out end
+    for p, b in pairs(c.pbuff) do
+        if b then table.insert(out, { player = p, buff = b }) end
+    end
+    table.sort(out, function(x, y) return x.player < y.player end)
+    return out
+end
+
+function A.ClearPlayerBuffs(caster)
+    if not Editable(caster) then return false end
+    local c = Block(caster, true)
+    c.pbuff = nil
+    Touch(c, caster)
+    Notify("pbuff", caster)
+    return true
+end
+
+--------------------------------------------------------------------------
 -- group-buff domain: caster x raid group (1-8) -> SET of buff spell names.
 --
 -- Deliberately separate from the class-buff domain above. Assigning by CLASS

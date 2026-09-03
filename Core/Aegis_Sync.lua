@@ -11,8 +11,9 @@
 --   <v> REQ
 --   <v> BLK <caster> <seq> <payload>
 --         payload = cTOKEN;t<wids>;d<entries>;b<class.buff>;g<group.buff>
---         "g" is additive: a v1 client skips tags it does not know, so group
---         buffs reach new clients without desyncing old ones (no PROTO bump)
+--                   ;p<player.buff>
+--         "g" and "p" are additive: a client skips tags it does not know, so
+--         they reach new clients without desyncing old ones (no PROTO bump)
 --   <v> CLR <caster>
 --   <v> FA  <0|1>                          raid-wide Free Assignment flag (leader)
 --   <v> TS  <mt> <ot1> <ot2>               tank-slot order, "-" = empty (leader)
@@ -211,12 +212,31 @@ local function SerializeBlock(name)
         if table.getn(ents) > 0 then table.insert(parts, "g" .. table.concat(ents, ",")) end
     end
 
+    -- per-player overrides: <name>.<buffIndex> pairs. The name has to ride the
+    -- wire literally - unlike a class or a group there is no small integer to
+    -- send - which is safe because the separators here (";" "," "." and space)
+    -- cannot occur in a WoW character name.
+    if c.pbuff and token then
+        local cat = BuffCatalog(token)
+        local names = {}
+        for who, value in pairs(c.pbuff) do
+            if value then table.insert(names, who) end
+        end
+        table.sort(names)                       -- pairs() is unordered; the wire isn't
+        local ents = {}
+        for i = 1, table.getn(names) do
+            local idx = BuffIndex(cat, c.pbuff[names[i]])
+            if idx then table.insert(ents, names[i] .. "." .. idx) end
+        end
+        if table.getn(ents) > 0 then table.insert(parts, "p" .. table.concat(ents, ",")) end
+    end
+
     return table.concat(parts, ";")
 end
 
 local function DeserializeBlock(caster, seq, payload)
     local block = { seq = tonumber(seq) or 0 }
-    local rawB, rawG = nil, nil
+    local rawB, rawG, rawP = nil, nil, nil
     for section in string.gfind(payload or "", "[^;]+") do
         local tag = string.sub(section, 1, 1)
         local data = string.sub(section, 2)
@@ -242,6 +262,8 @@ local function DeserializeBlock(caster, seq, payload)
             rawB = data                       -- resolved after class is known
         elseif tag == "g" then
             rawG = data                       -- ditto: needs the caster's catalog
+        elseif tag == "p" then
+            rawP = data                       -- ditto
         end
     end
     local token = block.class or ClassOf(caster)
@@ -267,6 +289,17 @@ local function DeserializeBlock(caster, seq, payload)
                 block.gbuff[g] = block.gbuff[g] or {}
                 block.gbuff[g][bd.name or bd.group] = true
             end
+        end
+    end
+    if rawP and token then
+        local cat = BuffCatalog(token)
+        block.pbuff = {}
+        for ent in string.gfind(rawP, "[^,]+") do
+            -- greedy name capture would swallow nothing here: a name has no
+            -- dot, so "Bob.2" splits exactly once
+            local _, _, nm, idxS = string.find(ent, "^([^.]+)%.(%d+)$")
+            local bd = cat and idxS and cat[tonumber(idxS)]
+            if nm and bd then block.pbuff[nm] = bd.name or bd.group end
         end
     end
     return block
@@ -554,7 +587,7 @@ A.Subscribe(function(domain, caster)
         return
     end
     if domain == "totem" or domain == "duty" or domain == "cbuff"
-       or domain == "gbuff" then
+       or domain == "gbuff" or domain == "pbuff" then
         MarkDirty(caster)
     end
 end)

@@ -14,6 +14,51 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-09-02
+### Added (per-player buff overrides)
+- **Mouse-wheel a player's row in the hover pop-out to give that one person a
+  different buff from the rest of their class row.** Every raid has the one
+  warrior who wants Shadow Protection while the rest of the row takes
+  Fortitude; until now honouring that meant retargeting the whole row and
+  hand-fixing everyone else. An overridden name carries a gold `*`.
+- **Wheeling all the way round returns to "no override."** An override you can
+  set but not obviously clear is a trap, and a hover panel has no room for a
+  clear button — so the cycle runs through the usable buffs and then back to
+  the class default.
+- **Coverage counts it properly.** An overridden player counts only toward
+  their own buff, so the class row stops calling them "missing Fortitude" when
+  they were never meant to get it — and their pop-out row is coloured and timed
+  against the buff they actually get. Everyone else still counts toward every
+  buff, so the row's own wheel keeps switching instantly.
+- **Overrides sync** on a new additive `p` section of the `RPCX` block, so
+  older clients skip it rather than desyncing (no protocol bump). Clearing the
+  Raid Buffs tab in per-class view now clears the overrides with the rows they
+  are exceptions to, so none are left pointing at buffs nobody assigned.
+- An override naming a buff you can't cast — unlearned, or switched off on the
+  Buttons tab — falls back to the class row instead of dropping that player out
+  of coverage silently.
+
+### Added (strip visibility in Options)
+- **Options > Settings now lists every strip this character has, each with a
+  show/hide checkbox** — Kick, Taunt, and the class strip (Shout, Totems,
+  Stings, or the buff strip). Previously this was slash-commands only.
+- The list is built from the strips that actually exist, so a warrior sees
+  three rows and a priest sees one, and anything added later appears on its own.
+- Show/hide now has a **single writer** (`AegisRP.SetStripShown`): the
+  checkboxes, `/rpc kick`, `/rpc taunt` and a strip's own toggle all route
+  through it, so a frame's shown state and its saved flag can't disagree. The
+  when-to-show rules still get the last word.
+
+### Testing
+- `scripts/test_groupbuff.lua` covers the override model and its wire section:
+  set/replace/clear, name-sorted listing, the full round-trip, and an
+  out-of-range buff index being dropped on receive. This caught a real bug
+  before it shipped — the serialiser read a caster name that wasn't in scope,
+  so the section silently never went out.
+- `scripts/test_strip.lua` covers the visibility invariant: frame and saved
+  flag agreeing in both directions, and an unbuilt strip remembering the choice
+  rather than erroring.
+
 ## [1.6.1] — 2026-09-02
 ### Fixed
 - **Transparency could turn a whole strip into empty outlines.** The

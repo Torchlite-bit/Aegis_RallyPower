@@ -2976,11 +2976,17 @@ local function ClearCurrentTab()
         for _, entry in ipairs(BufferList()) do
             if A.CanEdit(Me(), entry.name) then
                 if grp then A.ClearGroupBuffs(entry.name)
-                else for c = 0, 9 do A.SetClassBuff(entry.name, c, nil) end end
+                else
+                    for c = 0, 9 do A.SetClassBuff(entry.name, c, nil) end
+                    -- the per-player overrides are exceptions TO the class
+                    -- rows, so clearing the rows without them would leave
+                    -- invisible leftovers pointing at buffs nobody assigned
+                    A.ClearPlayerBuffs(entry.name)
+                end
             end
         end
         Msg(grp and "Group buff assignments cleared."
-                or "Per-class buff assignments cleared.")
+                or "Per-class buff assignments and player overrides cleared.")
     elseif DUTY_TAB[currentTab] then
         for _, def in ipairs(DutyList(DUTY_TAB[currentTab])) do
             local holders = A.GetDutyCasters(def.key)
