@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.7.1**. See `CHANGELOG.md` for the full history and
+Current version: **1.8.0**. See `CHANGELOG.md` for the full history and
 `docs/` for the design documents and interactive HTML concepts.
 
 ## HARD RULES — never violate these
@@ -177,6 +177,7 @@ under `scripts/test_*.lua`, run with any Lua (the addon files are
 lua scripts/test_groupbuff.lua   # group-buff model + RPCX round-trip
 lua scripts/test_rotation.lua    # kick/taunt rotations + KO/TO/KICK/TNT wire
 lua scripts/test_strip.lua       # strip engine: edge snapping + alpha floor
+lua scripts/test_duties.lua      # duty catalog: unique wids, tab fits its cards
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -330,12 +331,15 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
 - **Transparency has a floor (`AegisRP.StripAlpha`, `Aegis_Strip.lua`).** The
   backdrop is the only carrier of button state, so an alpha near 0 makes every
   state paint identically while the border keeps drawing — outlined boxes with
-  empty middles, which players read as a broken addon. The floor is 0.15,
+  empty middles, which players read as a broken addon. The floor is **0.3**,
   applied on read as well as in the slider's range, so an existing low value
-  heals itself. The floor is **0.3** — 0.15 was tried first and was still too
-  faint for a saturated green to read as anything but grey, so it satisfied the
-  rule on paper and not on screen. Anything new that paints a strip backdrop must go through
-  `AegisRP.StripAlpha` rather than reading `stripAlpha` directly.
+  heals itself. 0.15 was tried first and was still too faint for a saturated
+  green to read as anything but grey — it satisfied the rule on paper and not
+  on screen. Anything new that paints a strip backdrop must go through
+  `AegisRP.StripAlpha` rather than reading `stripAlpha` directly. The setting
+  is per character, and `/rpc alpha` prints the stored value, the effective
+  one, and every visible button's live RGBA — use it before theorising about a
+  colour that looks wrong.
 - **Per-player buff overrides — DONE, untested in-game.** `pbuff` in
   `Aegis_Assign.lua` (caster x player name -> one buff name, replacing what
   their class row would give), riding an additive `p` section on `RPCX`.
@@ -350,6 +354,20 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   `AegisRP.stripOrder` (creation order - `pairs()` over `AegisRP.strips` is
   unordered and would shuffle the rows between logins), so a new strip appears
   there on its own. Never write `stripHidden_*` directly.
+- **Debuff duties cover armor / AP / attack speed — untested in-game.** Druid
+  Faerie Fire (wids 26/27 with Demoralizing Roar) shipped, and Warrior Thunder
+  Clap + Demoralizing Shout were un-hidden. **Wids are the wire identity of a
+  duty** — names never cross, so a Turtle rename can't desync — which makes a
+  duplicate wid a silent merge of two duties on every remote client. `19` is
+  retired (cancelled Priest Tank Shield) and must never be reused.
+  `scripts/test_duties.lua` asserts both, plus that the visible debuff duties
+  still fit `DUTY_POOL`; overflow is silent, so a surplus duty just never
+  draws. `DUTY_POOL` is 18 (2x9) and 9 rows is the ceiling — a tenth renders
+  under the tab's hint text.
+- **Phase 3 remaining:** crowd-control assignments, and raid markers + roles.
+  Markers are **blocked on an unverified prerequisite**: confirm
+  `SetRaidTarget` / `GetRaidTargetIndex` exist on Turtle 1.18.1 before building
+  anything on them.
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and

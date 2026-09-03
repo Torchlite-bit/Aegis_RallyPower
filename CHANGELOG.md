@@ -14,6 +14,37 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-09-03
+### Added (the Debuffs tab covers the raid's actual mitigation)
+- **Faerie Fire and Demoralizing Roar are now druid duties**, with strip
+  buttons to match. Faerie Fire has two spells — the caster one and the Feral
+  talent version usable in forms — and both are listed, so a feral gets a
+  button they can press while shifted; they apply the same debuff and share an
+  icon, so tracking covers either. An untalented druid never sees the Feral
+  one. Durations are Vanilla defaults (40s / 30s) and **Turtle-unverified**.
+- **One duty per effect, not per spell.** The raid plan cares that Faerie Fire
+  is up, not which of the two spells put it there.
+
+### Changed
+- **Thunder Clap and Demoralizing Shout are visible on the Debuffs tab.** They
+  had been hidden as "group utility rather than something one caster maintains
+  on the kill target" — but a raid assigns them exactly that way, and they are
+  the attack-speed and attack-power halves of the mitigation the tanks are
+  counting on. They stay single-owner: they refresh rather than stack, so a
+  second owner adds nothing but confusion about whose job it is.
+- The duty-card pool grew from 16 to 18 (two columns of nine). Fourteen debuff
+  duties are visible now, and overflow is *silent* — a surplus duty simply
+  never draws — so the extra room matters. Nine rows is the ceiling: a tenth
+  would render underneath the tab's hint text.
+
+### Testing
+- New `scripts/test_duties.lua`: loads the real model and all eight class
+  modules and checks the catalog whole — every duty well-formed, **wids
+  unique**, the retired wid 19 never reused, and the visible debuff duties
+  still fitting the card pool. Wids are what duties travel as on the wire, so a
+  collision silently merges two duties on every remote client with no error
+  anywhere; that is not something inspection catches across eight files.
+
 ## [1.7.1] — 2026-09-03
 ### Fixed
 - **The Transparency floor was still too low to do its own job.** 1.6.1 added a
