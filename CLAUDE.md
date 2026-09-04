@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.10.1**. See `CHANGELOG.md` for the full history,
+Current version: **1.11.0**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -397,7 +397,12 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   arithmetic happens in the DRAGGED frame's own coordinate space — each strip
   carries its own grip scale, so another strip's `GetLeft()` has to be
   converted by the scale ratio or the snap lands visibly wrong at any scale but
-  1.0. Covered by `scripts/test_strip.lua`. The rotation strips can also show
+  1.0. **`FOREIGN_SNAP` adds the vendored engine's own movable frames**
+  (`PallyPowerBuffBar`, `PallyPowerFrame`) as targets — a paladin has no
+  class-buff strip, so the legacy buff bar is the only thing their Taunt strip
+  can line up with, and the snapper could not see it. Looked up by name at drag
+  time, since they belong to the engine and may not exist.
+  Covered by `scripts/test_strip.lua`. The rotation strips can also show
   three rows for slots 1-3 of the order (`rotQueue`, off by default); the rows
   follow the ORDER rather than the availability queue so names don't reshuffle
   as cooldowns tick.

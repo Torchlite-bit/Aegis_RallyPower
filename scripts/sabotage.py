@@ -136,8 +136,8 @@ SABOTAGES = [
     # "works" -- it just parks the frame somewhere visibly wrong, and only at
     # a scale other than 1.0.
     ("snap-scale-inverted", "Core/Aegis_Strip.lua",
-     "                local k = os / es                  -- their space -> ours",
-     "                local k = es / os                  -- their space -> ours",
+     "        local k = os / es                      -- their space -> ours",
+     "        local k = es / os                      -- their space -> ours",
      "strip"),
 
     ("snap-threshold-inclusive", "Core/Aegis_Strip.lua",
@@ -145,9 +145,17 @@ SABOTAGES = [
      "        if d <= bestD then best, bestD = cands[i], d end",
      "strip"),
 
+    # A paladin has no class-buff strip, so the legacy buff bar is the only
+    # thing their Taunt strip can line up with. Dropping it from the target
+    # list is invisible except to someone dragging on a paladin.
+    ("snap-ignores-engine-frames", "Core/Aegis_Strip.lua",
+     '    for i = 1, table.getn(FOREIGN_SNAP) do neighbour(getglobal(FOREIGN_SNAP[i])) end',
+     '',
+     "strip"),
+
     ("snap-to-hidden-strip", "Core/Aegis_Strip.lua",
-     "        if o and o ~= f and o:IsShown() then",
-     "        if o and o ~= f then",
+     "        if o.IsShown and not o:IsShown() then return end",
+     "        if false then return end",
      "strip"),
 
     # Without the floor the backdrop -- the only carrier of button state --

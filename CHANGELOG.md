@@ -14,6 +14,31 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-09-04
+### Added (strips snap to the paladin bar)
+- **A strip now snaps to the legacy PallyPower frames, not just to other Aegis
+  strips.** Snapping walked our own strip registry only, and a paladin runs the
+  legacy engine and has no class-buff strip — so on that character the Taunt
+  strip's only sensible neighbour, the buff bar, was invisible to the snapper
+  and there was nothing to line up with but the screen edge.
+- `PallyPowerBuffBar` and `PallyPowerFrame` are looked up **by name at drag
+  time** rather than held: they belong to the engine, may not exist on a
+  non-paladin, and are hidden until it decides to show them. A hidden or absent
+  one is skipped.
+- One direction only: our strips snap to the engine's frames. Dragging the
+  engine's own bar does not snap to our strips — its drag handlers belong to
+  the vendored engine, and reaching into those is a larger change than this
+  earns.
+
+### Testing
+- `scripts/test_strip.lua` covers the new targets: snapping to the legacy bar's
+  edge, stacking under it, a hidden engine frame being ignored, and an absent
+  one being skipped rather than erroring.
+- New `snap-ignores-engine-frames` sabotage. The refactor also moved the
+  scale-conversion line, which turned `snap-scale-inverted` **stale** — the
+  runner reported it rather than passing quietly, which is the behaviour that
+  entry exists for. Repaired; all 18 caught.
+
 ## [1.10.1] — 2026-09-04
 ### Changed
 - **Wheeling a name in the paladin pop-out now says what it did, and names the

@@ -1,7 +1,7 @@
 # Roadmap — Aegis: RallyPower
 
 Where the addon is, what is in flight, and what is planned. Current release:
-**v1.10.1**. Full history in [`CHANGELOG.md`](../CHANGELOG.md); the rules that
+**v1.11.0**. Full history in [`CHANGELOG.md`](../CHANGELOG.md); the rules that
 govern the work are in [`CLAUDE.md`](../CLAUDE.md).
 
 Phases are ordered by **dependency**, not importance — a later phase builds on
