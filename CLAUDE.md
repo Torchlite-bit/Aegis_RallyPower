@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.11.0**. See `CHANGELOG.md` for the full history,
+Current version: **1.12.0**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -401,11 +401,35 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   (`PallyPowerBuffBar`, `PallyPowerFrame`) as targets — a paladin has no
   class-buff strip, so the legacy buff bar is the only thing their Taunt strip
   can line up with, and the snapper could not see it. Looked up by name at drag
-  time, since they belong to the engine and may not exist.
+  time, since they belong to the engine and may not exist. **A `FOREIGN_SNAP`
+  entry carries a `pad`**, because a frame edge is not what a player sees: the
+  buff bar is 110 wide with its buttons inset 5px while our strips are 100 with
+  none, so aligning frame boxes leaves the two visible columns 5px out of step.
+  Snap to the content box; the bar's column is exactly our width, so one snap
+  squares up both sides. Anything else added to `FOREIGN_SNAP` needs its own
+  inset measured, not assumed to be zero.
   Covered by `scripts/test_strip.lua`. The rotation strips can also show
   three rows for slots 1-3 of the order (`rotQueue`, off by default); the rows
   follow the ORDER rather than the availability queue so names don't reshuffle
   as cooldowns tick.
+- **A strip's scale has ONE resolver: `AegisRP.StripScale(key)`
+  (`Aegis_Strip.lua`).** Per-strip grip scale first, then the class-dependent
+  global — and that second half is the part worth remembering. A paladin has no
+  class-buff strip of ours, so the legacy buff bar IS their class strip, and
+  their Kick/Taunt strips follow the ENGINE's `PP_PerUser.scalebar` rather than
+  our `uiScale`, which has no slider on that class and would sit at 1.0
+  forever. Both writers push through `AegisRP_ApplyStripScale` (Core): our
+  Options slider, and a save-and-replace of the engine's `PallyPower_ScaleFrame`
+  in `Aegis_Popout.lua` so the bar's own scaling grip moves the strips too.
+  Never read `uiScale` or `stripScale_*` directly to size a strip.
+- **The Settings tab's paladin branch is no longer engine-only.** It returns
+  early with the legacy entries, and every strip-level setting it skipped was a
+  setting paladins genuinely could not reach once they gained Kick and Taunt
+  strips in 1.10.0. The shared entries are factories (`StripAlphaEntry`,
+  `StripSnapEntry`, …) so a new one lands on both branches or neither. The tab
+  is the tallest in the frame and the frame grows to fit without a scrollbar —
+  measure before adding a row (header 26, check 24, slider 44, select 34,
+  button 30, note h+8; the frame is centred at +40 on a 768-unit `UIParent`).
 - **Transparency has a floor (`AegisRP.StripAlpha`, `Aegis_Strip.lua`).** The
   backdrop is the only carrier of button state, so an alpha near 0 makes every
   state paint identically while the border keeps drawing — outlined boxes with

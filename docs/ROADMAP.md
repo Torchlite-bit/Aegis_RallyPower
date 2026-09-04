@@ -109,6 +109,16 @@ phase assumes.
   Demoralizing Roar added; Thunder Clap and Demoralizing Shout un-hidden. The
   blank-icon regression that shipped with it was found in-game and fixed in
   v1.8.1.
+- ✅ **Strips snap to the legacy PallyPower frames** (v1.11.0) — confirmed
+  in-game on a paladin: the Taunt strip now has the buff bar to line up with
+  instead of only the screen edge.
+- 🟡 **One scale and one edge for a paladin's three bars** (v1.12.0) — "Buff
+  bar scale" (and the bar's own scaling grip) now sizes the Kick and Taunt
+  strips too, and snapping aligns to the bar's button *column* rather than its
+  frame, which is 10px wider. Paladins also gained the strip settings —
+  transparency, snapping, locking, Reset Frames and the per-strip Show toggles
+  — that the class branch had skipped since before they had strips. Both halves
+  are visual and want a look on a real client.
 
 ---
 

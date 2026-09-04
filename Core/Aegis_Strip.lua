@@ -235,6 +235,25 @@ function AegisRP.StripAlpha(fallback)
     return a
 end
 
+-- The scale a strip should run at. Per-strip grip scales win; below that the
+-- answer is class-dependent, and that is the point of this function existing.
+--
+-- A Paladin has no class-buff strip of ours - the legacy buff bar IS their
+-- class strip - so their Kick and Taunt strips have to follow the ENGINE's
+-- "Buff bar scale" or the three bars sit at different sizes and no slider in
+-- our options fixes it. Everyone else follows uiScale, which is the only
+-- scale they have. PP_PerUser is read defensively: it belongs to the engine
+-- and does not exist on eight of the nine classes.
+function AegisRP.StripScale(key)
+    local s = key and AegisRP_Settings["stripScale_" .. key]
+    if s then return s end
+    local _, cls = UnitClass("player")
+    if cls == "PALADIN" and PP_PerUser and PP_PerUser.scalebar then
+        return PP_PerUser.scalebar
+    end
+    return AegisRP_Settings.uiScale or 1
+end
+
 local function Btn_SetState(self, st)
     local c = COLORS[st] or COLORS.off
     self:SetBackdropColor(c[1], c[2], c[3], AegisRP.StripAlpha(c[4]))
@@ -353,7 +372,16 @@ local SNAP_PX = 12          -- how close an edge has to be before it grabs
 --
 -- Looked up by name at drag time rather than held: they belong to the engine,
 -- may not exist on a non-paladin, and are hidden until it decides to show them.
-local FOREIGN_SNAP = { "PallyPowerBuffBar", "PallyPowerFrame" }
+--
+-- `pad` is the frame's own inset to the visible column of buttons inside it.
+-- PallyPowerBuffBar is 110 wide but its buttons are the same 100 as ours and
+-- start 5px in, so lining the FRAME edges up leaves the two columns 5px out
+-- of step - and the column is the only part a player can see. Snapping to the
+-- content box is what makes a docked strip read as part of the same bar.
+local FOREIGN_SNAP = {
+    { name = "PallyPowerBuffBar", pad = 5 },
+    { name = "PallyPowerFrame" },
+}
 
 -- nearest candidate to v within SNAP_PX, else v unchanged
 local function NearestSnap(v, cands)
@@ -380,8 +408,10 @@ local function SnapStrip(f)
     local xs = { 0, sw - w }
     local ys = { h, sh }
 
-    -- one neighbour's edges, converted into our space
-    local function neighbour(o)
+    -- one neighbour's edges, converted into our space. `pad` trims the frame
+    -- box down to the button column inside it (see FOREIGN_SNAP); our own
+    -- strips have no inset, so they pass none.
+    local function neighbour(o, pad)
         if not o or o == f then return end
         if o.IsShown and not o:IsShown() then return end
         local os, ol, ot = o:GetEffectiveScale(), o:GetLeft(), o:GetTop()
@@ -390,6 +420,7 @@ local function SnapStrip(f)
         ol, ot = ol * k, ot * k
         local ow, oh = o:GetWidth() * k, o:GetHeight() * k
         local oright, obottom = ol + ow, ot - oh
+        if pad then ol = ol + pad * k; oright = oright - pad * k end
         table.insert(xs, ol)                   -- left edges flush
         table.insert(xs, oright - w)           -- right edges flush
         table.insert(xs, oright)               -- sit to its right
@@ -401,7 +432,10 @@ local function SnapStrip(f)
     end
 
     for _, other in pairs(AegisRP.strips) do neighbour(other.frame) end
-    for i = 1, table.getn(FOREIGN_SNAP) do neighbour(getglobal(FOREIGN_SNAP[i])) end
+    for i = 1, table.getn(FOREIGN_SNAP) do
+        local fs = FOREIGN_SNAP[i]
+        neighbour(getglobal(fs.name), fs.pad)
+    end
 
     local nx, ny = NearestSnap(left, xs), NearestSnap(top, ys)
     if nx == left and ny == top then return end
@@ -427,8 +461,7 @@ function AegisRP.NewStrip(key, title)
     AegisRP.strips[key] = S
     f:SetWidth(STRIP_W)
     -- per-strip grip scale wins; the global slider resets it (see Core)
-    f:SetScale(AegisRP_Settings["stripScale_" .. key]
-        or AegisRP_Settings.uiScale or 1)
+    f:SetScale(AegisRP.StripScale(key))
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")

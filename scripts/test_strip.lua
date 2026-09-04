@@ -40,6 +40,9 @@ DEFAULT_CHAT_FRAME = { AddMessage = function() end }
 function GetTime() return 100 end
 -- the strip engine looks the vendored engine's movable frames up by name
 function getglobal(n) return _G[n] end
+-- AegisRP.StripScale branches on the player's class
+local playerClass = "PRIEST"
+function UnitClass() return playerClass, playerClass end
 
 AegisRP = {}
 
@@ -165,25 +168,40 @@ check("stacks directly above it", y, 590)
 --     Taunt strip's only sensible neighbour is PallyPowerBuffBar - and until
 --     it was added here, the snapper could not see it and the strip had
 --     nothing to line up with but the screen edge.
+--
+--     The bar is also 110 wide while every strip of ours is 100, and its own
+--     buttons sit 5px in - so the COLUMN a player sees runs 305..405 for a
+--     frame whose left is 300. Snapping FRAME edges lines up two boxes and
+--     leaves the two columns 5px out of step, and the column is the only part
+--     of either frame anyone can see. The pad in FOREIGN_SNAP is what these
+--     assertions pin.
 --------------------------------------------------------------------------
 AegisRP.strips = {}
-PallyPowerBuffBar = Frame(300, 500, W, H)     -- the legacy buff bar
+local BAR_W = 110                             -- the real PallyPowerBuffBar width
+PallyPowerBuffBar = Frame(300, 500, BAR_W, H)
 
-x, y = drop(Frame(306, 200, W, H))
-check("snaps to the legacy buff bar's left edge", x, 300)
+-- 302 is 2px from the bar's FRAME left and 3px from its button column, so an
+-- unpadded snapper picks 300 and a padded one picks 305: the one drop that
+-- tells the two implementations apart.
+f = Frame(302, 200, W, H)
+x, y = drop(f)
+check("snaps to the bar's button column, not its frame", x, 305)
+-- the column is exactly our width, so the left and right candidates are the
+-- same number and one snap lines up BOTH sides. That is what the pad buys.
+check("...which lines the right edges up as well", x + W, 300 + BAR_W - 5)
 
 x, y = drop(Frame(200, 415, W, H))
 check("stacks under the legacy buff bar", y, 410)
 
 PallyPowerBuffBar.shown = false
-x, y = drop(Frame(306, 200, W, H))
-check("a hidden legacy frame is not a target", x, 306)
+x, y = drop(Frame(302, 200, W, H))
+check("a hidden legacy frame is not a target", x, 302)
 PallyPowerBuffBar.shown = true
 
 -- an engine frame that was never created must not error
 PallyPowerBuffBar = nil
 PallyPowerFrame = nil
-ok = pcall(drop, Frame(306, 200, W, H))
+ok = pcall(drop, Frame(302, 200, W, H))
 check("absent engine frames are skipped", ok, true)
 
 --------------------------------------------------------------------------
@@ -274,6 +292,54 @@ check("fully opaque is untouched", AegisRP.StripAlpha(0.5), 1)
 AegisRP_Settings.stripAlpha = nil
 
 --------------------------------------------------------------------------
+-- SCALE RESOLUTION
+--
+-- Which slider owns a strip's size is class-dependent, and getting it wrong is
+-- invisible in the source: a Paladin has no class-buff strip of ours (the
+-- legacy buff bar is it), so their Kick and Taunt strips must follow the
+-- ENGINE's buff-bar scale. Following uiScale there means following a slider
+-- that class never sees, so it stays 1 forever and the strips can never be
+-- matched to the bar they dock against.
+--------------------------------------------------------------------------
+print("")
+print("strip engine - scale resolution")
+
+AegisRP_Settings.uiScale = 0.9
+AegisRP_Settings.stripScale_kick = nil
+PP_PerUser = nil
+playerClass = "PRIEST"
+check("a non-Paladin follows uiScale", AegisRP.StripScale("kick"), 0.9)
+
+AegisRP_Settings.stripScale_kick = 1.25
+check("a per-strip grip scale wins", AegisRP.StripScale("kick"), 1.25)
+AegisRP_Settings.stripScale_kick = nil
+
+playerClass = "PALADIN"
+PP_PerUser = { scalebar = 1.2 }
+check("a Paladin follows the engine's buff-bar scale", AegisRP.StripScale("kick"), 1.2)
+
+AegisRP_Settings.stripScale_kick = 0.7
+check("...but their grip scale still wins", AegisRP.StripScale("kick"), 0.7)
+AegisRP_Settings.stripScale_kick = nil
+
+-- PP_PerUser belongs to the engine and is absent on eight of nine classes, and
+-- missing a key on the ninth (SavedVariables predating it). Neither may throw.
+PP_PerUser = nil
+check("no engine config falls back instead of erroring", AegisRP.StripScale("kick"), 0.9)
+PP_PerUser = {}
+check("engine config without the key falls back", AegisRP.StripScale("kick"), 0.9)
+
+playerClass = "PRIEST"
+PP_PerUser = { scalebar = 1.2 }
+check("a non-Paladin ignores the engine's slider", AegisRP.StripScale("kick"), 0.9)
+
+AegisRP_Settings.uiScale = nil
+PP_PerUser = nil
+check("nothing set at all is 1.0", AegisRP.StripScale("kick"), 1)
+check("...and with no strip key either", AegisRP.StripScale(), 1)
+playerClass = "PRIEST"
+
+--------------------------------------------------------------------------
 -- STRIP VISIBILITY
 --
 -- SetStripShown is the single writer for a strip's shown state: the slash
@@ -312,7 +378,7 @@ check("...and still remembers the choice", AegisRP.IsStripShown("notbuilt"), fal
 --------------------------------------------------------------------------
 print("")
 if failures == 0 then
-    print("PASS - snapping, alpha floor and visibility")
+    print("PASS - snapping, alpha floor, scale and visibility")
     os.exit(0)
 end
 print("FAIL - " .. failures .. " check(s)")

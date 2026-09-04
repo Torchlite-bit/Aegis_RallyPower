@@ -149,8 +149,24 @@ SABOTAGES = [
     # thing their Taunt strip can line up with. Dropping it from the target
     # list is invisible except to someone dragging on a paladin.
     ("snap-ignores-engine-frames", "Core/Aegis_Strip.lua",
-     '    for i = 1, table.getn(FOREIGN_SNAP) do neighbour(getglobal(FOREIGN_SNAP[i])) end',
-     '',
+     "        neighbour(getglobal(fs.name), fs.pad)",
+     "",
+     "strip"),
+
+    # The buff bar is 110 wide with its buttons 5px in; our strips are 100.
+    # Without the pad the snapper lines up frame boxes, and the two columns a
+    # player actually sees end up 5px out of step -- which is the whole point
+    # of docking a strip against the bar.
+    ("snap-ignores-content-pad", "Core/Aegis_Strip.lua",
+     "        if pad then ol = ol + pad * k; oright = oright - pad * k end",
+     "",
+     "strip"),
+
+    # A paladin's uiScale has no slider, so it stays 1 forever: routing them
+    # to it means their Kick/Taunt strips can never be matched to the buff bar.
+    ("strip-scale-ignores-engine", "Core/Aegis_Strip.lua",
+     "    if cls == \"PALADIN\" and PP_PerUser and PP_PerUser.scalebar then",
+     "    if false then",
      "strip"),
 
     ("snap-to-hidden-strip", "Core/Aegis_Strip.lua",
