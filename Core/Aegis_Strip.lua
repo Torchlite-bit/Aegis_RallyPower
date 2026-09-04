@@ -345,6 +345,16 @@ end
 --------------------------------------------------------------------------
 local SNAP_PX = 12          -- how close an edge has to be before it grabs
 
+-- Frames that are NOT our strips but that a strip should still line up with:
+-- the vendored engine's own movable windows. Without these a paladin's Taunt
+-- strip had nothing to snap to but the screen edge, because a paladin runs the
+-- legacy engine and has no class-buff strip - the legacy buff bar IS the
+-- neighbour you want to align with, and the snapper could not see it.
+--
+-- Looked up by name at drag time rather than held: they belong to the engine,
+-- may not exist on a non-paladin, and are hidden until it decides to show them.
+local FOREIGN_SNAP = { "PallyPowerBuffBar", "PallyPowerFrame" }
+
 -- nearest candidate to v within SNAP_PX, else v unchanged
 local function NearestSnap(v, cands)
     local best, bestD = v, SNAP_PX
@@ -370,27 +380,28 @@ local function SnapStrip(f)
     local xs = { 0, sw - w }
     local ys = { h, sh }
 
-    -- every other visible strip: align edges with it, or sit against it
-    for _, other in pairs(AegisRP.strips) do
-        local o = other.frame
-        if o and o ~= f and o:IsShown() then
-            local os, ol, ot = o:GetEffectiveScale(), o:GetLeft(), o:GetTop()
-            if os and ol and ot then
-                local k = os / es                  -- their space -> ours
-                ol, ot = ol * k, ot * k
-                local ow, oh = o:GetWidth() * k, o:GetHeight() * k
-                local oright, obottom = ol + ow, ot - oh
-                table.insert(xs, ol)               -- left edges flush
-                table.insert(xs, oright - w)       -- right edges flush
-                table.insert(xs, oright)           -- sit to its right
-                table.insert(xs, ol - w)           -- sit to its left
-                table.insert(ys, ot)               -- top edges flush
-                table.insert(ys, obottom + h)      -- bottom edges flush
-                table.insert(ys, obottom)          -- sit under it
-                table.insert(ys, ot + h)           -- sit above it
-            end
-        end
+    -- one neighbour's edges, converted into our space
+    local function neighbour(o)
+        if not o or o == f then return end
+        if o.IsShown and not o:IsShown() then return end
+        local os, ol, ot = o:GetEffectiveScale(), o:GetLeft(), o:GetTop()
+        if not (os and ol and ot and os > 0) then return end
+        local k = os / es                      -- their space -> ours
+        ol, ot = ol * k, ot * k
+        local ow, oh = o:GetWidth() * k, o:GetHeight() * k
+        local oright, obottom = ol + ow, ot - oh
+        table.insert(xs, ol)                   -- left edges flush
+        table.insert(xs, oright - w)           -- right edges flush
+        table.insert(xs, oright)               -- sit to its right
+        table.insert(xs, ol - w)               -- sit to its left
+        table.insert(ys, ot)                   -- top edges flush
+        table.insert(ys, obottom + h)          -- bottom edges flush
+        table.insert(ys, obottom)              -- sit under it
+        table.insert(ys, ot + h)               -- sit above it
     end
+
+    for _, other in pairs(AegisRP.strips) do neighbour(other.frame) end
+    for i = 1, table.getn(FOREIGN_SNAP) do neighbour(getglobal(FOREIGN_SNAP[i])) end
 
     local nx, ny = NearestSnap(left, xs), NearestSnap(top, ys)
     if nx == left and ny == top then return end

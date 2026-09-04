@@ -38,6 +38,8 @@ function UIParent:GetEffectiveScale() return 1 end
 
 DEFAULT_CHAT_FRAME = { AddMessage = function() end }
 function GetTime() return 100 end
+-- the strip engine looks the vendored engine's movable frames up by name
+function getglobal(n) return _G[n] end
 
 AegisRP = {}
 
@@ -49,6 +51,7 @@ chunk()
 
 --------------------------------------------------------------------------
 local failures = 0
+local ok                     -- reused by several pcall checks below
 local function check(label, got, want)
     if got == want then
         print(string.format("  ok    %-52s %s", label, tostring(got)))
@@ -156,6 +159,34 @@ x, y = drop(Frame(200, 587, W, H))
 check("stacks directly above it", y, 590)
 
 --------------------------------------------------------------------------
+-- 3b. The vendored engine's own frames are snap targets too.
+--
+--     A paladin runs the legacy engine and has NO class-buff strip, so their
+--     Taunt strip's only sensible neighbour is PallyPowerBuffBar - and until
+--     it was added here, the snapper could not see it and the strip had
+--     nothing to line up with but the screen edge.
+--------------------------------------------------------------------------
+AegisRP.strips = {}
+PallyPowerBuffBar = Frame(300, 500, W, H)     -- the legacy buff bar
+
+x, y = drop(Frame(306, 200, W, H))
+check("snaps to the legacy buff bar's left edge", x, 300)
+
+x, y = drop(Frame(200, 415, W, H))
+check("stacks under the legacy buff bar", y, 410)
+
+PallyPowerBuffBar.shown = false
+x, y = drop(Frame(306, 200, W, H))
+check("a hidden legacy frame is not a target", x, 306)
+PallyPowerBuffBar.shown = true
+
+-- an engine frame that was never created must not error
+PallyPowerBuffBar = nil
+PallyPowerFrame = nil
+ok = pcall(drop, Frame(306, 200, W, H))
+check("absent engine frames are skipped", ok, true)
+
+--------------------------------------------------------------------------
 -- 4. A strip never snaps to ITSELF, and ignores hidden strips
 --------------------------------------------------------------------------
 AegisRP.strips = {}
@@ -200,7 +231,7 @@ check("unset means on (default true)", (drop(Frame(3, 400, W, H))), 0)
 --    frame returns nil from GetLeft(), which happens before a frame is placed
 --------------------------------------------------------------------------
 f = Frame(nil, nil, W, H)
-local ok = pcall(drop, f)
+ok = pcall(drop, f)
 check("a frame with no position is skipped", ok and f.anchor == nil, true)
 
 --------------------------------------------------------------------------
