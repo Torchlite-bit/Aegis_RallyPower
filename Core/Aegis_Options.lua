@@ -884,7 +884,10 @@ local function CreateOptionsFrame()
         tile = true, tileSize = 16, edgeSize = 16,
         insets = { left = 5, right = 5, top = 5, bottom = 5 },
     })
-    f:SetBackdropColor(0, 0, 0, 0.85)
+    -- matched to the assignment panel's 0.96: at 0.85 the panel showed
+    -- straight through this one wherever the two overlapped, which reads as
+    -- a broken frame rather than a translucent one
+    f:SetBackdropColor(0, 0, 0, 0.96)
     f:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
     f:SetFrameStrata("DIALOG")
     f:SetMovable(true)
@@ -894,6 +897,7 @@ local function CreateOptionsFrame()
     f:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
     f:Hide()
     tinsert(UISpecialFrames, "AegisRP_OptionsFrame")   -- ESC closes
+    if f.SetToplevel then f:SetToplevel(true) end      -- click brings it forward
 
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOP", f, "TOP", 0, -10)
@@ -928,6 +932,17 @@ local function CreateOptionsFrame()
     end
 
     f:SetScript("OnShow", function()
+        -- Dock beside the assignment panel when that is open; go back to the
+        -- middle when it is not, so this frame is never left stuck beside a
+        -- window that is no longer on screen.
+        local panel = getglobal("AegisRP_AssignFrame")
+        if panel and panel:IsShown() then
+            if AegisRP.DockPanels then AegisRP.DockPanels() end
+        else
+            f:ClearAllPoints()
+            f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
+        end
+        if AegisRP.RaisePanel then AegisRP.RaisePanel(f, panel) end
         ShowTab(AegisRP_Settings.optLastTab or 1)
     end)
 

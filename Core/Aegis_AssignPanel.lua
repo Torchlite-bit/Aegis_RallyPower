@@ -3456,6 +3456,7 @@ local function CreatePanel()
     f:SetBackdropColor(0.055, 0.05, 0.04, 0.96)
     f:SetBackdropBorderColor(GOLD[1], GOLD[2], GOLD[3], 1)
     f:SetFrameStrata("DIALOG")
+    if f.SetToplevel then f:SetToplevel(true) end      -- click brings it forward
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
@@ -3465,6 +3466,9 @@ local function CreatePanel()
         -- keep the relative point: grip-scaling re-anchors TOPLEFT->BOTTOMLEFT
         local p, _, rp, x, y = f:GetPoint()
         AegisRP_Settings.assignPos = { p = p, rel = rp, x = x, y = y }
+        -- options follows: dragging this aside is also how you make room for
+        -- it on a screen too narrow to fit both side by side
+        if AegisRP.DockPanels then AegisRP.DockPanels() end
     end)
     f:Hide()
     tinsert(UISpecialFrames, "AegisRP_AssignFrame")   -- ESC closes
@@ -3633,6 +3637,9 @@ local function CreatePanel()
     AegisRP.AddScaleGrip(f, "assignScale", function()
         AegisRP_Settings.assignPos = { p = "TOPLEFT", rel = "BOTTOMLEFT",
             x = f:GetLeft(), y = f:GetTop() }
+        -- a rescale changes how much room is left beside it, so the side the
+        -- options frame docks on can change too
+        if AegisRP.DockPanels then AegisRP.DockPanels() end
     end)
     -- blessing presets are a paladin feature (same dropdown as the classic frame)
     local _, mycls = UnitClass("player")
@@ -3647,6 +3654,12 @@ local function CreatePanel()
     end
 
     f:SetScript("OnShow", function()
+        -- opening this while the options frame is up re-docks options beside
+        -- it rather than leaving one window on top of the other
+        if AegisRP.DockPanels then AegisRP.DockPanels() end
+        if AegisRP.RaisePanel then
+            AegisRP.RaisePanel(f, getglobal("AegisRP_OptionsFrame"))
+        end
         ShowTab(AegisRP_Settings.assignLastTab or 1)
     end)
 

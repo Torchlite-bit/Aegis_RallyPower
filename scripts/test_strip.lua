@@ -70,6 +70,7 @@ local function Frame(left, top, w, h, scale, shown)
     local f = { left = left, top = top, w = w, h = h,
                 scale = scale or 1, shown = (shown ~= false) }
     function f:GetLeft() return self.left end
+    function f:GetRight() return self.left and (self.left + self.w) end
     function f:GetTop() return self.top end
     function f:GetWidth() return self.w end
     function f:GetHeight() return self.h end
@@ -79,8 +80,10 @@ local function Frame(left, top, w, h, scale, shown)
     function f:Show() self.shown = true end
     function f:ClearAllPoints() self.cleared = true end
     function f:SetPoint(p, rel, rp, x, y)
-        self.anchor = { p = p, rp = rp, x = x, y = y }
-        self.left, self.top = x, y
+        self.anchor = { p = p, rel = rel, rp = rp, x = x, y = y }
+        -- only a UIParent anchor gives absolute coordinates; a frame-to-frame
+        -- anchor is resolved by the client, so leave our fake position alone
+        if rel == UIParent then self.left, self.top = x, y end
     end
     return f
 end
@@ -253,6 +256,90 @@ ok = pcall(drop, f)
 check("a frame with no position is skipped", ok and f.anchor == nil, true)
 
 --------------------------------------------------------------------------
+-- PANEL DOCKING
+--
+-- The options frame and the assignment panel both open centred, so opening
+-- both put one on top of the other. Docked they sit side by side - and which
+-- SIDE is arithmetic across two independent scales, which is the same class of
+-- silently-wrong-not-broken bug the snapping above is tested for. On a screen
+-- too narrow for the pair (4:3 and 5:4 are, at 1024 and 960 units) there is a
+-- third answer, and getting that one wrong parks a frame off screen.
+--------------------------------------------------------------------------
+print("")
+print("panel docking")
+
+AegisRP.strips = {}
+PallyPowerBuffBar = nil
+PallyPowerFrame = nil
+
+local PANEL_W, OPTS_W = 760, 360
+local function dockPair(panelLeft, panelTop, panelScale, screenW)
+    SCREEN_W = screenW or 1365
+    AegisRP_AssignFrame  = Frame(panelLeft, panelTop, PANEL_W, 600, panelScale or 1)
+    AegisRP_OptionsFrame = Frame(0, 0, OPTS_W, 480, 1)
+    return AegisRP.DockPanels()
+end
+
+-- 1. Widescreen, panel left of centre: room to the right, so options docks
+--    there with the tops aligned.
+dockPair(100, 700)
+local a = AegisRP_OptionsFrame.anchor
+check("docks to the panel's right", a and (a.p .. "/" .. a.rp), "TOPLEFT/TOPRIGHT")
+check("...relative to the panel itself", a and a.rel == AegisRP_AssignFrame, true)
+check("...with the tops level", a and a.y, 0)
+
+-- 2. Panel pushed to the right edge: no room that side, so it flips to the left
+dockPair(1365 - PANEL_W - 20, 700)
+a = AegisRP_OptionsFrame.anchor
+check("flips to the panel's left", a and (a.p .. "/" .. a.rp), "TOPRIGHT/TOPLEFT")
+check("...still relative to the panel", a and a.rel == AegisRP_AssignFrame, true)
+
+-- 3. A 4:3 screen cannot fit 760 + 360 + a gap either side of the panel. The
+--    frame must still land ON screen: against the edge with more room, top
+--    still aligned, rather than off the side or squarely over the panel.
+dockPair(132, 700, 1, 1024)
+a = AegisRP_OptionsFrame.anchor
+check("no room either side: anchors to the screen", a and (a.p .. "/" .. a.rp),
+      "TOPLEFT/BOTTOMLEFT")
+check("...against the roomier edge", a and a.x, 1024 - OPTS_W - 6)
+check("...top still aligned with the panel", a and a.y, 700)
+check("...and fully on screen", a and (a.x >= 0 and a.x + OPTS_W <= 1024), true)
+
+-- panel hard against the LEFT edge: the right side is now the roomy one, but
+-- still not roomy enough, so it clamps right rather than flipping
+dockPair(0, 700, 1, 1024)
+check("left-hugging panel still clamps on screen",
+      AegisRP_OptionsFrame.anchor.x, 1024 - OPTS_W - 6)
+
+-- 4. SCALE. The panel carries a grip and the options frame does not, so the
+--    fit test has to be in SCREEN pixels. At scale 2 a panel whose own left is
+--    100 actually starts at 200 and ends at 960 - which leaves 140px on a
+--    1100-wide screen, not the 620 a scale-blind comparison would compute.
+--    Getting that backwards docks it to the right and hangs it off the edge.
+AegisRP.strips = {}
+SCREEN_W = 1100
+AegisRP_AssignFrame  = Frame(100, 350, 380, 300, 2)
+AegisRP_OptionsFrame = Frame(0, 0, OPTS_W, 480, 1)
+AegisRP.DockPanels()
+a = AegisRP_OptionsFrame.anchor
+check("a scaled panel's room is measured in screen pixels",
+      a and (a.p .. "/" .. a.rp), "TOPLEFT/BOTTOMLEFT")
+check("...not the 620px a scale-blind test would find", a.rp ~= "TOPRIGHT", true)
+-- and the top is converted out of the panel's space into ours: 350 at scale 2
+-- is 700 on screen, which is 700 in a frame at scale 1
+check("...and the top converts by the scale ratio", a and a.y, 700)
+
+-- 5. Nothing to dock to is not an error, and must not move anything
+AegisRP_OptionsFrame:Hide()
+check("a hidden options frame docks nothing", AegisRP.DockPanels(), false)
+AegisRP_OptionsFrame:Show()
+AegisRP_AssignFrame:Hide()
+check("a hidden panel docks nothing", AegisRP.DockPanels(), false)
+AegisRP_AssignFrame = nil
+check("an absent panel docks nothing", AegisRP.DockPanels(), false)
+AegisRP_OptionsFrame = nil
+
+--------------------------------------------------------------------------
 -- BACKDROP ALPHA FLOOR
 --
 -- Transparency is one global multiplier on the only thing that carries state
@@ -378,7 +465,7 @@ check("...and still remembers the choice", AegisRP.IsStripShown("notbuilt"), fal
 --------------------------------------------------------------------------
 print("")
 if failures == 0 then
-    print("PASS - snapping, alpha floor, scale and visibility")
+    print("PASS - snapping, docking, alpha floor, scale and visibility")
     os.exit(0)
 end
 print("FAIL - " .. failures .. " check(s)")
