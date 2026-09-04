@@ -244,6 +244,15 @@ SABOTAGES = [
      "",
      "strip"),
 
+    # The 1.13.1 bug, restored: SetFrameLevel does not carry a window's
+    # children, so the window ends up above its own buttons and eats every
+    # click. It looks completely normal on screen.
+    ("panel-raised-with-framelevel", "Core/Aegis_Strip.lua",
+     "    if f and f.SetToplevel then f:SetToplevel(true) end",
+     "    if f and f.SetToplevel then f:SetToplevel(true) end\n"
+     "    if f and f.SetFrameLevel then f:SetFrameLevel(f:GetFrameLevel() + 10) end",
+     "strip"),
+
     ("snap-to-hidden-strip", "Core/Aegis_Strip.lua",
      "        if o.IsShown and not o:IsShown() then return end",
      "        if false then return end",

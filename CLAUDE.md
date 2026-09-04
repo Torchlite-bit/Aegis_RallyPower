@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.13.1**. See `CHANGELOG.md` for the full history,
+Current version: **1.13.2**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -457,12 +457,22 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   roomier screen edge with its top still aligned, so the overlap is the deficit
   rather than the whole frame. Do not "fix" that by moving the panel — the
   player put it there.
-- **Two frames in one strata can INTERLEAVE their frame levels**, and then the
-  lower one's buttons draw above the upper one's backdrop. It reads as a frame
-  having gone half-transparent, not as a z-order problem, which is why it cost
-  a round of guessing at the alpha instead. `AegisRP.RaisePanel(f, over)` on
-  show is the fix, plus `SetToplevel(true)` so a click brings one forward. Any
-  new top-level frame of ours in `DIALOG` wants both.
+- **NEVER raise one of our windows with `SetFrameLevel`. Use
+  `AegisRP.MakeToplevel(f)` (`SetToplevel(true)`) and nothing else.**
+  `SetFrameLevel` does not carry a frame's children — they keep the absolute
+  level they were created at — so raising a window lifts it above its OWN
+  buttons. The window is mouse-enabled (that is how it is dragged), so it then
+  swallows every click meant for them: the frame draws perfectly normally and
+  nothing inside it works, which is about as misleading as a symptom gets. That
+  shipped in 1.13.1 and killed the options frame the moment it docked.
+  `SetToplevel` hands the whole subtree to the client to re-level on click,
+  which is the only correct raise here. Any new top-level frame of ours in
+  `DIALOG` wants it, and wants nothing else.
+  (What prompted the raise — two frames in one strata interleaving levels, so
+  the lower one's buttons draw over the upper one's backdrop — is real, and
+  reads as a frame having gone half-transparent rather than as a z-order
+  problem. Docking them apart and matching their backdrop opacity is what
+  actually fixed it.)
 - **Transparency has a floor (`AegisRP.StripAlpha`, `Aegis_Strip.lua`).** The
   backdrop is the only carrier of button state, so an alpha near 0 makes every
   state paint identically while the border keeps drawing — outlined boxes with

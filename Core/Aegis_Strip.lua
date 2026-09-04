@@ -504,16 +504,20 @@ end
 
 -- Two frames in the same strata can end up with INTERLEAVED frame levels, and
 -- then the lower one's buttons draw above the upper one's backdrop. That reads
--- as "the panel went half transparent", not as a z-order problem, which is why
--- it is worth fixing rather than living with. Raising the frame being shown
--- lifts its whole subtree; toplevel makes a later click do the same.
-function AegisRP.RaisePanel(f, over)
-    if not f then return end
-    if f.SetToplevel then f:SetToplevel(true) end
-    if over and over.IsShown and over:IsShown()
-       and over.GetFrameLevel and f.SetFrameLevel then
-        f:SetFrameLevel(over:GetFrameLevel() + 10)
-    end
+-- as "the panel went half transparent" rather than as a z-order problem.
+--
+-- `SetToplevel` is the whole fix, and deliberately the ONLY thing here.
+--
+-- **Never raise one of these frames with SetFrameLevel.** It does not carry
+-- the frame's children with it - they keep the absolute level they were
+-- created at - so raising the window lifts its BACKDROP above its own buttons.
+-- The window is mouse-enabled (that is how it is dragged), so it then swallows
+-- every click meant for them: the frame looks perfectly normal and nothing
+-- inside it works. That shipped in 1.13.1 and made the options frame dead to
+-- the mouse the moment it docked. SetToplevel hands the whole subtree to the
+-- client to re-level on click, which is the only correct way to do it here.
+function AegisRP.MakeToplevel(f)
+    if f and f.SetToplevel then f:SetToplevel(true) end
 end
 
 function AegisRP.NewStrip(key, title)

@@ -70,6 +70,11 @@ REMOVED_ON_PURPOSE = {
                     "this plain-text box had no callers left",
     "ui.CountChecked": "v1.50.1 -- UpdateSelCount counts ui.CollectQueries, "
                        "which is the number the button actually shows",
+    # RallyPower's own.
+    "AegisRP.RaisePanel": "v1.13.2 -- renamed to AegisRP.MakeToplevel, which "
+                          "is what it does now: the SetFrameLevel half was "
+                          "the bug (it left the window above its own buttons "
+                          "and it ate every click)",
 }
 
 

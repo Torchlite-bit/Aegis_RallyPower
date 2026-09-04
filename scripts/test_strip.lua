@@ -340,6 +340,42 @@ check("an absent panel docks nothing", AegisRP.DockPanels(), false)
 AegisRP_OptionsFrame = nil
 
 --------------------------------------------------------------------------
+-- TOPLEVEL, NOT SetFrameLevel
+--
+-- Raising one of these windows with SetFrameLevel does NOT carry its children:
+-- they keep the absolute level they were created at. The window's own frame
+-- ends up above its own buttons, and since the window is mouse-enabled (that
+-- is how it gets dragged) it then swallows every click meant for them - the
+-- frame looks perfectly normal and nothing inside it works.
+--
+-- That shipped in 1.13.1 and made the options frame dead to the mouse the
+-- moment it docked, which is why the absence of a raise is worth an assertion:
+-- nothing about the source says "do not add one here".
+--------------------------------------------------------------------------
+print("")
+print("panel z-order")
+
+local win = Frame(100, 400, 360, 480, 1)
+win.level = 1
+function win:GetFrameLevel() return self.level end
+function win:SetFrameLevel(v) self.level = v end
+function win:SetToplevel(v) self.toplevel = v end
+-- a button created inside the window: one level up, and it must stay there
+local childLevel = 2
+
+AegisRP.MakeToplevel(win)
+check("marks the window toplevel", win.toplevel, true)
+check("...and leaves its frame level alone", win.level, 1)
+check("...so its own buttons still sit above it", childLevel > win.level, true)
+
+-- and it must not throw on a client without the call, or on nothing at all
+win.SetToplevel = nil
+ok = pcall(AegisRP.MakeToplevel, win)
+check("a client without SetToplevel is fine", ok, true)
+ok = pcall(AegisRP.MakeToplevel, nil)
+check("no frame at all is fine", ok, true)
+
+--------------------------------------------------------------------------
 -- BACKDROP ALPHA FLOOR
 --
 -- Transparency is one global multiplier on the only thing that carries state
@@ -465,7 +501,7 @@ check("...and still remembers the choice", AegisRP.IsStripShown("notbuilt"), fal
 --------------------------------------------------------------------------
 print("")
 if failures == 0 then
-    print("PASS - snapping, docking, alpha floor, scale and visibility")
+    print("PASS - snapping, docking, z-order, alpha floor, scale and visibility")
     os.exit(0)
 end
 print("FAIL - " .. failures .. " check(s)")
