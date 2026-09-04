@@ -1,7 +1,7 @@
 # Roadmap — Aegis: RallyPower
 
 Where the addon is, what is in flight, and what is planned. Current release:
-**v1.9.0**. Full history in [`CHANGELOG.md`](../CHANGELOG.md); the rules that
+**v1.10.0**. Full history in [`CHANGELOG.md`](../CHANGELOG.md); the rules that
 govern the work are in [`CLAUDE.md`](../CLAUDE.md).
 
 Phases are ordered by **dependency**, not importance — a later phase builds on
@@ -78,9 +78,12 @@ phase assumes.
 
 - ✅ **Taunt rotation** (v1.4.0) — kick and taunt are the same problem, so they
   are one engine with two records rather than two copies. Verified in-game.
-  **Turtle-unverified data:** the `TAUNTS` catalog is Warrior Taunt and Druid
-  Growl only. If Turtle gives its tanking paladins or shamans a taunt, one
-  catalog entry is the whole fix.
+- 🟡 **All four tanking classes in the taunt rotation** (v1.10.0) — Turtle's
+  Paladin *Hand of Reckoning* and Shaman *Earthshaker Slam* joined Warrior
+  Taunt and Druid Growl, all instant on a 10s cooldown. Exactly the
+  "one catalog entry is the whole fix" the v1.4.0 note predicted: two entries,
+  no engine change. **Icons are unconfirmed guesses** — they show only on other
+  members' rows, since your own takes the real spellbook texture.
 - ✅ **Strip edge snapping** (v1.6.0) — screen edges and strip-to-strip, scale
   corrected. Verified in-game.
 - ✅ **Strip visibility in Options** (v1.7.0) — one checkbox per strip the

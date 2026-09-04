@@ -1842,6 +1842,23 @@ local TAUNTS = {
                 icon = "Interface\\Icons\\Spell_Nature_Reincarnation", label = "Taunt" },
     DRUID   = { names = { "Growl" }, cd = 10,
                 icon = "Interface\\Icons\\Ability_Physical_Taunt", label = "Growl" },
+    -- Turtle's own tanking taunts. Name, range, cooldown and effect are
+    -- confirmed on-realm from their tooltips; both are instant on a 10s
+    -- cooldown, so they fit the one-cd-per-class shape unchanged.
+    --
+    -- The ICONS are a guess and were NOT confirmed - these are Turtle custom
+    -- spells and their art may be anything. It only shows on OTHER members'
+    -- rows: your own row takes the real texture from your spellbook via
+    -- MyAbility. Correct them here if they look wrong in the Rotations tab.
+    --
+    -- Earthshaker Slam additionally "Requires Shields". We cannot see another
+    -- player's equipment, and a detection that cannot answer must not close a
+    -- gate, so a shaman shows as available and the leader decides - the same
+    -- call as listing a fury warrior in the taunt list.
+    PALADIN = { names = { "Hand of Reckoning" }, cd = 10,
+                icon = "Interface\\Icons\\Spell_Holy_UnyieldingFaith", label = "Hand of Reckoning" },
+    SHAMAN  = { names = { "Earthshaker Slam" }, cd = 10,
+                icon = "Interface\\Icons\\Ability_Warrior_ShieldBash", label = "Earthshaker Slam (shield)" },
 }
 
 -- Everything that differs between the two rotations, and all of their live
@@ -1862,10 +1879,10 @@ local ROT = {
         ready = {}, src = {}, cells = {}, myReady = true, testUntil = 0,
     },
     taunt = {
-        kind = "taunt", cat = TAUNTS, order = { "WARRIOR", "DRUID" },
+        kind = "taunt", cat = TAUNTS, order = { "WARRIOR", "PALADIN", "DRUID", "SHAMAN" },
         title = "Taunt", verb = "taunt", noun = "taunt", act = "taunted the boss",
         send = "AegisRP_SendTaunt", sound = "tauntSound",
-        sim = { "Grommash", "Fandral" },
+        sim = { "Grommash", "Tirion", "Fandral", "Rehgar" },
         ready = {}, src = {}, cells = {}, myReady = true, testUntil = 0,
     },
 }

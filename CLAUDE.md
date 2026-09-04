@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.9.0**. See `CHANGELOG.md` for the full history,
+Current version: **1.10.0**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -376,9 +376,13 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   in `Aegis_Assign.lua` is keyed the same way; the `A.*Kick*` names survive as
   wrappers because the panel, strip and sync layer all call them. Adding a third
   rotation is a `ROT` entry plus a `ROT_KIND` entry plus a wire tag — do it that
-  way, never by copying the engine. **Turtle-unverified:** the `TAUNTS` catalog
-  has Warrior Taunt and Druid Growl only; if Turtle gives its tanking paladins
-  or shamans a taunt, one entry there is the whole fix.
+  way, never by copying the engine. **The `TAUNTS` catalog now covers all four
+  tanking classes** — Warrior Taunt, Druid Growl, and Turtle's own Paladin
+  *Hand of Reckoning* and Shaman *Earthshaker Slam*, all instant on a 10s
+  cooldown, confirmed on-realm. Their **icons** are guesses and were not
+  confirmed; the art only appears on other members' rows, since your own takes
+  the real spellbook texture. This was the worked example of the catalog being
+  the whole fix: two entries, no engine change.
 - **Pet auto-buffing is Hunter-only — untested in-game.** `IsHunterPet` in
   `Aegis_Core.lua` gates the roster-scan path (`FindUnitToBuff`) so `pet=true`
   buffs (Fortitude, Mark of the Wild) only auto-target a Hunter's pet, never a
