@@ -53,7 +53,7 @@ phase assumes.
 - ✅ **`RPCX` sync protocol** (`Core/Aegis_Sync.lua`) — leader / Free
   Assignment permissions, message chunking, tank-slot sharing. Blessings still
   ride `PLPWR`, byte-compatible with stock PallyPower.
-- ✅ **Assignment panel** — six tabs: Blessings, Totems, Raid Buffs, Debuffs,
+- ✅ **Assignment panel** — seven tabs: Blessings, Totems, Raid Buffs, Debuffs,
   Rotations, Roles.
 - ✅ **Cast observation** (`Core/Aegis_CastWatch.lua`) — `UNIT_CASTEVENT` fires
   on Turtle 1.18.1 and one shared handler feeds every consumer.
@@ -126,14 +126,29 @@ phase assumes.
 
 The remaining feature work.
 
-### 3.1 Crowd-control assignments ⬜
-**Unblocked — no prerequisites.** Reuses the duty catalog and the `RPCX` wire
-section that are already validated, so it is the most predictable piece left.
-Sheep / Sap / Banish / Shackle / Trap, assigned per target.
+### 3.1 Crowd-control assignments 🟡
+**Shipped in v1.13.0, not yet seen in game.** Polymorph / Sap / Blind / Banish
+/ Fear / Shackle / Freezing Trap / Hibernate / Entangling Roots, assigned per
+raid mark.
 
-**Open:** whether CC lives on the existing Debuffs tab or gets its own. The
-duty-card pool is at 14 of 18 with a hard ceiling of 18, so a full CC catalog
-does not fit alongside the debuffs — that likely settles it, but confirm.
+- **It got its own tab** — the seventh. That was the open question, and the
+  card pool settled it as expected: the debuff pool is 14 of a hard 18, so a CC
+  catalog could not share it. The tab is a different shape anyway (one row per
+  mark, not one card per duty), so it has no pool ceiling of its own.
+- **Own tab meant re-laying the tab row**: six buttons at a fixed 120px already
+  filled 744 of the frame's 760. The buttons now divide the width, so adding
+  one narrows them all instead of running off the edge.
+- Spells share the duty catalog (`tab="cc"`, wids 28-36) and so share the one
+  append-only wid space; the *assignment* is a separate `cc` domain keyed by
+  mark, riding an additive `x` section on `RPCX` (no PROTO bump).
+- Clicking a mark icon puts that mark on your current target. `SetRaidTarget`
+  is confirmed on Turtle 1.18.1 and the call is still guarded.
+- **Wants a look on a real client:** the row layout, and whether the two-axis
+  control (wheel = spell, click = who) reads correctly under pressure.
+- **No paladin CC entry.** There is no `Classes/Class_Paladin.lua` — paladins
+  run the vendored engine — so Turn Undead and Repentance have no natural home.
+  Neither is raid CC in practice; if one is ever wanted, it needs a home file
+  decided first.
 
 ### 3.2 Raid markers + roles ⬜
 - ✅ **Prerequisite half-confirmed:** `SetRaidTarget` exists on Turtle 1.18.1

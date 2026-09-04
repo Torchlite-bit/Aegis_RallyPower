@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.12.0**. See `CHANGELOG.md` for the full history,
+Current version: **1.13.0**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -103,11 +103,23 @@ other.
    Canonical examples: `Core/Aegis_Popout.lua` (`orig_PallyPower_UpdateUI`,
    and the `PallyPower_AutoBuffAll` replacement).
 
-### The 32-upvalue ceiling
+### The two load-time ceilings
 
 9. **A function may read at most 32 file-scope locals. Lua 5.0 refuses to LOAD
    a file that breaks this** — `too many upvalues (limit=32)` — so the whole
    addon dies, not just that feature.
+
+   **And a chunk may DECLARE at most 200 file-scope locals** — `main function
+   has more than 200 local variables`. Same failure, different limit, and
+   `Aegis_AssignPanel.lua` has hit it for real: the crowd-control tab arrived
+   as nineteen new file-scope locals and the file stopped compiling. The fix is
+   the same one, applied to functions as well as constants — the whole tab now
+   hangs off a single `CC` table (`CC.Build`, `CC.Refresh`, `CC.MARKS`, …), so
+   it costs **one** local instead of nineteen. `TAB_BUILD` did the same for the
+   seven tab builders `CreatePanel` used to reach individually, which is what
+   dropped it from 29 upvalues to 23 and made room for the seventh tab at all.
+   `scripts/lint/upvalues.py` catches both, because `luac` refuses the file
+   either way.
 
    Every file-scope `local` a function references costs one upvalue. A big
    builder function plus a few new layout constants is all it takes.
@@ -247,6 +259,7 @@ lua scripts/test_groupbuff.lua   # group-buff model + RPCX round-trip
 lua scripts/test_rotation.lua    # kick/taunt rotations + KO/TO/KICK/TNT wire
 lua scripts/test_strip.lua       # strip engine: edge snapping + alpha floor
 lua scripts/test_duties.lua      # duty catalog: unique wids, tab fits its cards
+lua scripts/test_cc.lua          # crowd control: mark-major view + RPCX round-trip
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -343,8 +356,8 @@ All three steps shipped and were confirmed on a two-client Turtle test:
    `PLPWR` untouched). Leader / Free Assignment permissions, message chunking,
    and tank-slot (`TS`) sharing. **Verified**: a leader's MT/OT plan appears on
    a second client, which shows `lead=no` and the leader's slots.
-3. **Assignment panel** — `Core/Aegis_AssignPanel.lua`, six tabs: Blessings,
-   Totems, Raid Buffs, Debuffs, Rotations, Roles.
+3. **Assignment panel** — `Core/Aegis_AssignPanel.lua`, seven tabs: Blessings,
+   Totems, Raid Buffs, Debuffs, Rotations, Roles, Crowd Ctrl.
 
 **Cast observation is validated.** `UNIT_CASTEVENT` fires on Turtle 1.18.1,
 `UnitName()` resolves GUIDs, `SpellInfo()` resolves ids, and `evt` is `CAST` on
@@ -495,7 +508,34 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   `PP_SelectedPally`** — whatever the classic grid has selected — so any call
   from our UI must pin it to `UnitName("player")` and restore it, or it edits a
   different paladin's plan.
-- **Phase 3 remaining:** crowd-control assignments, and raid markers + roles.
+- **Crowd control is MARK-major on top of a CASTER-major store — untested
+  in-game.** The tab (`CC` in `Aegis_AssignPanel.lua`) is one row per raid
+  mark, because that is the instruction a raid gives; the STORE is `c.cc[mark]
+  = ccKey` inside the caster block like every other domain, because that is
+  what `RPCX` ships and what `PruneToRoster` cleans — a mage who leaves takes
+  their mark with them and there is nothing extra to tidy. `A.GetCCForMark`
+  derives the mark view on demand and is never stored.
+  **CC spells live in the SAME duty catalog** (`tab="cc"`, wids 28-36), so
+  there is one append-only wid space and a CC entry can never collide with a
+  debuff. They are *assigned* through the `cc` domain, not `A.SetDuty`, so
+  `target` stays `"none"` and `multi` stays `false` on every CC entry —
+  `test_duties.lua` fails if one drifts. A CC entry also carries `note=` (what
+  it works on: Undead / Demon / Humanoid), which is the thing a leader needs
+  before handing a mark out.
+  **A mark has one owner, and `A.AssignMark` is the write that enforces it**
+  — `A.SetCC` is the primitive and stays open, because a member with no lead
+  must still be able to claim for themselves, and two clients can race. A
+  double claim is therefore representable on purpose: the panel SAYS so rather
+  than silently picking a winner.
+  Two axes on one row (wheel = spell, click = who) because one combined list of
+  every (player, spell) pair is 30+ entries in a 40-man — which is hard rule
+  17's dropdown overflow, arrived at from the other direction.
+- **The `cc` domain has to be in the sync layer's dirty list.** It was not, and
+  every CC edit stayed local with nothing to say so; `test_cc.lua` caught it
+  before it shipped and `cc-never-broadcast` keeps it caught. Any NEW domain
+  needs the same line in `A.Subscribe` in `Aegis_Sync.lua` — serialising it is
+  only half the job.
+- **Phase 3 remaining:** raid markers + roles.
   **`SetRaidTarget` is CONFIRMED present on Turtle 1.18.1** (`/run
   print(SetRaidTarget)` returns a function), so markers are no longer blocked.
   `GetRaidTargetIndex` still wants the same one-line check before anything

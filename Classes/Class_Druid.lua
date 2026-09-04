@@ -55,4 +55,11 @@ if AegisRP.Assign then
     -- is up, not which of the two spells put it there.
     D{ key="FAERIEFIRE", wid=26, class="DRUID", tab="debuff",   spell="Faerie Fire",       target="none", multi=false, dur=FAERIE_DUR, icon="Interface\\Icons\\Spell_Nature_FaerieFire" }
     D{ key="DEMOROAR",   wid=27, class="DRUID", tab="debuff",   spell="Demoralizing Roar", target="none", multi=false, dur=ROAR_DUR, icon="Interface\\Icons\\Ability_Druid_DemoralizingRoar" }
+
+    -- Crowd control (tab="cc"): assigned per raid MARK through the cc domain,
+    -- see Class_Mage.lua for why it shares this catalog.
+    D{ key="HIBERNATE", wid=35, class="DRUID", tab="cc", spell="Hibernate",        target="none", multi=false, dur=40,
+       note="Beast, Dragonkin", icon="Interface\\Icons\\Spell_Nature_Sleep" }
+    D{ key="ROOTS",     wid=36, class="DRUID", tab="cc", spell="Entangling Roots", target="none", multi=false, dur=30,
+       note="Root, outdoors only", icon="Interface\\Icons\\Spell_Nature_StrangleVines" }
 end

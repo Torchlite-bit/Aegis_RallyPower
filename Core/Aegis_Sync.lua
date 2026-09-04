@@ -231,6 +231,22 @@ local function SerializeBlock(name)
         if table.getn(ents) > 0 then table.insert(parts, "p" .. table.concat(ents, ",")) end
     end
 
+    -- crowd control: <mark>.<wid> pairs (x8.28 = this caster sheeps Skull).
+    -- Marks are walked 1..N rather than with pairs(), for the same reason the
+    -- group section walks the catalog: the wire has an order and pairs() does
+    -- not. Additive section, so an older client skips the unknown tag and no
+    -- PROTO bump is needed.
+    if c.cc then
+        local ents = {}
+        local maxm = (A.MaxMarks and A.MaxMarks()) or 8
+        for m = 1, maxm do
+            local key = c.cc[m]
+            local def = key and A.duties and A.duties[key]
+            if def and def.wid then table.insert(ents, m .. "." .. def.wid) end
+        end
+        if table.getn(ents) > 0 then table.insert(parts, "x" .. table.concat(ents, ",")) end
+    end
+
     return table.concat(parts, ";")
 end
 
@@ -257,6 +273,17 @@ local function DeserializeBlock(caster, seq, payload)
                     if tgt == nil or tgt == "" then block.duty[def.key] = true
                     else block.duty[def.key] = tgt end
                 end
+            end
+        elseif tag == "x" then
+            block.cc = block.cc or {}
+            for ent in string.gfind(data, "[^,]+") do
+                local _, _, mS, widS = string.find(ent, "^(%d+)%.(%d+)$")
+                local m = tonumber(mS)
+                local def = widS and DutyByWid()[tonumber(widS)]
+                -- a wid that is NOT a CC entry here means version skew, not a
+                -- plan: installing it would drop a debuff key into the cc
+                -- domain, where every reader expects a CC spell
+                if m and def and def.tab == "cc" then block.cc[m] = def.key end
             end
         elseif tag == "b" then
             rawB = data                       -- resolved after class is known
@@ -587,7 +614,7 @@ A.Subscribe(function(domain, caster)
         return
     end
     if domain == "totem" or domain == "duty" or domain == "cbuff"
-       or domain == "gbuff" or domain == "pbuff" then
+       or domain == "gbuff" or domain == "pbuff" or domain == "cc" then
         MarkDirty(caster)
     end
 end)

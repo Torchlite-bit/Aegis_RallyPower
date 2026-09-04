@@ -49,6 +49,10 @@ if AegisRP.Assign then
     D{ key="SPIRIT",     wid=2,  class="PRIEST", tab="raidbuff", spell="Divine Spirit",          target="none",   multi=false, dur=30*60, icon="Interface\\Icons\\Spell_Holy_DivineSpirit" }
     D{ key="SHADOWPROT", wid=3,  class="PRIEST", tab="raidbuff", spell="Shadow Protection",      target="none",   multi=false, dur=10*60, icon="Interface\\Icons\\Spell_Shadow_AntiShadow" }
     D{ key="FEARWARD",   wid=18, class="PRIEST", tab="utility",  spell="Fear Ward",              target="player", multi=false, dur=0, icon="Interface\\Icons\\Spell_Holy_Excorcism" }
+    -- Crowd control (tab="cc"): assigned per raid MARK through the cc domain,
+    -- see Class_Mage.lua for why it shares this catalog.
+    D{ key="SHACKLE", wid=33, class="PRIEST", tab="cc", spell="Shackle Undead", target="none", multi=false, dur=50,
+       note="Undead", icon="Interface\\Icons\\Spell_Nature_Slow" }
     -- wid 19 (PW: Shield) is retired - it's spammed reactively, not a
     -- maintained/assigned duty. Never reuse wid 19 (wire stays forward-safe).
 end

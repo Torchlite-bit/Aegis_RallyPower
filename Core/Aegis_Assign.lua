@@ -50,7 +50,8 @@ AegisRP.Assign = A
 -- catalogs (registered by the class modules at load; pure static data)
 --------------------------------------------------------------------------
 
-A.duties = {}          -- [key] = { key, wid, class, tab, spell, target, multi, dur }
+A.duties = {}          -- [key] = { key, wid, class, tab, spell, target, multi, dur,
+                       --           note (cc only: what it works on) }
 A.dutyOrder = {}       -- keys in registration order (the panel iterates this)
 A.totems = {}          -- [element] = { { name=, wid=, dur= }, ... }
 A.elements = {}        -- ordered element keys
@@ -443,6 +444,82 @@ function A.ClearGroupBuffs(caster)
     return true
 end
 
+--------------------------------------------------------------------------
+-- crowd-control domain: caster x raid MARK (1-8) -> a cc duty key.
+--
+-- Stored caster-major like everything else, because that is what the sync
+-- protocol ships and what PruneToRoster cleans: when the mage holding Skull
+-- leaves the raid their whole block goes, and the mark falls vacant on its
+-- own with nothing to remember to tidy up. The panel reads the MARK-major
+-- view (A.GetCCForMark), which is derived on demand and never stored, so
+-- there is no second copy to drift.
+--
+-- The SPELL is part of the plan rather than implied by class: "the warlock
+-- banishes the moon" and "the warlock fears the moon" are different
+-- instructions, and a rogue can either sap or blind. So the value is a key
+-- from the shared duty catalog (tab="cc"), which also puts CC on the same
+-- append-only wid space as every other duty - one pool, so a CC entry can
+-- never collide with a debuff on the wire.
+--------------------------------------------------------------------------
+local CC_MARKS = 8      -- the eight raid target icons; 1 = Star .. 8 = Skull
+
+function A.MaxMarks() return CC_MARKS end
+
+local function ValidMark(m)
+    m = tonumber(m)
+    if not m or m < 1 or m > CC_MARKS then return nil end
+    return m
+end
+
+-- nil ccKey clears this caster's claim on the mark. An unknown key is REFUSED
+-- rather than stored: nothing in the catalog answers to it, so it would
+-- serialise to nothing and vanish silently on every other client while still
+-- looking assigned here.
+function A.SetCC(caster, mark, ccKey)
+    local m = ValidMark(mark)
+    if not m or not Editable(caster) then return false end
+    if ccKey ~= nil then
+        local def = A.duties[ccKey]
+        if not (def and def.tab == "cc") then return false end
+    end
+    local c = Block(caster, true)
+    c.cc = c.cc or {}
+    if c.cc[m] == ccKey then return true end
+    c.cc[m] = ccKey
+    Touch(c, caster)
+    Notify("cc", caster)
+    return true
+end
+
+function A.GetCC(caster, mark)
+    local m = ValidMark(mark)
+    local c = m and Block(caster)
+    return c and c.cc and c.cc[m]
+end
+
+-- Every mark this caster holds, ascending, as { mark=, key= }. Used by the
+-- panel's per-caster summary and by the report.
+function A.GetCCMarks(caster)
+    local out = {}
+    local c = Block(caster)
+    if not (c and c.cc) then return out end
+    for m = 1, CC_MARKS do
+        if c.cc[m] then table.insert(out, { mark = m, key = c.cc[m] }) end
+    end
+    return out
+end
+
+-- leader-gated bulk clear of one caster's whole CC plan
+function A.ClearCC(caster)
+    if not Editable(caster) then return false end
+    local c = Block(caster)
+    if not (c and c.cc) then return true end
+    c.cc = nil
+    Touch(c, caster)
+    Notify("cc", caster)
+    return true
+end
+
 function A.GetDuty(caster, dutyKey)
     local c = Block(caster)
     return c and c.duty and c.duty[dutyKey]
@@ -466,6 +543,52 @@ function A.GetDutyCasters(dutyKey)
         if v then table.insert(out, { caster = name, target = v }) end
     end
     return out
+end
+
+-- mark-major view: everyone who has claimed `mark`, as { caster=, key= },
+-- sorted by caster name so every client renders the same order from the same
+-- data. Normally one entry. More than one is a real double-claim - two people
+-- told to sheep the same skull - and it is returned as-is so the panel can
+-- SAY so, rather than silently picking a winner and hiding the mistake.
+function A.GetCCForMark(mark)
+    local out = {}
+    local m = ValidMark(mark)
+    if not m then return out end
+    local names = {}
+    for name, c in pairs(AegisRP_Assign.casters) do
+        if c.cc and c.cc[m] then table.insert(names, name) end
+    end
+    table.sort(names)
+    for i = 1, table.getn(names) do
+        table.insert(out, { caster = names[i], key = AegisRP_Assign.casters[names[i]].cc[m] })
+    end
+    return out
+end
+
+-- Give one mark to one caster, evicting whoever held it. A mark has ONE owner
+-- by nature, so this - not A.SetCC - is the write the panel uses; the
+-- primitive stays available for the sync layer and for tests.
+--
+-- Eviction only reaches casters this editor may edit. A member with no lead
+-- can still claim a mark for themselves; they just cannot remove the person
+-- who had it, and the panel shows that clash instead of pretending it fixed it.
+-- Passing nil for `caster` clears the mark as far as the editor is allowed to.
+function A.AssignMark(mark, caster, ccKey)
+    local m = ValidMark(mark)
+    if not m then return false end
+    local holders = A.GetCCForMark(m)
+    if caster == nil then
+        local any = false
+        for i = 1, table.getn(holders) do
+            if A.SetCC(holders[i].caster, m, nil) then any = true end
+        end
+        return any
+    end
+    if not Editable(caster) then return false end
+    for i = 1, table.getn(holders) do
+        if holders[i].caster ~= caster then A.SetCC(holders[i].caster, m, nil) end
+    end
+    return A.SetCC(caster, m, ccKey)
 end
 
 -- Which subgroup a member is in (raid 1-8; party/solo counts as group 1).
@@ -547,14 +670,27 @@ function A.PruneToRoster()
     -- class-matching was enforced), where the class is known
     local healed = false
     for name, c in pairs(AegisRP_Assign.casters) do
-        if c.duty then
+        if c.duty or c.cc then
             local cls = ClassKnown(name)
             if cls then
-                for key, val in pairs(c.duty) do
-                    local def = A.duties[key]
-                    if val and def and def.class and def.class ~= cls then
-                        c.duty[key] = nil
-                        healed = true
+                if c.duty then
+                    for key, val in pairs(c.duty) do
+                        local def = A.duties[key]
+                        if val and def and def.class and def.class ~= cls then
+                            c.duty[key] = nil
+                            healed = true
+                        end
+                    end
+                end
+                -- same heal for crowd control: a mark claimed with a spell the
+                -- caster's class cannot cast is stale, not a plan
+                if c.cc then
+                    for m, key in pairs(c.cc) do
+                        local def = A.duties[key]
+                        if def and def.class and def.class ~= cls then
+                            c.cc[m] = nil
+                            healed = true
+                        end
                     end
                 end
             end

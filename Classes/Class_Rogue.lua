@@ -219,4 +219,12 @@ if AegisRP.Assign then
     AegisRP.Assign.RegisterDuty{ key="EXPOSE", wid=10, class="ROGUE", tab="debuff",
         spell="Expose Armor", target="none", multi=false, dur=30,
         icon="Interface\\Icons\\Ability_Warrior_Riposte" }
+    -- Crowd control (tab="cc"): assigned per raid MARK through the cc domain,
+    -- see Class_Mage.lua for why it shares this catalog.
+    AegisRP.Assign.RegisterDuty{ key="SAP", wid=29, class="ROGUE", tab="cc",
+        spell="Sap", target="none", multi=false, dur=45,
+        note="Humanoid, from stealth", icon="Interface\\Icons\\Ability_Sap" }
+    AegisRP.Assign.RegisterDuty{ key="BLIND", wid=30, class="ROGUE", tab="cc",
+        spell="Blind", target="none", multi=false, dur=10,
+        note="Any, breaks on damage", icon="Interface\\Icons\\Spell_Shadow_MindSteal" }
 end

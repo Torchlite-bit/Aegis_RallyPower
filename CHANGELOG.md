@@ -14,6 +14,51 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-09-04
+### Added (crowd control)
+- **A seventh Assignment panel tab: Crowd Ctrl.** One row per raid mark, in
+  kill order (Skull first), saying which spell goes on it and who casts it.
+  Nine spells across five classes: Polymorph, Sap, Blind, Banish, Fear,
+  Shackle Undead, Freezing Trap, Hibernate, Entangling Roots.
+- **Two controls per row, because one is unusable at raid size.** Wheel picks
+  the spell — a short list, filtered to classes actually in the group — and
+  click picks who casts it. A single combined list of every (player, spell)
+  pair is over thirty entries in a 40-man.
+- Changing the spell hands the mark to the first candidate for it, so wheeling
+  to Banish answers "Banish — <the warlock>" rather than asking for a second
+  click. The holder is kept when their class can still cast the new spell.
+- **Clicking a mark icon puts that mark on your current target.** `SetRaidTarget`
+  is confirmed present on Turtle 1.18.1; the call is guarded anyway.
+- Lead/assist assigns anyone. Everyone else claims or drops their own mark,
+  with their own class's spells — the same rule the duty cards use.
+- Synced to the raid over `RPCX` as an additive `x` section, so mixed-version
+  raids need no protocol bump: an older client skips the tag it doesn't know.
+
+### Fixed
+- **The `cc` domain was not in the sync layer's dirty list**, so every CC edit
+  would have stayed on the client that made it with nothing to say so. Found by
+  `scripts/test_cc.lua` before release.
+
+### Changed
+- **The panel's tab buttons now divide the frame width** instead of each taking
+  a fixed 120px. Six already filled 744 of 760, so a seventh ran off the edge;
+  adding one now narrows them all.
+- Crowd-control spells share the existing duty catalog (`tab="cc"`, wids
+  28-36), so there is one append-only wire-id space and a CC entry cannot
+  collide with a debuff. They are assigned through a separate mark-keyed
+  domain, so the Debuffs tab and its 18-card pool are untouched.
+
+### Notes
+- Not yet seen in game. The row layout and the two-axis control want a look on
+  a real client; `docs/ROADMAP.md` carries 3.1 at 🟡.
+- New off-client suite `scripts/test_cc.lua`: the model, the mark-major view
+  derived from the caster-major store, the `x` wire round-trip, refusal of a
+  non-CC wid arriving in the CC section, and a leaver's mark falling vacant.
+  Five matching sabotages added; all 25 caught.
+- No new file in the `.toc`, so this is a `/reload`, not a restart.
+- No paladin entry: there is no paladin class module to register one in, and
+  neither Turn Undead nor Repentance is raid crowd control in practice.
+
 ## [1.12.0] — 2026-09-04
 ### Added (one scale, one alignment, for a paladin's three bars)
 - **"Buff bar scale" now scales the Kick and Taunt strips too, on a paladin.**

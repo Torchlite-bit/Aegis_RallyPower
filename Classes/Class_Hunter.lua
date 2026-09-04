@@ -199,4 +199,10 @@ if AegisRP.Assign then
     D{ key="STING_SERPENT", wid=14, class="HUNTER", tab="debuff", spell="Serpent Sting", target="none", multi=false, dur=15, hidden=true, icon="Interface\\Icons\\Ability_Hunter_Quickshot" }
     D{ key="STING_VIPER",   wid=15, class="HUNTER", tab="debuff", spell="Viper Sting",   target="none", multi=false, dur=8, icon="Interface\\Icons\\Ability_Hunter_AimedShot" }
     D{ key="STING_SCORPID", wid=16, class="HUNTER", tab="debuff", spell="Scorpid Sting", target="none", multi=false, dur=20, icon="Interface\\Icons\\Ability_Hunter_CriticalShot" }
+    -- Crowd control (tab="cc"): assigned per raid MARK through the cc domain,
+    -- see Class_Mage.lua for why it shares this catalog. Freezing Trap lands
+    -- on the GROUND rather than on a unit, so "who traps the moon" is still
+    -- the instruction - the mark just says which mob to pull onto it.
+    D{ key="FREEZINGTRAP", wid=34, class="HUNTER", tab="cc", spell="Freezing Trap", target="none", multi=false, dur=20,
+       note="Ground trap, breaks on damage", icon="Interface\\Icons\\Spell_Frost_ChainsOfIce" }
 end
