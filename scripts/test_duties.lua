@@ -79,7 +79,7 @@ local n = table.getn(A.dutyOrder)
 check("duties registered", n > 0, true)
 
 local missingWid, missingSpell, badTab, noIcon = {}, {}, {}, {}
-local TABS = { debuff = true, raidbuff = true, utility = true }
+local TABS = { debuff = true, raidbuff = true, utility = true, cc = true }
 for i = 1, n do
     local d = A.duties[A.dutyOrder[i]]
     if not d.wid then table.insert(missingWid, d.key) end
@@ -152,9 +152,52 @@ check("Curse of the Elements is single-owner", A.duties.CURSE_ELEMENTS.multi, fa
 check("Sunder stacks, so it is multi-owner", A.duties.SUNDER.multi, true)
 
 --------------------------------------------------------------------------
+-- 5. Crowd control shares this catalog (tab="cc") but is assigned per raid
+--    MARK, through the separate cc domain. The duty-shaped fields therefore
+--    have to stay inert: a CC entry that carried target="player" or
+--    multi=true would render duty-style affordances on a tab that has no
+--    duty-style write behind them.
+--------------------------------------------------------------------------
+local ccKeys, badCC, noNote = {}, {}, {}
+for i = 1, n do
+    local d = A.duties[A.dutyOrder[i]]
+    if d.tab == "cc" then
+        table.insert(ccKeys, d.key)
+        if d.target ~= "none" or d.multi then table.insert(badCC, d.key) end
+        -- the restriction (Undead / Demon / Humanoid) is what a leader needs
+        -- before handing the mark out, and only the entry knows it
+        if not d.note then table.insert(noNote, d.key) end
+    end
+end
+check("crowd control entries exist", table.getn(ccKeys) > 0, true)
+check("every CC entry is untargeted + single-owner", table.concat(badCC, ","), "")
+check("every CC entry says what it works on", table.concat(noNote, ","), "")
+
+-- The CC tab draws one row per mark and cycles the spell within a row, so
+-- unlike the duty tabs it has no card-pool ceiling. What it does need is at
+-- least one entry for each class a raid leader expects to call on.
+local ccClass = {}
+for i = 1, table.getn(ccKeys) do ccClass[A.duties[ccKeys[i]].class] = true end
+check("mage sheep is assignable", ccClass.MAGE, true)
+check("warlock banish is assignable", ccClass.WARLOCK, true)
+check("priest shackle is assignable", ccClass.PRIEST, true)
+check("rogue sap is assignable", ccClass.ROGUE, true)
+check("Banish is the warlock's", A.duties.BANISH and A.duties.BANISH.class, "WARLOCK")
+check("Sap is the rogue's", A.duties.SAP and A.duties.SAP.class, "ROGUE")
+
+-- CC must NOT leak onto the Debuffs tab: it shares the catalog, and the duty
+-- tab filters by `tab` alone, so a mistyped tab would put Polymorph on a card
+-- that cycles duty holders and writes to the wrong domain.
+local leaked = {}
+for i = 1, table.getn(ccKeys) do
+    if A.duties[ccKeys[i]].tab ~= "cc" then table.insert(leaked, ccKeys[i]) end
+end
+check("no CC entry sits on a duty tab", table.concat(leaked, ","), "")
+
+--------------------------------------------------------------------------
 print("")
 if failures == 0 then
-    print("PASS - catalog well-formed, wids unique, debuff tab fits")
+    print("PASS - catalog well-formed, wids unique, debuff tab fits, CC well-formed")
     os.exit(0)
 end
 print("FAIL - " .. failures .. " check(s)")

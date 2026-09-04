@@ -34,6 +34,7 @@ SUITES = {
     "groupbuff": "scripts/test_groupbuff.lua",
     "rotation":  "scripts/test_rotation.lua",
     "strip":     "scripts/test_strip.lua",
+    "cc":        "scripts/test_cc.lua",
 }
 
 # (name, file, find, replace, suite that must fail)
@@ -130,6 +131,45 @@ SABOTAGES = [
      '        if table.getn(ents) > 0 then table.insert(parts, "p" .. table.concat(ents, ",")) end',
      '        if false then table.insert(parts, "p" .. table.concat(ents, ",")) end',
      "groupbuff"),
+
+    # ---- crowd control ---------------------------------------------------
+    # CC shares the duty catalog AND its wid space. Accepting a non-CC wid in
+    # the CC section installs a debuff key where every reader expects a CC
+    # spell: no error, just a mark that says "Sunder Armor" on remote clients.
+    ("cc-accepts-any-wid", "Core/Aegis_Sync.lua",
+     '                if m and def and def.tab == "cc" then block.cc[m] = def.key end',
+     '                if m and def then block.cc[m] = def.key end',
+     "cc"),
+
+    # The exact bug this suite caught before it shipped: the cc domain was not
+    # in the dirty list, so every CC edit stayed local and nothing said so.
+    ("cc-never-broadcast", "Core/Aegis_Sync.lua",
+     '       or domain == "gbuff" or domain == "pbuff" or domain == "cc" then',
+     '       or domain == "gbuff" or domain == "pbuff" then',
+     "cc"),
+
+    # Marks are walked 1..N so the wire has a deterministic order, exactly as
+    # the group section walks the catalog. pairs() looks fine locally.
+    ("cc-wire-unordered", "Core/Aegis_Sync.lua",
+     """        for m = 1, maxm do
+            local key = c.cc[m]""",
+     """        for m in pairs(c.cc) do
+            local key = c.cc[m]""",
+     "cc"),
+
+    # A key nothing in the catalog answers to serialises to nothing: assigned
+    # here, invisible everywhere else.
+    ("cc-stores-unknown-key", "Core/Aegis_Assign.lua",
+     '        if not (def and def.tab == "cc") then return false end',
+     '        if false then return false end',
+     "cc"),
+
+    # A mark has one owner. If AssignMark stops evicting, handing skull to the
+    # warlock leaves the mage on it too and both walk in.
+    ("cc-assign-does-not-evict", "Core/Aegis_Assign.lua",
+     '        if holders[i].caster ~= caster then A.SetCC(holders[i].caster, m, nil) end',
+     '        if false then A.SetCC(holders[i].caster, m, nil) end',
+     "cc"),
 
     # ---- strip engine ----------------------------------------------------
     # Each strip carries its own grip scale. Inverting the conversion still

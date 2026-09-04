@@ -225,9 +225,11 @@ local TAB_INFO = {
     { label = "Debuffs",    live = false },
     { label = "Rotations",  live = true  },   -- kick + taunt trackers (live CDs)
     { label = "Roles",      live = true  },   -- tanks/healers ride PLPWR
+    { label = "Crowd Ctrl", live = false },   -- one row per raid mark
 }
 -- tab 4 is the debuff duty-card list; tab 3 is the caster x class buff grid;
--- tab 5 is the kick/taunt rotation tracker; tab 6 is the roles grid.
+-- tab 5 is the kick/taunt rotation tracker; tab 6 is the roles grid; tab 7 is
+-- the crowd-control mark list.
 local DUTY_TAB = { [4] = "debuff" }
 
 local function Me() return UnitName("player") end
@@ -1801,6 +1803,395 @@ local function MemberClass(name)
 end
 
 --------------------------------------------------------------------------
+-- CROWD CONTROL TAB - one row per raid mark: which spell goes on it, and
+-- who casts it.
+--
+-- MARK-major, because that is the instruction a raid actually gives ("sheep
+-- the moon, banish the square"), while the STORE stays caster-major like
+-- every other domain - that is what the sync protocol ships and what
+-- PruneToRoster cleans, so a mage who leaves takes their mark with them and
+-- there is nothing extra to tidy. A.GetCCForMark derives this view on demand;
+-- it is never stored, so there is no second copy to drift.
+--
+-- Two axes on one row, because one is unusable at raid size: wheel picks the
+-- SPELL (a short list, filtered to classes actually present) and click picks
+-- WHO (usually two or three people). A single combined list of every
+-- (player, spell) pair is over thirty entries in a 40-man - and a dropdown of
+-- that is exactly the UIDropDownMenu overflow hard rule 17 warns about.
+--
+-- ALL OF IT HANGS OFF ONE TABLE, deliberately. This file is at the OTHER Lua
+-- ceiling: a chunk may declare 200 file-scope locals and it is already at the
+-- line. Nineteen locals for this feature would not compile - the same fix as
+-- the group-buff grid's GBUF, applied to functions as well as constants.
+--------------------------------------------------------------------------
+
+local CC = {
+    rows  = {},
+    -- The spell a row SHOWS while nobody holds the mark. Panel-local: it is a
+    -- pending choice, not a plan, so it is never saved and never broadcast.
+    pick  = {},
+    ROW_H = 44,
+    MARKS = {
+        { name = "Star",     tex = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_1", rgb = { 0.98, 0.90, 0.32 } },
+        { name = "Circle",   tex = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_2", rgb = { 0.95, 0.60, 0.24 } },
+        { name = "Diamond",  tex = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_3", rgb = { 0.79, 0.51, 0.87 } },
+        { name = "Triangle", tex = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_4", rgb = { 0.44, 0.83, 0.44 } },
+        { name = "Moon",     tex = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_5", rgb = { 0.85, 0.88, 0.95 } },
+        { name = "Square",   tex = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_6", rgb = { 0.35, 0.66, 0.95 } },
+        { name = "Cross",    tex = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_7", rgb = { 0.93, 0.36, 0.33 } },
+        { name = "Skull",    tex = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8", rgb = { 0.92, 0.92, 0.88 } },
+    },
+    -- Rows read in KILL order (Skull first), which is how a leader calls them.
+    -- The INDEX is the wire identity and is unaffected by this.
+    ORDER = { 8, 7, 6, 5, 4, 3, 2, 1 },
+}
+
+-- Which classes have anybody here, in ONE roster walk. Eight rows each asking
+-- MembersOfClass would be eight 40-man walks on every refresh tick.
+function CC.Presence()
+    local out = {}
+    local _, mine = UnitClass("player")
+    if mine then out[mine] = true end
+    local n = GetNumRaidMembers()
+    if n > 0 then
+        for i = 1, n do local _, c = UnitClass("raid" .. i); if c then out[c] = true end end
+    else
+        for i = 1, GetNumPartyMembers() do
+            local _, c = UnitClass("party" .. i); if c then out[c] = true end
+        end
+    end
+    if AegisRP.IsTestMode() then
+        for _, r in ipairs(ROSTER40) do out[r[2]] = true end
+    end
+    return out
+end
+
+-- The wheel's list: CC spells someone present can actually cast. Falls back to
+-- the WHOLE catalog when nobody qualifies - a leader planning before the raid
+-- fills up still needs to pick, and an empty wheel is a dead control.
+function CC.Choices(pres)
+    local all = DutyList("cc")
+    if not pres then return all end
+    local out = {}
+    for i = 1, table.getn(all) do
+        if pres[all[i].class] then table.insert(out, all[i]) end
+    end
+    if table.getn(out) == 0 then return all end
+    return out
+end
+
+-- What a row shows: the model's answer first, then the pending pick, then the
+-- first choice so a fresh row always has something to wheel away from.
+-- Returns def, holder name (nil when unassigned), and the claim count.
+function CC.RowSpell(mark, choices)
+    local holders = A.GetCCForMark(mark)
+    if holders[1] then
+        return A.duties[holders[1].key], holders[1].caster, table.getn(holders)
+    end
+    local def = CC.pick[mark] and A.duties[CC.pick[mark]]
+    return def or choices[1], nil, 0
+end
+
+-- Step through the people who can cast `def`, wrapping through "unassigned"
+-- so a row can always be emptied without needing a second gesture.
+function CC.CycleCaster(mark, def, dir)
+    if not def then return end
+    local cands = MembersOfClass(def.class)
+    local n = table.getn(cands)
+    if n == 0 then
+        Msg("No " .. TitleCase(def.class) .. " in the group for " .. (def.spell or def.key) .. ".")
+        return
+    end
+    local holders = A.GetCCForMark(mark)
+    local cur = holders[1] and holders[1].caster
+    local at = 0
+    for i = 1, n do if cands[i] == cur then at = i end end
+    at = at + (dir or 1)
+    if at > n then at = 0 elseif at < 0 then at = n end
+    if at == 0 then A.AssignMark(mark, nil) else A.AssignMark(mark, cands[at], def.key) end
+end
+
+function CC.CycleSpell(mark, dir)
+    local choices = CC.Choices(CC.Presence())
+    local n = table.getn(choices)
+    if n == 0 then return end
+    local def = CC.RowSpell(mark, choices)
+    local at = 1
+    for i = 1, n do if choices[i] == def then at = i end end
+    at = at + (dir or 1)
+    if at > n then at = 1 elseif at < 1 then at = n end
+    local pick = choices[at]
+    CC.pick[mark] = pick.key
+
+    -- Keep the holder when their class can still cast it; otherwise hand the
+    -- mark to the first candidate for the new spell. Wheeling to Banish and
+    -- being told "Banish - Gul'dan" is the point; making the leader click
+    -- again for the only possible answer is not. If that class is not here at
+    -- all the mark empties rather than keeping a caster who cannot cast it.
+    local holders = A.GetCCForMark(mark)
+    local cur = holders[1] and holders[1].caster
+    if cur and MemberClass(cur) == pick.class then
+        A.AssignMark(mark, cur, pick.key)
+    else
+        local cands = MembersOfClass(pick.class)
+        if cands[1] then A.AssignMark(mark, cands[1], pick.key)
+        elseif cur then A.AssignMark(mark, nil) end
+    end
+end
+
+-- My own class's CC entries, in catalog order. The member path below cycles
+-- only these: a priest can no more sap than they can Sunder.
+function CC.Mine()
+    local _, mycls = UnitClass("player")
+    local all, out = DutyList("cc"), {}
+    for i = 1, table.getn(all) do
+        if all[i].class == mycls then table.insert(out, all[i]) end
+    end
+    return out, mycls
+end
+
+function CC.IHold(mark)
+    local holders = A.GetCCForMark(mark)
+    for i = 1, table.getn(holders) do
+        if holders[i].caster == Me() then return true end
+    end
+    return false
+end
+
+function CC.RowClick(dir)
+    local mark = this.mark
+    if not mark then return end
+    local def = CC.RowSpell(mark, CC.Choices(CC.Presence()))
+
+    if not LeaderLike() then
+        -- a member may only claim or unclaim THEMSELVES, and only with a spell
+        -- their own class has - the same rule the duty cards use
+        if CC.IHold(mark) then
+            A.SetCC(Me(), mark, nil)
+            RefreshCurrent()
+            return
+        end
+        local mine, mycls = CC.Mine()
+        if table.getn(mine) == 0 then
+            Msg("A " .. TitleCase(mycls or "?") .. " has no crowd control to assign.")
+        else
+            -- prefer the spell the row already shows when it is one of mine
+            local pick = mine[1]
+            if def and def.class == mycls then pick = def end
+            if not A.SetCC(Me(), mark, pick.key) then
+                Msg("You can't take that mark right now.")
+            end
+        end
+        RefreshCurrent()
+        return
+    end
+
+    CC.CycleCaster(mark, def, dir)
+    RefreshCurrent()
+end
+
+function CC.RowWheel()
+    local mark = this.mark
+    if not mark then return end
+    local dir = (arg1 and arg1 > 0) and 1 or -1
+    if not LeaderLike() then
+        -- a member wheels only their OWN claim, through their own spells
+        if not CC.IHold(mark) then return end
+        local mine = CC.Mine()
+        local n = table.getn(mine)
+        if n < 2 then return end
+        local cur, at = A.GetCC(Me(), mark), 1
+        for i = 1, n do if mine[i].key == cur then at = i end end
+        at = at + dir
+        if at > n then at = 1 elseif at < 1 then at = n end
+        A.SetCC(Me(), mark, mine[at].key)
+        RefreshCurrent()
+        return
+    end
+    CC.CycleSpell(mark, dir)
+    RefreshCurrent()
+end
+
+-- Marking the target from here is the one thing a CC plan cannot do without:
+-- the plan says "sheep the moon" and something has to put a moon on a mob.
+-- SetRaidTarget is confirmed present on Turtle 1.18.1, and still guarded - a
+-- capability is established, not assumed.
+function CC.MarkClick()
+    local mark = this.mark
+    if not mark then return end
+    if not SetRaidTarget then
+        Msg("This client has no SetRaidTarget, so marks can't be set from here.")
+        return
+    end
+    if not UnitExists("target") then
+        Msg("Target the mob first, then click the icon to mark it.")
+        return
+    end
+    SetRaidTarget("target", mark)
+end
+
+function CC.MarkTip()
+    if AegisRP_Settings.tooltips == false then return end
+    local m = CC.MARKS[this.mark]
+    if not m then return end
+    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(m.name, m.rgb[1], m.rgb[2], m.rgb[3])
+    GameTooltip:AddLine("Click to put this mark on your current target.", 1, 1, 1)
+    GameTooltip:AddLine("In a raid that needs lead or assist.", 0.6, 0.6, 0.6)
+    GameTooltip:Show()
+end
+
+function CC.RowTip()
+    if AegisRP_Settings.tooltips == false then return end
+    local mark = this.mark
+    local m = CC.MARKS[mark]
+    if not m then return end
+    local def = CC.RowSpell(mark, CC.Choices(CC.Presence()))
+    GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(m.name, m.rgb[1], m.rgb[2], m.rgb[3])
+    if def then
+        GameTooltip:AddLine(def.spell or def.key, 1, 1, 1)
+        if def.note then GameTooltip:AddLine(def.note, 0.7, 0.7, 0.7) end
+        if def.dur and def.dur > 0 then
+            GameTooltip:AddLine("Holds about " .. def.dur .. "s", 0.6, 0.6, 0.6)
+        end
+    end
+    local holders = A.GetCCForMark(mark)
+    if table.getn(holders) == 0 then
+        GameTooltip:AddLine("Unassigned", 0.7, 0.7, 0.7)
+    else
+        for i = 1, table.getn(holders) do
+            local hd = A.duties[holders[i].key]
+            GameTooltip:AddLine(holders[i].caster .. "  ->  "
+                .. ((hd and hd.spell) or holders[i].key), 0.5, 1, 0.5)
+        end
+        if table.getn(holders) > 1 then
+            GameTooltip:AddLine("Two people are on this mark - only one should be.",
+                1, 0.42, 0.42)
+        end
+    end
+    GameTooltip:AddLine("Wheel: which spell", 0.6, 0.6, 0.6)
+    GameTooltip:AddLine("Click: who casts it (right-click cycles back)", 0.6, 0.6, 0.6)
+    GameTooltip:Show()
+end
+
+function CC.Build(p)
+    for i = 1, table.getn(CC.ORDER) do
+        local mark = CC.ORDER[i]
+        local row = MakeCell(p, 708, CC.ROW_H)
+        row:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -46 - (i - 1) * (CC.ROW_H + 2))
+        row.mark = mark
+
+        -- the mark icon is its own button INSIDE the row: clicking it marks
+        -- your target, clicking anywhere else assigns the caster
+        local mb = MakeCell(row, 34, 34)
+        mb:SetPoint("LEFT", row, "LEFT", 5, 0)
+        mb.mark = mark
+        local mi = mb:CreateTexture(nil, "ARTWORK")
+        mi:SetWidth(24); mi:SetHeight(24)
+        mi:SetPoint("CENTER", mb, "CENTER", 0, 0)
+        mi:SetTexture(CC.MARKS[mark].tex)
+        mb:SetScript("OnClick", CC.MarkClick)
+        -- MakeCell enables the wheel on every cell, so without this the wheel
+        -- would go dead over the third of the row nearest the icon
+        mb:SetScript("OnMouseWheel", CC.RowWheel)
+        mb:SetScript("OnEnter", SafeTip(CC.MarkTip))
+        mb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+        row.mname = Fnt(row, 11, CC.MARKS[mark].rgb)
+        row.mname:SetWidth(64); row.mname:SetHeight(12)
+        row.mname:SetPoint("TOPLEFT", row, "TOPLEFT", 46, -16)
+        row.mname:SetText(CC.MARKS[mark].name)
+
+        local si = row:CreateTexture(nil, "ARTWORK")
+        si:SetWidth(26); si:SetHeight(26)
+        si:SetPoint("LEFT", row, "LEFT", 116, 0)
+        row.spellIcon = si
+
+        row.spell = Fnt(row, 11, INK)
+        row.spell:SetWidth(200); row.spell:SetHeight(12)
+        row.spell:SetPoint("TOPLEFT", row, "TOPLEFT", 150, -9)
+        row.note = Fnt(row, 9, INK_FAINT)
+        row.note:SetWidth(200); row.note:SetHeight(10)
+        row.note:SetPoint("TOPLEFT", row, "TOPLEFT", 150, -26)
+
+        row.who = Fnt(row, 12, INK, "RIGHT")
+        row.who:SetWidth(230); row.who:SetHeight(13)
+        row.who:SetPoint("TOPRIGHT", row, "TOPRIGHT", -10, -8)
+        row.whoSub = Fnt(row, 9, INK_FAINT, "RIGHT")
+        row.whoSub:SetWidth(230); row.whoSub:SetHeight(10)
+        row.whoSub:SetPoint("TOPRIGHT", row, "TOPRIGHT", -10, -26)
+
+        row:SetScript("OnClick", function()
+            CC.RowClick((arg1 == "RightButton") and -1 or 1)
+        end)
+        row:SetScript("OnMouseWheel", CC.RowWheel)
+        row:SetScript("OnEnter", SafeTip(CC.RowTip))
+        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        CC.rows[i] = row
+    end
+end
+
+function CC.Refresh(p)
+    local pres = CC.Presence()
+    local choices = CC.Choices(pres)
+    local assigned, clash = 0, 0
+    for i = 1, table.getn(CC.ORDER) do
+        local row, mark = CC.rows[i], CC.ORDER[i]
+        local def, who, n = CC.RowSpell(mark, choices)
+        if def then
+            local tex = DutyIcon(def)
+            if tex then row.spellIcon:SetTexture(tex); row.spellIcon:Show()
+            else row.spellIcon:Hide() end
+            row.spell:SetText(def.spell or def.key)
+            row.note:SetText(def.note or TitleCase(def.class))
+        else
+            row.spellIcon:Hide()
+            row.spell:SetText("|cff777777no crowd control in the catalog|r")
+            row.note:SetText("")
+        end
+        if who then
+            assigned = assigned + 1
+            local rgb = CLASS_RGB[def and def.class] or INK
+            row.who:SetText(who)
+            row.who:SetTextColor(rgb[1], rgb[2], rgb[3])
+            if n > 1 then
+                clash = clash + 1
+                row.whoSub:SetText("|cffff6b6b" .. (n - 1) .. " other claim"
+                    .. ((n > 2) and "s" or "") .. "|r")
+            else
+                row.whoSub:SetText(SubFor(who, (def and def.class) or ""))
+            end
+            row:SetBackdropColor(0.13, 0.115, 0.085, 0.95)
+        else
+            row.who:SetText("-")
+            row.who:SetTextColor(INK_FAINT[1], INK_FAINT[2], INK_FAINT[3])
+            if def and not pres[def.class] then
+                row.whoSub:SetText("no " .. TitleCase(def.class) .. " here")
+            else
+                row.whoSub:SetText("unassigned")
+            end
+            row:SetBackdropColor(0.10, 0.088, 0.07, 0.7)
+        end
+    end
+    -- There is no "complete" here: a pull needs the CC it needs, not eight.
+    -- So the count is plain, and the only thing worth colouring is a clash.
+    p.note:SetText(assigned .. " assigned")
+    if clash > 0 then
+        p.note:SetTextColor(GAP_RED[1], GAP_RED[2], GAP_RED[3])
+        p.cover:SetText("|cffff6b6bTwo people are on the same mark on "
+            .. clash .. " row" .. ((clash > 1) and "s" or "") .. ".|r")
+    else
+        p.note:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+        p.cover:SetText("")
+    end
+    p.hint:SetText("One row per raid mark, in kill order. Wheel a row for the spell, click "
+        .. "it for who casts it (right-click cycles back). Click the icon to put that mark "
+        .. "on your current target. Lead/assist assigns anyone; everyone else claims or "
+        .. "drops their own mark. Synced to the raid.")
+end
+
+--------------------------------------------------------------------------
 -- ROTATION TABS - who interrupts, and who taunts.
 --
 -- Two rotations, one engine. They ask the same question ("whose turn is it?")
@@ -2936,6 +3327,7 @@ local function RefreshInner()
     elseif currentTab == 3 then RefreshBuffTab(p)
     elseif currentTab == 5 then RefreshRotTab(p)
     elseif currentTab == 6 then RefreshRoles(p)
+    elseif currentTab == 7 then CC.Refresh(p)
     elseif DUTY_TAB[currentTab] then RefreshDutyTab(p, currentTab) end
 end
 
@@ -3019,9 +3411,38 @@ local function ClearCurrentTab()
             if A.GetRole(name) then A.SetRole(name, nil) end
         end
         Msg("Raid roles cleared.")
+    elseif currentTab == 7 then
+        for m = 1, (A.MaxMarks and A.MaxMarks()) or 8 do
+            local holders = A.GetCCForMark(m)
+            for i = 1, table.getn(holders) do
+                if A.CanEdit(Me(), holders[i].caster) then
+                    A.SetCC(holders[i].caster, m, nil)
+                end
+            end
+        end
+        -- the pending picks are panel state, not a plan, but leaving them
+        -- would make a cleared tab still look half-filled
+        for m in pairs(CC.pick) do CC.pick[m] = nil end
+        Msg("Crowd-control assignments cleared.")
     end
     RefreshCurrent()
 end
+
+-- One entry per tab, in a table rather than as more file-scope locals.
+-- CreatePanel sits near the Lua 5.0 32-upvalue ceiling (hard rule 9) and every
+-- file-scope local it reaches costs one: seven builders as seven locals cost
+-- seven, as one table they cost one. That is what made room for a seventh tab.
+-- Tab 3 has two views, so entries are lists; the tab index is passed through
+-- for the duty tab, which is shared and needs to know which one it is.
+local TAB_BUILD = {
+    { BuildBlessings },
+    { BuildTotems },
+    { BuildBuffGrid, BuildGroupGrid },
+    { BuildDutyTab },
+    { BuildRotTab },
+    { BuildRoles },
+    { CC.Build },
+}
 
 local function CreatePanel()
     local f = CreateFrame("Frame", "AegisRP_AssignFrame", UIParent)
@@ -3106,12 +3527,17 @@ local function CreatePanel()
     pills.test.text:SetText("|cffff8800\226\151\143|r TEST RAID")
     pills.test:Hide()
 
-    -- tab row (six tabs share the width)
-    for i = 1, table.getn(TAB_INFO) do
+    -- Tab row: the buttons DIVIDE the width rather than each taking a fixed
+    -- 120. Six at 120 already filled 744 of the frame's 760, so a seventh tab
+    -- ran off the edge; deriving the width means adding one narrows them all
+    -- instead of breaking the row.
+    local nTabs = table.getn(TAB_INFO)
+    local tabW = math.floor((FRAME_W - 28 - (nTabs - 1) * 2) / nTabs)
+    for i = 1, nTabs do
         local idx = i
         local b = CreateFrame("Button", nil, f)
-        b:SetWidth(120); b:SetHeight(26)
-        b:SetPoint("TOPLEFT", f, "TOPLEFT", 14 + (i - 1) * 122, -50)
+        b:SetWidth(tabW); b:SetHeight(26)
+        b:SetPoint("TOPLEFT", f, "TOPLEFT", 14 + (i - 1) * (tabW + 2), -50)
         b:SetBackdrop(CELL_BD)
         local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         fs:SetPoint("CENTER", b, "CENTER", 0, 0)
@@ -3139,6 +3565,7 @@ local function CreatePanel()
         { "Target debuff duty", "Who maintains each debuff on the kill target." },
         { "Rotations", "Who interrupts and who taunts, in what order, and whose is off cooldown." },
         { "Raid roles", "Main Tank + off-tanks (dropdowns), healers, and each tank's own blessing." },
+        { "Crowd control", "Which mark each sheep, sap, banish, shackle or trap goes on." },
     }
     for i = 1, table.getn(TAB_INFO) do
         local p = CreateFrame("Frame", nil, box)
@@ -3164,13 +3591,10 @@ local function CreatePanel()
         p.cover:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 0, 1)
         panels[i] = p
     end
-    BuildBlessings(panels[1])
-    BuildTotems(panels[2])
-    BuildBuffGrid(panels[3])
-    BuildGroupGrid(panels[3])
-    BuildDutyTab(panels[4], 4)
-    BuildRotTab(panels[5])
-    BuildRoles(panels[6])
+    for i = 1, table.getn(TAB_BUILD) do
+        local list = TAB_BUILD[i]
+        for j = 1, table.getn(list) do list[j](panels[i], i) end
+    end
 
     -- bottom buttons: the classic PallyPower frame's row, on our panel
     local function BottomButton(name, label, onclick)

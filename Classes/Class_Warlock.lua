@@ -355,4 +355,11 @@ if AegisRP.Assign then
     -- debuff; hidden from the Debuffs tab (wids reserved, model/sync keep them)
     D{ key="CURSE_AGONY",        wid=24, class="WARLOCK", tab="debuff",  spell="Curse of Agony",         target="none",   multi=false, dur=24, hidden=true, icon="Interface\\Icons\\Spell_Shadow_CurseOfSargeras" }
     D{ key="CURSE_DOOM",         wid=25, class="WARLOCK", tab="debuff",  spell="Curse of Doom",          target="none",   multi=false, dur=60, hidden=true, icon="Interface\\Icons\\Spell_Shadow_AuraOfDarkness" }
+
+    -- Crowd control (tab="cc"): assigned per raid MARK through the cc domain,
+    -- see Class_Mage.lua for why it shares this catalog.
+    D{ key="BANISH", wid=31, class="WARLOCK", tab="cc", spell="Banish", target="none", multi=false, dur=30,
+       note="Demon, Elemental", icon="Interface\\Icons\\Spell_Shadow_Cripple" }
+    D{ key="FEAR",   wid=32, class="WARLOCK", tab="cc", spell="Fear",   target="none", multi=false, dur=20,
+       note="Any - it RUNS, so mind the pull", icon="Interface\\Icons\\Spell_Shadow_Possession" }
 end
