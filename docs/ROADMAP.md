@@ -1,7 +1,7 @@
 # Roadmap — Aegis: RallyPower
 
 Where the addon is, what is in flight, and what is planned. Current release:
-**v1.8.3**. Full history in [`CHANGELOG.md`](../CHANGELOG.md); the rules that
+**v1.9.0**. Full history in [`CHANGELOG.md`](../CHANGELOG.md); the rules that
 govern the work are in [`CLAUDE.md`](../CLAUDE.md).
 
 Phases are ordered by **dependency**, not importance — a later phase builds on
@@ -92,12 +92,16 @@ phase assumes.
 - 🟡 **Rotation "next three" rows** (v1.6.0) — off by default. The rows follow
   the rotation ORDER, not the availability queue, so names don't reshuffle as
   cooldowns tick.
-- 🟡 **Per-player buff overrides** (v1.7.0) — wheel a name in the class-buff
-  pop-out to give that one person a different buff from their class row.
-  Coverage counting follows, so the row stops calling an overridden member
-  "missing" a buff they were never meant to get.
-  **Partially exercised in-game**, which is how the paladin pop-out's icon bug
-  (v1.8.3) was found.
+- 🟡 **Per-player buff overrides — class-buff classes** (v1.7.0) — wheel a name
+  in the class-buff pop-out to give that one person a different buff from their
+  class row. Coverage counting follows, so the row stops calling an overridden
+  member "missing" a buff they were never meant to get. Priest/Mage/Druid only:
+  it is the class-buff strip's pop-out.
+- 🟡 **Per-player blessings — paladin** (v1.9.0) — the same idea on the legacy
+  pop-out, which paladins had never had. Deliberately **not** built on our
+  `pbuff` model: blessings ride `PLPWR` byte-compatibly and the engine already
+  stores, cycles and broadcasts individual assignments, so this drives
+  `PallyPower_PerformPlayerCycle` and syncs to stock PallyPower users too.
 - ✅ **Debuff duties for armor / AP / attack speed** (v1.8.0) — Faerie Fire and
   Demoralizing Roar added; Thunder Clap and Demoralizing Shout un-hidden. The
   blank-icon regression that shipped with it was found in-game and fixed in

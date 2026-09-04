@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.8.3**. See `CHANGELOG.md` for the full history,
+Current version: **1.9.0**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -452,6 +452,16 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   make `PP_PerUser` whole first. **Do not "fix" this by editing
   `MinimapButton.lua`**: it is vendored, and `or 0` there would also park the
   button at the wrong angle (the engine's default is 30).
+- **Per-player assignment has TWO mechanisms, and that is deliberate.** For
+  Priest/Mage/Druid it is our `pbuff` model on `RPCX`. For paladin blessings it
+  is the engine's own `PallyPower_NormalAssignments` — driven through
+  `PallyPower_PerformPlayerCycle`, which cycles, stores AND broadcasts
+  `NASSIGN`. Blessings stay byte-compatible on `PLPWR` (locked decision 2), so
+  a second source for the same question would desync us from stock PallyPower.
+  Do not "unify" these. **`PerformPlayerCycle` reads its caster from
+  `PP_SelectedPally`** — whatever the classic grid has selected — so any call
+  from our UI must pin it to `UnitName("player")` and restore it, or it edits a
+  different paladin's plan.
 - **Phase 3 remaining:** crowd-control assignments, and raid markers + roles.
   **`SetRaidTarget` is CONFIRMED present on Turtle 1.18.1** (`/run
   print(SetRaidTarget)` returns a function), so markers are no longer blocked.

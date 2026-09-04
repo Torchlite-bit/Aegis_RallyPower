@@ -14,6 +14,31 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-09-04
+### Added (paladins can set a per-player blessing from the pop-out)
+- **Mouse-wheel a name in the paladin pop-out to give that player a different
+  blessing from the rest of their class row.** Per-player overrides shipped in
+  1.7.0 for the class-buff pop-out (Priest/Mage/Druid) only — a paladin runs
+  the legacy engine and has no class-buff strip at all, so the feature had
+  never existed on the one pop-out paladins actually use. It was reported as
+  "no longer working"; it had never worked there.
+- **Driven through PallyPower's own mechanism, not our `pbuff` model.**
+  Blessings are the one domain that still rides `PLPWR` byte-compatibly, and
+  the engine already stores individual assignments, cycles them and broadcasts
+  `NASSIGN` — `PallyPower_PerformPlayerCycle` is what its classic grid's own
+  wheel calls. So this syncs to stock PallyPower users too, and the cast path
+  and the icon (fixed in 1.8.3) already honoured it. A second source for the
+  same question would have desynced the two.
+- One adjustment was needed: `PerformPlayerCycle` takes its caster from
+  `PP_SelectedPally` — whoever the **classic grid** has selected. The pop-out
+  is always about your own bar, so the selection is pinned to you for the call
+  and restored afterwards. Without that, wheeling here would quietly edit a
+  different paladin's assignments.
+
+Numbered MINOR rather than PATCH: nothing was broken, so this is not a fix.
+The pop-out gains an input it did not have, and a paladin who does not open
+the classic grid can now do something they could not do before.
+
 ## [1.8.3] — 2026-09-03
 ### Fixed
 - **The paladin pop-out drew the class blessing on every row, even for players
