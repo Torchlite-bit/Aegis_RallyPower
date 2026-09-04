@@ -14,6 +14,29 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.13.2] — 2026-09-04
+### Fixed
+- **Nothing in the Options frame was clickable once it docked** (regression in
+  1.13.1). Docking raised the window with `SetFrameLevel` so it would draw
+  above the assignment panel — but `SetFrameLevel` does not carry a frame's
+  children, which keep the absolute level they were created at. The window
+  ended up above its own buttons, and because the window is mouse-enabled (that
+  is how it is dragged) it swallowed every click meant for them. It looked
+  perfectly normal and did nothing.
+- The raise is gone. `SetToplevel` was already doing the real work — it hands
+  the whole subtree to the client to re-level when a window is clicked, which
+  is the only correct way to raise one of these frames. `AegisRP.RaisePanel`
+  is now `AegisRP.MakeToplevel` and does only that.
+
+### Notes
+- Docking, the matched backdrop opacity and the click-to-front behaviour from
+  1.13.1 are unchanged; only the frame-level manipulation was removed.
+- `scripts/test_strip.lua` now asserts the *absence* of a raise — that the
+  window's own level is left alone, so its buttons still sit above it. Nothing
+  in the source says "do not add one here", so the assertion says it instead.
+  Matching sabotage `panel-raised-with-framelevel` restores the bug; all 31
+  caught.
+
 ## [1.13.1] — 2026-09-04
 ### Fixed
 - **The Options frame and the Assignment panel no longer open on top of each

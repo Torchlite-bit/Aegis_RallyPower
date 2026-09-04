@@ -897,7 +897,7 @@ local function CreateOptionsFrame()
     f:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
     f:Hide()
     tinsert(UISpecialFrames, "AegisRP_OptionsFrame")   -- ESC closes
-    if f.SetToplevel then f:SetToplevel(true) end      -- click brings it forward
+    if AegisRP.MakeToplevel then AegisRP.MakeToplevel(f) end   -- click = to front
 
     local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOP", f, "TOP", 0, -10)
@@ -942,7 +942,6 @@ local function CreateOptionsFrame()
             f:ClearAllPoints()
             f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
         end
-        if AegisRP.RaisePanel then AegisRP.RaisePanel(f, panel) end
         ShowTab(AegisRP_Settings.optLastTab or 1)
     end)
 

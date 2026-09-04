@@ -3456,7 +3456,7 @@ local function CreatePanel()
     f:SetBackdropColor(0.055, 0.05, 0.04, 0.96)
     f:SetBackdropBorderColor(GOLD[1], GOLD[2], GOLD[3], 1)
     f:SetFrameStrata("DIALOG")
-    if f.SetToplevel then f:SetToplevel(true) end      -- click brings it forward
+    if AegisRP.MakeToplevel then AegisRP.MakeToplevel(f) end   -- click = to front
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
@@ -3657,9 +3657,6 @@ local function CreatePanel()
         -- opening this while the options frame is up re-docks options beside
         -- it rather than leaving one window on top of the other
         if AegisRP.DockPanels then AegisRP.DockPanels() end
-        if AegisRP.RaisePanel then
-            AegisRP.RaisePanel(f, getglobal("AegisRP_OptionsFrame"))
-        end
         ShowTab(AegisRP_Settings.assignLastTab or 1)
     end)
 

@@ -124,7 +124,8 @@ phase assumes.
   4:3 or 5:4 client the pair does not fit at all, so it goes to the roomier
   screen edge with its top still aligned. Also fixed the two frames drawing
   into each other, which looked like a transparency bug and was interleaved
-  frame levels.
+  frame levels. **Docking itself is confirmed in game**; the raise that shipped
+  with it made the options frame unclickable and was removed in v1.13.2.
 
 ---
 
