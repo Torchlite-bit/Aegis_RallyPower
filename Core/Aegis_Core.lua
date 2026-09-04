@@ -1960,6 +1960,43 @@ SlashCmdList["AEGISRP"] = function(msg)
         return
     end
 
+    -- Diagnostics: the live state of both rotations.
+    --
+    -- "It isn't sticking" has several possible causes that look identical from
+    -- the strip - never added, added then pruned, added to the PREVIEW store
+    -- while test mode was on and then read from the saved one, or refused by
+    -- the leader gate. This prints which store is in use and what is actually
+    -- in it, so the answer is a fact rather than a theory.
+    if msg == "rot" or msg == "rotation" then
+        local A = AegisRP.Assign
+        if not A then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r assignment model not loaded.")
+            return
+        end
+        local me = UnitName("player")
+        local _, tok = UnitClass("player")
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis rotations|r  me=" .. tostring(me)
+            .. " class=" .. tostring(tok)
+            .. "  lead=" .. tostring(A.IAmLead())
+            .. "  free=" .. tostring(A.GetFreeAssign())
+            .. "  test=" .. tostring(AegisRP.IsTestMode()))
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaastore: "
+            .. (AegisRP.IsTestMode() and "PREVIEW (not saved)" or "AegisRP_Roles (saved)") .. "|r")
+        local kinds = { "kick", "taunt" }
+        for k = 1, 2 do
+            local kind = kinds[k]
+            local order = A.GetRotation(kind)
+            local n = table.getn(order)
+            DEFAULT_CHAT_FRAME:AddMessage("  |cff88ccff" .. kind .. "|r ("
+                .. n .. "): " .. (n > 0 and table.concat(order, ", ") or "|cff888888empty|r")
+                .. "  |cffaaaaaame at #" .. tostring(A.RotationIndexOf(kind, me)) .. "|r")
+        end
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaaAdd yourself on the panel's "
+            .. "Rotations tab (click your name), not on the strip - the strip "
+            .. "button opens the panel.|r")
+        return
+    end
+
     -- Diagnostics: what is ACTUALLY painted on the strips.
     --
     -- A button's colour is its state times the Transparency setting, and by

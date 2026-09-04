@@ -14,6 +14,28 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.10.1] — 2026-09-04
+### Changed
+- **Wheeling a name in the paladin pop-out now says what it did, and names the
+  consequence.** Setting an individual blessing makes the engine's Greater
+  Blessing path deliberately SKIP that player — a greater blessing is cast per
+  class, so someone singled out should not be swept up in it. That is correct,
+  but its only symptom was the class button reporting *"Couldn't find a
+  target"*, which says nothing about why. Solo, or with one member of that
+  class, singling out the only candidate made the class button look broken.
+  The wheel is what makes that state easy to reach, so the wheel is now what
+  explains it: it reports the blessing it set, or that the player went back to
+  the class blessing.
+
+### Added
+- **`/rpc rot`** prints the live state of both rotations: which store is in use
+  (the saved one, or test mode's preview, which is not saved), who is in each,
+  your own position, and your lead / free-assign status. "It isn't sticking"
+  has several causes that look identical from the strip — never added, added
+  then pruned, added to the preview store while test mode was on and then read
+  back from the saved one, or refused by the leader gate — and this separates
+  them instead of leaving it to be guessed.
+
 ## [1.10.0] — 2026-09-04
 ### Added (paladins and shamans can hold the taunt rotation)
 - **Turtle's own tanking taunts joined the catalog**: Paladin **Hand of

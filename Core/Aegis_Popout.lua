@@ -219,10 +219,35 @@ local function PopRowOnWheel()
     if not (pname and curBtn and curBtn.classID and PallyPower_PerformPlayerCycle) then
         return
     end
+    local me = UnitName("player")
     local saved = PP_SelectedPally
-    PP_SelectedPally = UnitName("player")
+    PP_SelectedPally = me
     PallyPower_PerformPlayerCycle(arg1, pname, curBtn.classID)
     PP_SelectedPally = saved
+
+    -- Say what just happened, and name the consequence.
+    --
+    -- The engine's Greater Blessing path deliberately SKIPS anyone carrying an
+    -- individual assignment (PallyPower.lua, the Hotkey2 branch) - a greater
+    -- blessing is cast per class, so someone singled out should not be swept
+    -- up in it. That is correct, but its only symptom is the class button
+    -- reporting "Couldn't find a target", which says nothing about why. Solo,
+    -- or with one member of that class, singling out the only candidate makes
+    -- the class button look broken.
+    --
+    -- The wheel is what makes that state easy to reach, so the wheel is what
+    -- explains it.
+    if PallyPower_ShowFeedback and GetNormalBlessings then
+        local now = GetNormalBlessings(me, curBtn.classID, pname)
+        if now and now ~= -1 then
+            local bname = PallyPower_BlessingID and PallyPower_BlessingID[now] or "?"
+            PallyPower_ShowFeedback(pname .. ": " .. bname
+                .. " (individual - Greater Blessing skips them now)", 0, 1, 0)
+        else
+            PallyPower_ShowFeedback(pname .. ": back to the class blessing",
+                0.8, 0.8, 0.8)
+        end
+    end
     if RefreshPopout then RefreshPopout() end
 end
 
