@@ -197,6 +197,35 @@ end
 
 -- Click a popup row: left = Greater on that player (out of combat only),
 -- right = Normal single-target (honours individual assignments; combat-legal).
+-- Wheel a row to give THAT player a different blessing from the rest of their
+-- class row - the paladin equivalent of the class-buff pop-out's per-player
+-- override, which paladins never had because they run the legacy engine and
+-- have no class-buff strip at all.
+--
+-- Driven through the ENGINE's own mechanism, not our `pbuff` model. Blessings
+-- are the one domain that still rides PLPWR byte-compatibly (locked decision
+-- 2), and PallyPower already stores individual assignments, cycles them, and
+-- broadcasts NASSIGN - PallyPower_PerformPlayerCycle is what its classic grid's
+-- own wheel calls. A second source for the same question would desync the two.
+--
+-- The one adjustment: PerformPlayerCycle takes its caster from
+-- PP_SelectedPally, which is whoever the CLASSIC GRID has selected. This
+-- pop-out is always about my own bar - the cast path reads
+-- GetNormalBlessings(UnitName("player"), ...) - so the selection is pinned to
+-- me for the call and restored, or wheeling here would quietly edit a
+-- different paladin's assignments.
+local function PopRowOnWheel()
+    local pname = this.pname
+    if not (pname and curBtn and curBtn.classID and PallyPower_PerformPlayerCycle) then
+        return
+    end
+    local saved = PP_SelectedPally
+    PP_SelectedPally = UnitName("player")
+    PallyPower_PerformPlayerCycle(arg1, pname, curBtn.classID)
+    PP_SelectedPally = saved
+    if RefreshPopout then RefreshPopout() end
+end
+
 local function PopRowOnClick()
     local pname = this.pname
     if not pname or not curBtn or not curBtn.buffID or not curBtn.classID then return end
@@ -280,6 +309,8 @@ local function GetRow(i)
     r:SetBackdrop(SKIN_BACKDROP)
     r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     r:SetScript("OnClick", PopRowOnClick)
+    r:EnableMouseWheel(true)
+    r:SetScript("OnMouseWheel", PopRowOnWheel)
 
     local icon = r:CreateTexture(nil, "OVERLAY")           -- $parentBuffIcon
     icon:SetWidth(16); icon:SetHeight(16)

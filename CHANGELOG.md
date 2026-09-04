@@ -14,6 +14,58 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-09-04
+### Added (paladins and shamans can hold the taunt rotation)
+- **Turtle's own tanking taunts joined the catalog**: Paladin **Hand of
+  Reckoning** and Shaman **Earthshaker Slam**, alongside Warrior Taunt and
+  Druid Growl. Both are instant on a 10s cooldown — the same as the two already
+  there — so they fit the one-cooldown-per-class shape with no engine change.
+  Paladins and shamans now appear in the Rotations tab's taunt list, get a
+  Taunt strip, and get the turn sound.
+- This is the fix the v1.4.0 note predicted. The taunt catalog was flagged
+  Turtle-unverified with "if Turtle gives its tanking paladins or shamans a
+  taunt, one entry there is the whole fix" — it was two entries and nothing
+  else, because the rotation engine never knew which classes it served.
+- Test mode's preview taunt rotation now seats a paladin and a shaman
+  (Tirion, Rehgar) as well, so `/rpc test` exercises all four.
+
+### Known limitations
+- **The icons are guesses.** Name, range, cooldown and effect came from the
+  in-game tooltips; the art did not. These are Turtle custom spells and their
+  icons may be anything. It only affects OTHER members' rows — your own row
+  takes the real texture from your spellbook — and one line in the `TAUNTS`
+  catalog corrects it.
+- **Earthshaker Slam requires a shield, and we cannot see another player's
+  equipment.** A shaman therefore shows as available whether or not they have
+  one, and the leader decides — the same call already made for listing a fury
+  warrior in the taunt list. A detection that cannot answer must not close a
+  gate.
+
+## [1.9.0] — 2026-09-04
+### Added (paladins can set a per-player blessing from the pop-out)
+- **Mouse-wheel a name in the paladin pop-out to give that player a different
+  blessing from the rest of their class row.** Per-player overrides shipped in
+  1.7.0 for the class-buff pop-out (Priest/Mage/Druid) only — a paladin runs
+  the legacy engine and has no class-buff strip at all, so the feature had
+  never existed on the one pop-out paladins actually use. It was reported as
+  "no longer working"; it had never worked there.
+- **Driven through PallyPower's own mechanism, not our `pbuff` model.**
+  Blessings are the one domain that still rides `PLPWR` byte-compatibly, and
+  the engine already stores individual assignments, cycles them and broadcasts
+  `NASSIGN` — `PallyPower_PerformPlayerCycle` is what its classic grid's own
+  wheel calls. So this syncs to stock PallyPower users too, and the cast path
+  and the icon (fixed in 1.8.3) already honoured it. A second source for the
+  same question would have desynced the two.
+- One adjustment was needed: `PerformPlayerCycle` takes its caster from
+  `PP_SelectedPally` — whoever the **classic grid** has selected. The pop-out
+  is always about your own bar, so the selection is pinned to you for the call
+  and restored afterwards. Without that, wheeling here would quietly edit a
+  different paladin's assignments.
+
+Numbered MINOR rather than PATCH: nothing was broken, so this is not a fix.
+The pop-out gains an input it did not have, and a paladin who does not open
+the classic grid can now do something they could not do before.
+
 ## [1.8.3] — 2026-09-03
 ### Fixed
 - **The paladin pop-out drew the class blessing on every row, even for players
