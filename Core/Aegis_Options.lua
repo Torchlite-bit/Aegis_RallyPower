@@ -221,6 +221,18 @@ local function AddSlider(parent, y, entry)
         sl.updating = false
         LabelText(v)
     end
+    -- Sliders carry a `tip` like checks and buttons do, and until now nothing
+    -- read it - the transparency slider's explanation of its 0.3 floor was
+    -- written and never shown. OptionsSliderTemplate has no tooltip handler of
+    -- its own, so it is wired explicitly here.
+    if entry.tip then
+        sl:SetScript("OnEnter", function()
+            GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+            GameTooltip:SetText(this.entry.tip, 1, 1, 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        sl:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
     sl.Refresh()
     table.insert(controls, sl)
     return y - 44
@@ -341,10 +353,10 @@ local function ResetFramePositions()
     for _, k in ipairs(kill) do AegisRP_Settings[k] = nil end
     AegisRP_Settings.stripAlpha = nil            -- back to the colours' own 0.5
     if AegisRP.strips then
-        for _, S in pairs(AegisRP.strips) do
+        for key, S in pairs(AegisRP.strips) do
             S.frame:ClearAllPoints()
             S.frame:SetPoint("CENTER", UIParent, "CENTER", 260, 0)
-            S.frame:SetScale(AegisRP_Settings.uiScale or 1)
+            S.frame:SetScale(AegisRP.StripScale(key))
             if S.Refresh then S:Refresh() end     -- repaint at the restored alpha
         end
     end
@@ -377,8 +389,8 @@ local function LegacyCheck(label, ppKey, chkName, handlerName, dflt, tip)
         end }
 end
 
-local function LegacySlider(label, ppKey, lo, hi, step, dflt, apply)
-    return { type = "slider", label = label, min = lo, max = hi, step = step,
+local function LegacySlider(label, ppKey, lo, hi, step, dflt, apply, tip)
+    return { type = "slider", label = label, min = lo, max = hi, step = step, tip = tip,
         get = function()
             if PP_PerUser and PP_PerUser[ppKey] ~= nil then return PP_PerUser[ppKey] end
             return dflt
@@ -426,9 +438,11 @@ end
 -- and a strip's own Toggle instead of being a second, rival writer.
 local SLASH_FOR_STRIP = { kick = "/rpc kick", taunt = "/rpc taunt", classbuffs = "/rpc" }
 
-local function AppendStripToggles(entries)
+-- `noHeader` is for a caller that has already opened a "Strips" section of its
+-- own (the Paladin tab, which puts the strip settings above these toggles).
+local function AppendStripToggles(entries, noHeader)
     if not (AegisRP.stripOrder and AegisRP.SetStripShown) then return end
-    local added = false
+    local added = (noHeader and true) or false
     for i = 1, table.getn(AegisRP.stripOrder) do
         local k = AegisRP.stripOrder[i]
         local S = AegisRP.strips[k]
@@ -452,10 +466,53 @@ local function AppendStripToggles(entries)
     end
 end
 
--- The Settings tab is class-aware: non-Paladins get the strip/grid controls;
--- Paladins get the merged frame-level engine settings instead (our show
--- rules / uiScale / lock only touch the strip+grid frames, which Paladins
--- don't run - the legacy engine has its own equivalents below).
+-- The strip-level settings, as factories rather than literals, because BOTH
+-- class branches below need them and a second copy of the transparency tip is
+-- a second thing to forget to update. Scale is deliberately not among them:
+-- it is the one strip setting that differs by class (see AegisRP.StripScale).
+local function StripAlphaEntry()
+    return { type = "slider", key = "stripAlpha", label = "Transparency",
+      min = 0.3, max = 1, step = 0.05, default = 0.5,
+      tip = "Backdrop opacity of the strip buttons.\nThe floor is 0.3: the "
+         .. "backdrop is what shows covered/needed/expiring, so it never goes "
+         .. "so faint the colours stop reading.\nThis is a PER-CHARACTER "
+         .. "setting - if one alt looks washed out next to another, this is "
+         .. "why. Reset Frames puts it back to 0.5." }
+end
+
+local function StripHorizontalEntry()
+    return { type = "check", key = "stripHorizontal", label = "Horizontal layout", default = false,
+      tip = "Lay the strip buttons left-to-right instead of stacked.",
+      onChange = function() if AegisRP.ReflowStrips then AegisRP.ReflowStrips() end end }
+end
+
+local function StripSnapEntry()
+    return { type = "check", key = "stripSnap", label = "Snap frames to edges", default = true,
+      tip = "Dropping a strip within a few pixels of a screen edge - or of another "
+         .. "strip, or of the PallyPower buff bar - lines it up flush instead of "
+         .. "nearly flush." }
+end
+
+local function LockFramesEntry()
+    return { type = "check", key = "locked", label = "Lock frame positions", default = false,
+      tip = "Stop the Aegis strips being dragged.\nThe PallyPower buff bar and "
+         .. "grid have their own lock in the engine section." }
+end
+
+local function ResetFramesEntry()
+    return { type = "button", label = "Reset Frames", func = ResetFramePositions,
+      tip = "Put every Aegis: RallyPower frame back to stock: position, scale "
+         .. "and transparency." }
+end
+
+-- The Settings tab is class-aware. A Paladin runs the legacy engine in place
+-- of our class-buff strip, so they get the merged frame-level engine settings
+-- and OUR "when to show" / UI scale rules do not apply to them.
+--
+-- They DO get the strip settings, though. That was not true when this split
+-- was written and a Paladin ran nothing of ours; since 1.10.0 they have Kick
+-- and Taunt strips like everyone else, and until now there was no way to hide,
+-- lock, fade or reset them from the options at all.
 local function SettingsTabEntries()
     local entries = {}
     local _, cls = UnitClass("player")
@@ -474,12 +531,32 @@ local function SettingsTabEntries()
             LegacyCheck("Hide Blizzard aura bar", "hideblizzaura",
                 "HideBlizzardFrameOptionChk", "PallyPower_HideBlizzardAuraFrameOption", false),
             LegacySlider("Buff bar scale", "scalebar", 0.5, 1.5, 0.05, 1,
-                function() if PallyPower_UpdateUI then PallyPower_UpdateUI() end end),
+                function()
+                    if PallyPower_UpdateUI then PallyPower_UpdateUI() end
+                    -- the buff bar IS a Paladin's class strip, so the slider
+                    -- that scales it has to scale the Kick and Taunt strips
+                    -- too: three bars docked together that resize separately
+                    -- cannot be lined up at all.
+                    if AegisRP_ApplyStripScale and PP_PerUser then
+                        AegisRP_ApplyStripScale(PP_PerUser.scalebar or 1)
+                    end
+                end,
+                "Scales the PallyPower buff bar - and, on this class, the Kick "
+                .. "and Taunt strips with it, so all three stay one size.\nMoving "
+                .. "this clears any per-strip size set with a strip's corner grip."),
             LegacySlider("Grid scale", "scalemain", 0.5, 1.5, 0.05, 1,
                 function() if PallyPowerGrid_Update then PallyPowerGrid_Update(1) end end),
-            LegacySlider("Transparency", "transparency", 0, 1, 0.05, 0.5,
-                function() if PallyPower_UpdateUI then PallyPower_UpdateUI() end end),
+            LegacySlider("Buff bar transparency", "transparency", 0, 1, 0.05, 0.5,
+                function() if PallyPower_UpdateUI then PallyPower_UpdateUI() end end,
+                "The legacy buff bar and grid only. The Aegis strips have their "
+                .. "own transparency under Strips below."),
+            { type = "header", label = "Strips" },
+            StripAlphaEntry(),
+            StripSnapEntry(),
+            LockFramesEntry(),
+            ResetFramesEntry(),
         }
+        AppendStripToggles(entries, true)   -- header already opened above
         return entries
     end
     entries = {
@@ -495,25 +572,13 @@ local function SettingsTabEntries()
         { type = "slider", key = "uiScale", label = "UI scale",
           min = 0.5, max = 1.5, step = 0.05, default = 1.0,
           onChange = function() AegisRP_ApplyUIScale() end },
-        { type = "slider", key = "stripAlpha", label = "Transparency",
-          min = 0.3, max = 1, step = 0.05, default = 0.5,
-          tip = "Backdrop opacity of the strip buttons.\nThe floor is 0.3: the "
-             .. "backdrop is what shows covered/needed/expiring, so it never goes "
-             .. "so faint the colours stop reading.\nThis is a PER-CHARACTER "
-             .. "setting - if one alt looks washed out next to another, this is "
-             .. "why. Reset Frames puts it back to 0.5." },
-        { type = "check", key = "stripHorizontal", label = "Horizontal layout", default = false,
-          tip = "Lay the strip buttons left-to-right instead of stacked.",
-          onChange = function() if AegisRP.ReflowStrips then AegisRP.ReflowStrips() end end },
-        { type = "check", key = "stripSnap", label = "Snap frames to edges", default = true,
-          tip = "Dropping a strip within a few pixels of a screen edge - or of another "
-             .. "strip - lines it up flush instead of nearly flush." },
+        StripAlphaEntry(),
+        StripHorizontalEntry(),
+        StripSnapEntry(),
         MinimapSkinEntry(),
         ShowMinimapButtonEntry(),
-        { type = "check", key = "locked", label = "Lock frame positions", default = false },
-        { type = "button", label = "Reset Frames", func = ResetFramePositions,
-          tip = "Put every Aegis: RallyPower frame back to stock: position, scale "
-             .. "and transparency." },
+        LockFramesEntry(),
+        ResetFramesEntry(),
     }
     AppendStripToggles(entries)
     return entries

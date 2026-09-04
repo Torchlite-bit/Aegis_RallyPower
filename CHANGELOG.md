@@ -14,6 +14,43 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-09-04
+### Added (one scale, one alignment, for a paladin's three bars)
+- **"Buff bar scale" now scales the Kick and Taunt strips too, on a paladin.**
+  A paladin has no class-buff strip of ours — the legacy buff bar is theirs —
+  so the two systems had no slider in common: our "UI scale" is not on that
+  class's Settings tab at all, leaving it pinned at 1.0 while the bar it docks
+  against moved. One slider now sizes all three.
+- The engine's own scaling **grip** does the same, not just the slider. It
+  writes `PP_PerUser.scalebar` directly, so it bypassed the options entirely;
+  `PallyPower_ScaleFrame` is save-and-replaced from our side (`PallyPower/`
+  stays byte-identical) and our strips follow the drag.
+- **Paladins get the strip settings.** Transparency, edge snapping, frame
+  locking, Reset Frames and per-strip Show toggles were non-paladin only, which
+  was correct when a paladin ran nothing of ours and wrong since they gained
+  Kick and Taunt strips in 1.10.0 — until now there was no way to hide, fade,
+  lock or reset those from the options at all.
+- Option **sliders show their tooltip**. They already carried a `tip` and
+  nothing read it, so the transparency slider's explanation of its 0.3 floor
+  was written and never displayed.
+
+### Fixed
+- **A strip docked against the buff bar now lines up with it.** The bar is 110
+  wide with its buttons inset 5px; our strips are 100 with none. Snapping frame
+  edges lined up two boxes and left the two visible button columns 5px out of
+  step — and the column is the only part of either frame a player can see.
+  Snapping is now to the content box, and because the bar's column is exactly
+  our width, one snap squares up both sides.
+- The legacy transparency slider is labelled **"Buff bar transparency"**: it
+  never applied to the Aegis strips, which now have their own slider beside it.
+
+### Notes
+- Not yet seen in game. The scale sync and the column alignment are both
+  visual, so `docs/ROADMAP.md` carries them as shipped-but-unverified.
+- Covered by `scripts/test_strip.lua`: which slider owns a strip's size per
+  class, and the one drop (302px from a bar at 300) that tells a padded snapper
+  apart from an unpadded one. Two matching sabotages added.
+
 ## [1.11.0] — 2026-09-04
 ### Added (strips snap to the paladin bar)
 - **A strip now snaps to the legacy PallyPower frames, not just to other Aegis

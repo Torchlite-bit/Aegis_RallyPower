@@ -599,6 +599,31 @@ function PallyPowerBuffBarButton_OnMouseWheel(btn, delta)
 end
 
 --=============================================================================
+-- The buff bar's own scaling grip drags PP_PerUser.scalebar directly, so it
+-- never passes through our options slider. A Paladin has no class-buff strip
+-- of ours - the legacy bar IS it - and our Kick and Taunt strips now size
+-- themselves from scalebar (AegisRP.StripScale), so the grip has to move them
+-- too or the three bars come apart for anyone who uses the handle instead of
+-- the slider.
+--
+-- Save-and-replace, per the wrap-don't-rewrite rule: the engine's own function
+-- still does all the work, we only follow it.
+--=============================================================================
+local orig_PallyPower_ScaleFrame = PallyPower_ScaleFrame
+if orig_PallyPower_ScaleFrame then
+    PallyPower_ScaleFrame = function(scale)
+        -- read the target BEFORE the original runs; it is the engine's own
+        -- transient and nothing promises it survives the call
+        local frame = PallyPower and PallyPower.FrameToScale
+        orig_PallyPower_ScaleFrame(scale)
+        if frame and frame.GetName and frame:GetName() == "PallyPowerBuffBar"
+           and AegisRP_ApplyStripScale then
+            AegisRP_ApplyStripScale(scale)
+        end
+    end
+end
+
+--=============================================================================
 -- FIX: /pp buff (PallyPower_AutoBuffAll) errored whenever anyone was dead.
 --
 -- The engine writes a buff-bar count as "3 (1)" as soon as ndead > 0

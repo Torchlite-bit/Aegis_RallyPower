@@ -1272,7 +1272,7 @@ local function CreatePopout()
     local p = CreateFrame("Frame", "AegisRP_Popout", UIParent)
     p:SetWidth(POP_ROW_W); p:SetHeight(POP_ROW_H)
     p:SetFrameStrata("DIALOG")
-    p:SetScale(AegisRP_Settings.uiScale or 1)
+    p:SetScale(AegisRP.StripScale())
     p:EnableMouse(false)
     p:Hide()
     p:SetScript("OnUpdate", PopoutOnUpdate)
@@ -1833,19 +1833,26 @@ function AegisRP_ApplyVisibility()
     end
 end
 
--- Options hook: live UI-scale application (every strip + the pop-out; the
--- Paladin engine keeps its own scale settings under /pp Options).
-function AegisRP_ApplyUIScale()
-    local s = AegisRP_Settings.uiScale or 1
+-- Push one scale onto every strip and the pop-out. Two sliders drive this:
+-- our own "UI scale" on eight classes, and the engine's "Buff bar scale" on a
+-- Paladin, whose legacy buff bar stands in for the class strip they don't have
+-- (see AegisRP.StripScale). One entry point so both behave the same.
+function AegisRP_ApplyStripScale(s)
     if AegisRP.strips then
-        -- the global slider re-unifies every strip: per-strip grip scales
-        -- are cleared so the slider does what it says
+        -- a global slider re-unifies every strip: per-strip grip scales are
+        -- cleared so the slider does what it says
         for key, S in pairs(AegisRP.strips) do
             AegisRP_Settings["stripScale_" .. key] = nil
             S.frame:SetScale(s)
         end
     end
     if popout then popout:SetScale(s) end
+end
+
+-- Options hook: live UI-scale application (every strip + the pop-out; the
+-- Paladin engine keeps its own scale settings under /pp Options).
+function AegisRP_ApplyUIScale()
+    AegisRP_ApplyStripScale(AegisRP_Settings.uiScale or 1)
 end
 
 -- Class-buff strip back to its default anchor (shared by /rpc reset and Reset
