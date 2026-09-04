@@ -119,6 +119,12 @@ phase assumes.
   transparency, snapping, locking, Reset Frames and the per-strip Show toggles
   — that the class branch had skipped since before they had strips. Both halves
   are visual and want a look on a real client.
+- 🟡 **The Options frame and Assignment panel dock side by side** (v1.13.1) —
+  both opened at screen centre and stacked. Only the Options frame moves; on a
+  4:3 or 5:4 client the pair does not fit at all, so it goes to the roomier
+  screen edge with its top still aligned. Also fixed the two frames drawing
+  into each other, which looked like a transparency bug and was interleaved
+  frame levels.
 
 ---
 
@@ -126,10 +132,17 @@ phase assumes.
 
 The remaining feature work.
 
-### 3.1 Crowd-control assignments 🟡
-**Shipped in v1.13.0, not yet seen in game.** Polymorph / Sap / Blind / Banish
-/ Fear / Shackle / Freezing Trap / Hibernate / Entangling Roots, assigned per
-raid mark.
+### 3.1 Crowd-control assignments ✅ (sync half 🟡)
+**Shipped in v1.13.0 and confirmed on a real client in test mode**: the tab
+renders, the rows read, and the two-axis control works. Polymorph / Sap / Blind
+/ Banish / Fear / Shackle / Freezing Trap / Hibernate / Entangling Roots,
+assigned per raid mark.
+
+**Still 🟡: the `x` wire section between two clients.** Test mode never
+broadcasts (`RawSend` returns early), so a solo test cannot exercise it. The
+round trip is covered off-client by `scripts/test_cc.lua`; what is unconfirmed
+is a leader's CC plan appearing on a second client, the same check that
+validated the tank slots.
 
 - **It got its own tab** — the seventh. That was the open question, and the
   card pool settled it as expected: the debuff pool is 14 of a hard 18, so a CC
@@ -143,8 +156,8 @@ raid mark.
   mark, riding an additive `x` section on `RPCX` (no PROTO bump).
 - Clicking a mark icon puts that mark on your current target. `SetRaidTarget`
   is confirmed on Turtle 1.18.1 and the call is still guarded.
-- **Wants a look on a real client:** the row layout, and whether the two-axis
-  control (wheel = spell, click = who) reads correctly under pressure.
+- ✅ **The row layout and the two-axis control** (wheel = spell, click = who)
+  were checked on a real client in test mode and read correctly.
 - **No paladin CC entry.** There is no `Classes/Class_Paladin.lua` — paladins
   run the vendored engine — so Turn Undead and Repentance have no natural home.
   Neither is raid CC in practice; if one is ever wanted, it needs a home file

@@ -209,6 +209,41 @@ SABOTAGES = [
      "    if false then",
      "strip"),
 
+    # ---- panel docking ---------------------------------------------------
+    # The panel carries a grip and the options frame does not, so the fit test
+    # has to be in screen pixels. Scale-blind, a panel at 2.0 looks like it has
+    # room it does not, and the options frame docks off the edge.
+    ("dock-ignores-scale", "Core/Aegis_Strip.lua",
+     "    local roomRight, roomLeft = sw - ar * as, al * as",
+     "    local roomRight, roomLeft = sw - ar, al",
+     "strip"),
+
+    # No flip means a panel dragged to the right edge sends the options frame
+    # off screen instead of to its left.
+    ("dock-never-flips", "Core/Aegis_Strip.lua",
+     "    elseif roomLeft >= needPx then",
+     "    elseif false then",
+     "strip"),
+
+    # The no-room fallback exists to keep the frame ON screen. Without the
+    # width subtraction it lands exactly one frame-width past the right edge.
+    ("dock-fallback-offscreen", "Core/Aegis_Strip.lua",
+     "        if roomRight >= roomLeft then x = sw / ms - opts:GetWidth() - DOCK_GAP end",
+     "        if roomRight >= roomLeft then x = sw / ms end",
+     "strip"),
+
+    # The fallback's y is the panel's top converted out of ITS space into ours.
+    ("dock-fallback-unconverted-top", "Core/Aegis_Strip.lua",
+     '        opts:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, at * as / ms)',
+     '        opts:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, at)',
+     "strip"),
+
+    # Docking a frame nobody can see moves it out from under a later Show.
+    ("dock-ignores-shown", "Core/Aegis_Strip.lua",
+     "    if not (panel:IsShown() and opts:IsShown()) then return false end",
+     "",
+     "strip"),
+
     ("snap-to-hidden-strip", "Core/Aegis_Strip.lua",
      "        if o.IsShown and not o:IsShown() then return end",
      "        if false then return end",

@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.13.0**. See `CHANGELOG.md` for the full history,
+Current version: **1.13.1**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -443,6 +443,26 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   is the tallest in the frame and the frame grows to fit without a scrollbar —
   measure before adding a row (header 26, check 24, slider 44, select 34,
   button 30, note h+8; the frame is centred at +40 on a 768-unit `UIParent`).
+- **The two big frames dock rather than stack (`AegisRP.DockPanels`,
+  `Aegis_Strip.lua`) — untested in-game.** The Options frame and the
+  Assignment panel both open at screen centre, so opening both put one on top
+  of the other. Docked they sit side by side, tops aligned. **Only the Options
+  frame moves**: the panel has a dragged position we persist, Options has none,
+  so it is the one with no intent to overwrite. The fit test is in SCREEN
+  pixels — the panel carries a grip and Options does not, so comparing raw
+  `GetLeft()` across them is the mistake `SnapStrip` already exists to avoid.
+  Re-docked on the panel's `OnShow`, `OnDragStop` and scale grip.
+  **A 4:3 or 5:4 client cannot fit the pair** (`UIParent` is 768 × aspect
+  wide, so 1024 or 960, against 760 + 360 + a gap); there Options goes to the
+  roomier screen edge with its top still aligned, so the overlap is the deficit
+  rather than the whole frame. Do not "fix" that by moving the panel — the
+  player put it there.
+- **Two frames in one strata can INTERLEAVE their frame levels**, and then the
+  lower one's buttons draw above the upper one's backdrop. It reads as a frame
+  having gone half-transparent, not as a z-order problem, which is why it cost
+  a round of guessing at the alpha instead. `AegisRP.RaisePanel(f, over)` on
+  show is the fix, plus `SetToplevel(true)` so a click brings one forward. Any
+  new top-level frame of ours in `DIALOG` wants both.
 - **Transparency has a floor (`AegisRP.StripAlpha`, `Aegis_Strip.lua`).** The
   backdrop is the only carrier of button state, so an alpha near 0 makes every
   state paint identically while the border keeps drawing — outlined boxes with

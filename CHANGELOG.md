@@ -14,6 +14,37 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.13.1] — 2026-09-04
+### Fixed
+- **The Options frame and the Assignment panel no longer open on top of each
+  other.** Both anchored to screen centre, so opening the second put it
+  squarely over the first. They dock side by side now, tops aligned: Options to
+  the right of the panel when there is room on screen, to its left otherwise.
+  Only the Options frame moves — the panel has a position the player dragged
+  and that we persist, so it keeps it.
+- **The Options frame's backdrop was 0.85 opaque against the panel's 0.96**, so
+  wherever the two overlapped the panel showed straight through it. Both are
+  0.96 now.
+- **Two frames in the same strata can interleave their frame levels**, which
+  puts the lower one's buttons above the upper one's backdrop — that reads as a
+  frame having gone half-transparent rather than as a z-order problem. The
+  frame being shown is now raised above the other, and both are `toplevel` so a
+  click brings one forward.
+
+### Notes
+- Dragging the panel re-docks Options, and so does rescaling it with the corner
+  grip: both change how much room is left beside it.
+- **A 4:3 or 5:4 client cannot fit the pair.** `UIParent` is 768 units tall and
+  768 × aspect wide — 1024 at 4:3, 960 at 5:4 — against a 760-wide panel plus a
+  360-wide Options frame plus the gap. There Options goes to whichever screen
+  edge has more room, top still aligned: the overlap is then only the deficit
+  instead of one frame covering the other, and dragging the panel aside gives
+  it room. On 16:9 and 16:10 the pair fits with space to spare.
+- Covered by `scripts/test_strip.lua`: which side it picks, the screen-pixel
+  comparison across two different frame scales, and the no-room fallback
+  landing on screen rather than past the edge. Five matching sabotages; all 30
+  caught.
+
 ## [1.13.0] — 2026-09-04
 ### Added (crowd control)
 - **A seventh Assignment panel tab: Crowd Ctrl.** One row per raid mark, in

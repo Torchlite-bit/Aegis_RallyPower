@@ -450,6 +450,72 @@ end
 -- silently wrong rather than visibly broken, so it gets an off-client test.
 AegisRP.SnapStrip = SnapStrip
 
+--------------------------------------------------------------------------
+-- PANEL DOCKING - the options frame and the assignment panel both open
+-- centred, so opening both put one squarely on top of the other. Docked, they
+-- sit side by side with their tops aligned: options to the RIGHT of the panel
+-- when there is room on screen, to its LEFT otherwise.
+--
+-- Only the OPTIONS frame moves. The assignment panel has a position the player
+-- dragged and that we persist; the options frame has none, so it is the one
+-- with no intent to overwrite.
+--
+-- On a 4:3 or 5:4 client the pair genuinely does not fit. UIParent is 768
+-- units tall and 768 x aspect wide - 1024 at 4:3, 960 at 5:4 - against a
+-- 760-wide panel plus a ~360-wide options frame plus the gap. There the
+-- options frame goes to whichever screen edge has more room, tops still
+-- aligned, so the overlap is only the deficit instead of one frame covering
+-- the other. Dragging the panel aside re-docks it.
+--------------------------------------------------------------------------
+local DOCK_GAP = 6
+
+function AegisRP.DockPanels()
+    local panel = getglobal("AegisRP_AssignFrame")
+    local opts  = getglobal("AegisRP_OptionsFrame")
+    if not (panel and opts) then return false end
+    if not (panel:IsShown() and opts:IsShown()) then return false end
+
+    local as, ms = panel:GetEffectiveScale(), opts:GetEffectiveScale()
+    local al, ar, at = panel:GetLeft(), panel:GetRight(), panel:GetTop()
+    if not (as and ms and al and ar and at and as > 0 and ms > 0) then return false end
+
+    -- Compared in SCREEN pixels. The two frames carry independent scales (the
+    -- panel has a grip, the options frame does not), so comparing raw GetLeft()
+    -- across them is the same mistake SnapStrip exists to avoid.
+    local sw = UIParent:GetWidth() * UIParent:GetEffectiveScale()
+    local needPx = (opts:GetWidth() + DOCK_GAP) * ms
+    local roomRight, roomLeft = sw - ar * as, al * as
+
+    opts:ClearAllPoints()
+    if roomRight >= needPx then
+        -- frame-to-frame, so the pair stays together if the panel is rescaled,
+        -- and TOPLEFT so a taller options tab grows DOWN instead of sideways
+        opts:SetPoint("TOPLEFT", panel, "TOPRIGHT", DOCK_GAP, 0)
+    elseif roomLeft >= needPx then
+        opts:SetPoint("TOPRIGHT", panel, "TOPLEFT", -DOCK_GAP, 0)
+    else
+        local x = DOCK_GAP
+        if roomRight >= roomLeft then x = sw / ms - opts:GetWidth() - DOCK_GAP end
+        -- TOPLEFT->BOTTOMLEFT in our OWN space, as everywhere else in this file
+        opts:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x, at * as / ms)
+    end
+    return true
+end
+
+-- Two frames in the same strata can end up with INTERLEAVED frame levels, and
+-- then the lower one's buttons draw above the upper one's backdrop. That reads
+-- as "the panel went half transparent", not as a z-order problem, which is why
+-- it is worth fixing rather than living with. Raising the frame being shown
+-- lifts its whole subtree; toplevel makes a later click do the same.
+function AegisRP.RaisePanel(f, over)
+    if not f then return end
+    if f.SetToplevel then f:SetToplevel(true) end
+    if over and over.IsShown and over:IsShown()
+       and over.GetFrameLevel and f.SetFrameLevel then
+        f:SetFrameLevel(over:GetFrameLevel() + 10)
+    end
+end
+
 function AegisRP.NewStrip(key, title)
     local S = { key = key, buttons = {} }
     local posKey = "stripPos_" .. key
