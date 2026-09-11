@@ -165,12 +165,22 @@ validated the tank slots.
   decided first.
 
 ### 3.2 Raid markers + roles ⬜
-- ✅ **Prerequisite half-confirmed:** `SetRaidTarget` exists on Turtle 1.18.1
-  (`/run print(SetRaidTarget)` returns a function).
-- ⬜ **Still needed before building:** `/run print(GetRaidTargetIndex)`.
-  Setting a mark and *reading one back* are different APIs. If only the setter
-  exists the feature is write-only — the panel could assign marks but never
-  show which mob currently carries which — and that needs a different design.
+**Unblocked — both prerequisites confirmed on Turtle 1.18.1.** Nothing about
+the API stands in the way now; what is left is the feature itself.
+
+- ✅ **`SetRaidTarget` exists** — marks can be assigned from the panel. Already
+  used: clicking a mark icon on the Crowd Ctrl tab marks your current target.
+- ✅ **`GetRaidTargetIndex` exists AND reads back** — `SetRaidTarget("target",
+  8)` followed by `GetRaidTargetIndex("target")` returns 8, checked in a party.
+  Setting and reading are different APIs, and the second one existing is what
+  decides the design: the panel can show which mob currently carries which
+  mark, so the feature is not write-only.
+- **Probing note:** the first check looked like a failure and was not.
+  SuperWoW's `print` produces no output for a nil rather than printing "nil",
+  so an absent function and a silent one are indistinguishable through it. Use
+  `/run DEFAULT_CHAT_FRAME:AddMessage("X = "..tostring(X))` for any future API
+  probe. Reading a mark back also needs a group, since marking needs party lead
+  or assist.
 
 ### 3.3 Debuff tab expansion ✅
 Shipped as v1.8.0 (see Phase 2). Detection uses `UnitHasDebuffEntry` plus
