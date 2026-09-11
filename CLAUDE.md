@@ -566,10 +566,19 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   needs the same line in `A.Subscribe` in `Aegis_Sync.lua` — serialising it is
   only half the job.
 - **Phase 3 remaining:** raid markers + roles.
-  **`SetRaidTarget` is CONFIRMED present on Turtle 1.18.1** (`/run
-  print(SetRaidTarget)` returns a function), so markers are no longer blocked.
-  `GetRaidTargetIndex` still wants the same one-line check before anything
-  reads a mark back.
+  **Raid marks are CONFIRMED to work BOTH WAYS on Turtle 1.18.1.**
+  `SetRaidTarget` and `GetRaidTargetIndex` both exist, and a mark set on a unit
+  reads straight back from it (`SetRaidTarget("target", 8)` then
+  `GetRaidTargetIndex("target")` returns 8, checked in a party). So markers are
+  not write-only: the panel can show which mob currently carries which mark, not
+  only assign one.
+  **Do not probe a 1.12 API with `print`.** SuperWoW's `print` cannot print a
+  nil — it produces no output at all rather than "nil" — so an absent function
+  and a working one that returns nothing look identical, which is the ambiguous
+  answer a capability check exists to avoid. Use
+  `/run DEFAULT_CHAT_FRAME:AddMessage("X = "..tostring(X))`: concatenating a
+  definite string with `tostring` always prints something. Reading a mark back
+  needs a GROUP as well, since marking at all needs party lead or assist.
 - **ClassicAPI** (`github.com/brues-code/ClassicAPI`, VanillaFixes DLL,
   detected via `CLASSIC_API_VERSION`) — **evaluated, deliberately not adopted
   for now.** Its `C_UnitAuras` would give true `expirationTime` and
