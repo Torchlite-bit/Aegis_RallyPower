@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.13.2**. See `CHANGELOG.md` for the full history,
+Current version: **1.13.3**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -260,6 +260,7 @@ lua scripts/test_rotation.lua    # kick/taunt rotations + KO/TO/KICK/TNT wire
 lua scripts/test_strip.lua       # strip engine: edge snapping + alpha floor
 lua scripts/test_duties.lua      # duty catalog: unique wids, tab fits its cards
 lua scripts/test_cc.lua          # crowd control: mark-major view + RPCX round-trip
+lua scripts/test_pets.lua        # pet token shapes + the owner-class gate
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -396,14 +397,39 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   confirmed; the art only appears on other members' rows, since your own takes
   the real spellbook texture. This was the worked example of the catalog being
   the whole fix: two entries, no engine change.
-- **Pet auto-buffing is Hunter-only — untested in-game.** `IsHunterPet` in
-  `Aegis_Core.lua` gates the roster-scan path (`FindUnitToBuff`) so `pet=true`
-  buffs (Fortitude, Mark of the Wild) only auto-target a Hunter's pet, never a
-  Warlock's demon — a demon gets resummoned mid-fight and the buff is usually
-  wasted the moment it dies or gets banished. Ownership is read off the raid
-  index a pet token shares with its owner (`PetOwnerUnit`); a manually
+- **Pet auto-buffing is Hunter-only, on BOTH sides — the paladin half was
+  missed for eight releases.** A demon gets resummoned mid-fight and the buff
+  is usually wasted the moment it dies or gets banished, so `pet=true` buffs
+  only auto-target a Hunter's pet. Ownership is read off the raid index a pet
+  token shares with its owner (`PetOwnerUnit`, `Aegis_Core.lua`); a manually
   targeted pet (the `"target"` shortcut) is unaffected, since that's an
   explicit click, not the automatic scan.
+  **`IsHunterPet` only ever covered `FindUnitToBuff`, which paladins never
+  run** — they run the vendored engine, and PallyPower puts EVERY pet in one
+  `classID 9` column with no owner check (`PallyPower.lua:2995`), so a paladin
+  blessed felhunters exactly like hunter cats until 1.13.3. When a rule is
+  written as "the addon does X", check whether it reaches the paladin path at
+  all; that class shares almost none of this code.
+  **Two functions with two answers, and the difference matters.**
+  `IsHunterPet` collapses "no" and "cannot tell" into `false`;
+  `AegisRP.PetSkippedForBuffs` returns true ONLY for a pet whose owner we can
+  positively see is not a hunter, so an unresolvable owner is permission rather
+  than refusal (a hunter pet silently unbuffable during roster churn is the
+  worse failure). Gates use the second one.
+- **Half the vendored engine's "globals" are forward-declared FILE-LOCALS.**
+  `RebuildRoster`, `ScanOneUnit` and `IsRosterUnit` are declared
+  `local` at `PallyPower.lua:104-106` and only assigned later, so they read as
+  globals at the assignment site and are not. Save-and-replacing one sets a
+  global nothing calls — a **silent no-op**, which is worse than an error
+  because the suite stays green and the feature simply never happens. Check for
+  a `local <name>` near the top of the file before hooking anything in there.
+  The engine's roster tables (`RosterUnits`, `UnitClassID`, `RosterSet`,
+  `UnitAlias`) are file-locals too and cannot be reached at all. What IS
+  reachable: `CurrentBuffs` (line 91, a real global) and the global functions
+  that read it — which is why the warlock-pet gate sweeps that table from
+  `PallyPower_UpdateUI` and `PallyPowerBuffButton_OnClick` instead of stopping
+  the scan. It declines to CAST; the `classID 9` assignment is still stored and
+  broadcast byte-identically, so `PLPWR` is untouched.
 - **Strip snapping and the rotation "next three" — untested in-game.**
   `SnapStrip` in `Aegis_Strip.lua` runs on every strip's `OnDragStop` and lines
   a strip up flush with a screen edge or another strip within 12px. All of its

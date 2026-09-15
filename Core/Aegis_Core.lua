@@ -285,6 +285,9 @@ end
 -- "raid12pet" is never produced by BuildRoster - ours is "raidpetN"), or nil
 -- for anything that isn't a pet token. Vanilla has no "is this a pet" query,
 -- so ownership is read off the index the pet shares with its owner.
+-- Exported: the vendored PallyPower engine builds its own roster with exactly
+-- these token shapes, and the paladin pet gate in Aegis_Popout.lua reuses this
+-- rather than keeping a second copy of the patterns.
 local function PetOwnerUnit(u)
     if u == "pet" then return "player" end
     local _, _, n = string.find(u, "^partypet(%d+)$")
@@ -292,6 +295,31 @@ local function PetOwnerUnit(u)
     _, _, n = string.find(u, "^raidpet(%d+)$")
     if n then return "raid" .. n end
     return nil
+end
+AegisRP.PetOwnerUnit = PetOwnerUnit
+
+-- Should the automatic buffing paths SKIP this unit because it is a pet whose
+-- owner we can see is not a hunter? Answers for any unit, not just pets:
+--
+--   not a pet            -> false (nothing to skip)
+--   a hunter's pet       -> false
+--   owner's class UNKNOWN-> false, deliberately. "Cannot tell" is permission,
+--                           never refusal: refusing here would make a hunter
+--                           pet silently unbuffable during roster churn with
+--                           nothing on screen to say why, which is the exact
+--                           failure that rule exists to prevent. Letting one
+--                           blessing through in that window is the cheaper
+--                           mistake, and it is the behaviour we had anyway.
+--   a warlock's demon    -> true
+--
+-- Separate from IsHunterPet below because that one answers a different
+-- question and collapses "no" and "don't know" into the same false.
+function AegisRP.PetSkippedForBuffs(u)
+    local owner = PetOwnerUnit(u)
+    if not owner then return false end
+    local _, cls = UnitClass(owner)
+    if not cls then return false end
+    return cls ~= "HUNTER"
 end
 
 -- Hunter pets are permanent raid members; a warlock's demon is resummoned

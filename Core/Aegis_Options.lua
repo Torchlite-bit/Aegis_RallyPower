@@ -604,6 +604,17 @@ local function ButtonsTabEntries()
               tip = "Skip players who already carry a suitable blessing.",
               get = function() return PP_PerUser and PP_PerUser.smartbuffs end,
               set = function(v) if PP_PerUser then PP_PerUser.smartbuffs = v and 1 or false end end },
+            { type = "check", label = "Bless warlock pets", default = false,
+              tip = "Off by default. PallyPower puts every pet in one Pets column, "
+                 .. "so a felhunter gets blessed exactly like a hunter's cat - and a "
+                 .. "demon is resummoned mid-fight, so the blessing is usually wasted "
+                 .. "the moment it dies or gets banished.\nTurn this on for a group "
+                 .. "that really wants them, such as a warlock tanking on a voidwalker.",
+              get = function() return AegisRP_Settings.blessWarlockPets == true end,
+              set = function(v)
+                  AegisRP_Settings.blessWarlockPets = v and true or nil
+                  if PallyPower_ScanRaid then PallyPower_ScanRaid() end
+              end },
             { type = "check", label = "Use normal (non-Greater) blessings",
               get = function() return PP_PerUser and PP_PerUser.regularblessings end,
               set = function(v) if PP_PerUser then PP_PerUser.regularblessings = (v and true or false) end end },

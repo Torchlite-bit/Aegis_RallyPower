@@ -89,6 +89,13 @@ phase assumes.
 - ✅ **Strip visibility in Options** (v1.7.0) — one checkbox per strip the
   character actually has, and a single writer for shown state so a frame and
   its saved flag cannot disagree.
+- 🟡 **Hunter-only pet auto-buffing, paladin half** (v1.13.3) — reported from
+  a live raid: paladins were still blessing warlock demons. The rule had only
+  ever covered our own Core, which paladins do not run; the vendored engine
+  puts every pet in one column with no owner check. Gated from our side by
+  sweeping `CurrentBuffs[9]` before each repaint and each buff-button click,
+  with a "Bless warlock pets" opt-out. `PallyPower/` and the `PLPWR` wire are
+  untouched.
 - 🟡 **Hunter-only pet auto-buffing** (v1.5.0) — a warlock's demon is
   resummoned mid-fight, so buffing it is usually wasted. A manually targeted
   pet is unaffected; only the automatic scan is scoped.

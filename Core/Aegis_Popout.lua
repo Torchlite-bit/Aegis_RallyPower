@@ -499,6 +499,59 @@ function PallyPowerBuffButton_OnEnter(btn)
 end
 
 --=============================================================================
+-- Keep the engine's PET column off warlock demons.
+--
+-- PallyPower treats pets as its own class (classID 9) and puts EVERY pet in
+-- it - `addUnit(up, 9)` for every raidpetN/partypetN, with no owner check
+-- (PallyPower.lua:2995). So a paladin blesses a felhunter exactly like a
+-- hunter's cat. A demon is resummoned mid-fight and the blessing is usually
+-- wasted the moment it dies or gets banished, which is the same reason our own
+-- Core scopes pet auto-buffing to hunters - except `IsHunterPet` lives in
+-- Aegis_Core.lua, which paladins never run, so the rule never reached this
+-- class until now.
+--
+-- WHERE this had to hook, because the obvious places are all unreachable:
+-- `RebuildRoster` and `ScanOneUnit` look like globals but are forward-declared
+-- file-locals (PallyPower.lua:104-105), so replacing either from here sets a
+-- global nothing calls - a silent no-op, which is worse than an error. What IS
+-- reachable is `CurrentBuffs` (PallyPower.lua:91, a real global) and the two
+-- global functions that read it. So instead of stopping the scan, we take the
+-- demons back out of the pet bucket at the two moments it matters:
+--
+--   * before every repaint, so the bar's "needs" count never includes one;
+--   * before every buff-button click, so a cast can never reach one even if a
+--     scan slipped in since the last repaint.
+--
+-- Save-and-replace, per wrap-don't-rewrite: PallyPower/ stays byte-identical,
+-- and nothing about the PLPWR wire changes - classID 9 assignments are still
+-- stored and broadcast exactly as stock does. We only decline to CAST.
+--
+-- Bounded by the number of pets in the group, and neither caller is a stormable
+-- event handler, so this is nowhere near hard rule 7's territory.
+--=============================================================================
+local function PruneWarlockPets()
+    -- opt-out for a group that genuinely wants demons blessed (a warlock
+    -- tanking on a voidwalker, a levelling party). Read at call time: a
+    -- SavedVariable is nil until ADDON_LOADED.
+    if AegisRP_Settings.blessWarlockPets == true then return end
+    if not AegisRP.PetSkippedForBuffs then return end
+    local bucket = CurrentBuffs and CurrentBuffs[9]
+    if not bucket then return end
+    -- assigning nil to the key pairs() is currently on is explicitly legal
+    for unit in pairs(bucket) do
+        if AegisRP.PetSkippedForBuffs(unit) then bucket[unit] = nil end
+    end
+end
+
+local orig_BuffButton_OnClick = PallyPowerBuffButton_OnClick
+if orig_BuffButton_OnClick then
+    function PallyPowerBuffButton_OnClick(btn, mousebtn)
+        PruneWarlockPets()
+        return orig_BuffButton_OnClick(btn, mousebtn)
+    end
+end
+
+--=============================================================================
 -- TEST MODE: force ALL blessing class buttons visible on the legacy bar.
 --
 -- The engine only shows a class button for a class that has an assignment AND
@@ -515,6 +568,9 @@ local BLESS_DEMO = 1     -- Might icon as the placeholder art for empty cells
 
 local orig_PallyPower_UpdateUI = PallyPower_UpdateUI
 function PallyPower_UpdateUI()
+    -- before the engine draws, so a demon is never counted in the pet
+    -- button's "needs" number (see PruneWarlockPets)
+    PruneWarlockPets()
     if orig_PallyPower_UpdateUI then orig_PallyPower_UpdateUI() end
     if not (AegisRP and AegisRP.IsTestMode and AegisRP.IsTestMode()) then return end
     local _, eclass = UnitClass("player")
