@@ -14,6 +14,38 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.13.3] — 2026-09-15
+### Fixed
+- **A paladin no longer blesses warlock demons.** The hunter-only pet rule has
+  been in the addon since 1.5.0, but it only ever covered `FindUnitToBuff` in
+  our own Core — which paladins never run. They run the vendored engine, and
+  PallyPower puts every pet in one `classID 9` column with no owner check, so
+  a felhunter got blessed exactly like a hunter's cat. A demon is resummoned
+  mid-fight, so that blessing is usually wasted the moment it dies or gets
+  banished.
+- The demon is also no longer **counted** in the pet button's "needs" number,
+  so the bar stops asking for a cast that would be thrown away.
+
+### Added
+- **"Bless warlock pets"** on the paladin Buttons tab, off by default. For a
+  group that genuinely wants them — a warlock tanking on a voidwalker, a
+  levelling party.
+
+### Notes
+- `PallyPower/` stays byte-identical, and the `PLPWR` wire is unchanged: a
+  `classID 9` assignment is still stored and broadcast exactly as stock does.
+  We only decline to cast.
+- **An unresolvable owner counts as permission, not refusal.** If a pet's
+  owner has no readable class — out of range, mid roster change — the pet is
+  buffed rather than skipped. Refusing would make a hunter pet silently
+  unbuffable with nothing on screen to explain it, which is the worse failure.
+- New off-client suite `scripts/test_pets.lua`: the pet token shapes (pinned
+  against the shapes the vendored engine actually builds, since a mismatch
+  means the gate never fires) and the owner-class gate, including that the
+  gate reopens when a class becomes unreadable again rather than latching
+  shut. Three matching sabotages; all 34 caught.
+- Not yet seen in game.
+
 ## [1.13.2] — 2026-09-04
 ### Fixed
 - **Nothing in the Options frame was clickable once it docked** (regression in

@@ -34,6 +34,7 @@ SUITES = {
     "groupbuff": "scripts/test_groupbuff.lua",
     "rotation":  "scripts/test_rotation.lua",
     "strip":     "scripts/test_strip.lua",
+    "pets":      "scripts/test_pets.lua",
     "cc":        "scripts/test_cc.lua",
 }
 
@@ -131,6 +132,29 @@ SABOTAGES = [
      '        if table.getn(ents) > 0 then table.insert(parts, "p" .. table.concat(ents, ",")) end',
      '        if false then table.insert(parts, "p" .. table.concat(ents, ",")) end',
      "groupbuff"),
+
+    # ---- pet ownership ---------------------------------------------------
+    # "Cannot tell whose pet this is" must be permission, not refusal. Treating
+    # it as refusal makes a hunter pet quietly unbuffable during roster churn,
+    # with nothing on screen saying why.
+    ("pet-unknown-owner-refused", "Core/Aegis_Core.lua",
+     "    if not cls then return false end",
+     "    if not cls then return true end",
+     "pets"),
+
+    # The gate only fires if it matches the token shapes the VENDORED engine
+    # builds. Retail's raid12pet is not one of them; matching it would map to
+    # the wrong owner index entirely.
+    ("pet-token-loose-match", "Core/Aegis_Core.lua",
+     '    _, _, n = string.find(u, "^raidpet(%d+)$")',
+     '    _, _, n = string.find(u, "raidpet(%d+)")',
+     "pets"),
+
+    # Inverting it blesses only demons, which is the bug with a minus sign.
+    ("pet-gate-inverted", "Core/Aegis_Core.lua",
+     '    return cls ~= "HUNTER"',
+     '    return cls == "HUNTER"',
+     "pets"),
 
     # ---- crowd control ---------------------------------------------------
     # CC shares the duty catalog AND its wid space. Accepting a non-CC wid in
