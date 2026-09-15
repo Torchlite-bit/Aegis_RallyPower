@@ -93,12 +93,13 @@ phase assumes.
   a live raid: paladins were still blessing warlock demons. The rule had only
   ever covered our own Core, which paladins do not run; the vendored engine
   puts every pet in one column with no owner check. Gated from our side by
-  sweeping `CurrentBuffs[9]` before each repaint and each buff-button click,
-  with a "Bless warlock pets" opt-out. `PallyPower/` and the `PLPWR` wire are
-  untouched.
-- 🟡 **Hunter-only pet auto-buffing** (v1.5.0) — a warlock's demon is
-  resummoned mid-fight, so buffing it is usually wasted. A manually targeted
-  pet is unaffected; only the automatic scan is scoped.
+  sweeping `CurrentBuffs[9]` before each repaint and each buff-button click.
+  `PallyPower/` and the `PLPWR` wire are untouched. The "Bless warlock pets"
+  opt-out that shipped alongside it was removed in v1.13.4: a demon cannot take
+  the buff at all, so there was nothing to opt into.
+- 🟡 **Hunter-only pet auto-buffing** (v1.5.0) — a warlock's demon does not
+  take these buffs at all, so the cast cannot land. A manually targeted pet is
+  unaffected; only the automatic scan is scoped.
 - 🟡 **Rotation "next three" rows** (v1.6.0) — off by default. The rows follow
   the rotation ORDER, not the availability queue, so names don't reshuffle as
   cooldowns tick.

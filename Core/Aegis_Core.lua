@@ -41,8 +41,8 @@
 --     ids       = { spellID, ... } applied-aura spell id(s)  [SuperWoW path]
 --     icons     = { "IconBaseName", ... } applied-aura icon basename(s) [fallback]
 --     pet       = true to also track the buff on pets (optional). Scoped to
---                 HUNTER pets only - a warlock's demon is resummoned mid-fight
---                 and a buff on it is usually wasted (see IsHunterPet)
+--                 HUNTER pets only - a warlock's demon does not take these
+--                 buffs at all, so the cast cannot land (see IsHunterPet)
 --     dur/gdur  = single/group buff duration in seconds (drives the timer)
 --     selfcast  = true for shouts/auras cast on yourself that buff nearby party
 --                 (e.g. Battle Shout): a click just casts it, no per-member aim
@@ -322,10 +322,14 @@ function AegisRP.PetSkippedForBuffs(u)
     return cls ~= "HUNTER"
 end
 
--- Hunter pets are permanent raid members; a warlock's demon is resummoned
--- mid-fight and a buff cast on it is usually wasted the moment it dies or gets
--- banished. Auto-buffing pets is scoped to hunters only for that reason - a
--- manually targeted pet (the "target" shortcut below) is unaffected, since
+-- Auto-buffing pets is scoped to hunters because a warlock's demon does not
+-- take these buffs at all - confirmed on realm, and reported first as the
+-- paladin bar "still trying to buff warlock pets", which is exactly what an
+-- impossible cast looks like from the outside. It is not that the blessing is
+-- wasted on something that gets resummoned; it never lands, so a bar that
+-- counts a demon as needing one asks forever.
+--
+-- A manually targeted pet (the "target" shortcut below) is unaffected, since
 -- that's an explicit click, not the automatic roster scan.
 local function IsHunterPet(u)
     local owner = PetOwnerUnit(u)

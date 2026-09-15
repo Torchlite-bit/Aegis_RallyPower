@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.13.3**. See `CHANGELOG.md` for the full history,
+Current version: **1.13.4**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -398,9 +398,15 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   the real spellbook texture. This was the worked example of the catalog being
   the whole fix: two entries, no engine change.
 - **Pet auto-buffing is Hunter-only, on BOTH sides — the paladin half was
-  missed for eight releases.** A demon gets resummoned mid-fight and the buff
-  is usually wasted the moment it dies or gets banished, so `pet=true` buffs
-  only auto-target a Hunter's pet. Ownership is read off the raid index a pet
+  missed for eight releases.** **A warlock's demon does not take these buffs at
+  all** (confirmed on realm), so the cast cannot land: a bar that counts one as
+  needing a blessing asks forever, which is what "still trying to buff warlock
+  pets" looks like from the outside. `pet=true` buffs therefore only
+  auto-target a Hunter's pet.
+  The reason matters, because the first version of this note said the blessing
+  was merely *wasted* on something that gets resummoned — and that reading
+  produced a pointless "Bless warlock pets" opt-out in 1.13.3, removed in
+  1.13.4. **There is nothing to opt into**; do not add the switch back. Ownership is read off the raid index a pet
   token shares with its owner (`PetOwnerUnit`, `Aegis_Core.lua`); a manually
   targeted pet (the `"target"` shortcut) is unaffected, since that's an
   explicit click, not the automatic scan.
@@ -428,8 +434,9 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   reachable: `CurrentBuffs` (line 91, a real global) and the global functions
   that read it — which is why the warlock-pet gate sweeps that table from
   `PallyPower_UpdateUI` and `PallyPowerBuffButton_OnClick` instead of stopping
-  the scan. It declines to CAST; the `classID 9` assignment is still stored and
-  broadcast byte-identically, so `PLPWR` is untouched.
+  the scan, and nothing gates that sweep (see the pet note above). It declines
+  to CAST; the `classID 9` assignment is still stored and broadcast
+  byte-identically, so `PLPWR` is untouched.
 - **Strip snapping and the rotation "next three" — untested in-game.**
   `SnapStrip` in `Aegis_Strip.lua` runs on every strip's `OnDragStop` and lines
   a strip up flush with a screen edge or another strip within 12px. All of its

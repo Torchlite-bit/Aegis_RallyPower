@@ -14,6 +14,26 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.13.4] — 2026-09-15
+### Removed
+- **The "Bless warlock pets" option**, added one release ago. A warlock's demon
+  does not take these buffs at all, so the switch offered something the game
+  will not do either way. A `blessWarlockPets` value stored by 1.13.3 is inert.
+
+### Changed
+- **The reason recorded for the hunter-only pet rule was wrong, and the right
+  one is stronger.** It is not that a blessing on a demon is wasted because the
+  demon gets resummoned — the cast never lands, so a bar that counts one as
+  needing a blessing asks forever. That is what the original report was
+  describing. Corrected in the code comments, `CLAUDE.md` and
+  `docs/ROADMAP.md`, since the weaker reading is what produced the pointless
+  option.
+
+### Notes
+- No behaviour change beyond the option: the gate already pruned demons
+  unconditionally unless the switch was on, and nothing else read it.
+- Not yet seen in game.
+
 ## [1.13.3] — 2026-09-15
 ### Fixed
 - **A paladin no longer blesses warlock demons.** The hunter-only pet rule has
