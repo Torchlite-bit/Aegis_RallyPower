@@ -503,12 +503,18 @@ end
 --
 -- PallyPower treats pets as its own class (classID 9) and puts EVERY pet in
 -- it - `addUnit(up, 9)` for every raidpetN/partypetN, with no owner check
--- (PallyPower.lua:2995). So a paladin blesses a felhunter exactly like a
--- hunter's cat. A demon is resummoned mid-fight and the blessing is usually
--- wasted the moment it dies or gets banished, which is the same reason our own
--- Core scopes pet auto-buffing to hunters - except `IsHunterPet` lives in
--- Aegis_Core.lua, which paladins never run, so the rule never reached this
--- class until now.
+-- (PallyPower.lua:2995). So a paladin's pet column counts a felhunter exactly
+-- like a hunter's cat.
+--
+-- And the cast can never land: a warlock's demon does not take these buffs at
+-- all (confirmed on realm). That is the whole reason this matters, and it is
+-- stronger than the one first written here - the column does not merely waste
+-- a blessing on something that will be resummoned, it asks forever for a cast
+-- that cannot succeed, so the bar never stops showing the need.
+--
+-- The same rule already scoped OUR Core's pet buffing to hunters, but
+-- `IsHunterPet` lives in Aegis_Core.lua, which paladins never run, so it never
+-- reached this class until 1.13.3.
 --
 -- WHERE this had to hook, because the obvious places are all unreachable:
 -- `RebuildRoster` and `ScanOneUnit` look like globals but are forward-declared
@@ -529,11 +535,11 @@ end
 -- Bounded by the number of pets in the group, and neither caller is a stormable
 -- event handler, so this is nowhere near hard rule 7's territory.
 --=============================================================================
+-- No option gates this, deliberately. 1.13.3 shipped a "Bless warlock pets"
+-- checkbox and it was pointless: a demon cannot take these buffs at all, so
+-- the switch offered something the game will not do either way. A stored
+-- `blessWarlockPets` from that release is inert and harmless.
 local function PruneWarlockPets()
-    -- opt-out for a group that genuinely wants demons blessed (a warlock
-    -- tanking on a voidwalker, a levelling party). Read at call time: a
-    -- SavedVariable is nil until ADDON_LOADED.
-    if AegisRP_Settings.blessWarlockPets == true then return end
     if not AegisRP.PetSkippedForBuffs then return end
     local bucket = CurrentBuffs and CurrentBuffs[9]
     if not bucket then return end
