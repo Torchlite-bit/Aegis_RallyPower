@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.13.5**. See `CHANGELOG.md` for the full history,
+Current version: **1.14.0**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -610,7 +610,22 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   before it shipped and `cc-never-broadcast` keeps it caught. Any NEW domain
   needs the same line in `A.Subscribe` in `Aegis_Sync.lua` — serialising it is
   only half the job.
-- **Phase 3 remaining:** raid markers + roles.
+- **The Marks strip (`MARKSTRIP`, `Aegis_AssignPanel.lua`) — untested
+  in-game.** Eight buttons, one per raid icon, acting on your TARGET: left sets,
+  right clears (index 0 removes a mark). It reuses `CC.MARKS` / `CC.ORDER`
+  rather than a second copy of the icons, and it is ONE file-scope local for
+  the same reason `CC` is — this file has hit the 200-local ceiling once.
+  **No permission pre-check.** Whether you may mark depends on lead/assist and
+  a guess that says no is exactly the gate-closed-on-an-unknown failure; the
+  server ignores a call you may not make, and the button reads its highlight
+  back off the unit, so a mark that did not take simply never lights up. That
+  is the feedback, and it needs no guess.
+  It is **opt-in on first run** (`stripHidden_marks` seeded true at build time,
+  not at file scope) because eight buttons is a tall frame to drop on someone
+  during an update; after that the player's choice persists like any strip.
+  Built at `PLAYER_LOGIN` for every class, so Options lists "Show Marks"
+  without the player having to find `/rpc marks` first.
+- **Phase 3 remaining:** the rest of raid markers + roles.
   **Raid marks are CONFIRMED to work BOTH WAYS on Turtle 1.18.1.**
   `SetRaidTarget` and `GetRaidTargetIndex` both exist, and a mark set on a unit
   reads straight back from it (`SetRaidTarget("target", 8)` then

@@ -14,6 +14,34 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-09-17
+### Added (the marker strip — Phase 3.2)
+- **A Marks strip: eight buttons, one per raid icon, acting on your target.**
+  Left-click puts that mark on your target, right-click clears whatever mark it
+  carries. It is in the usual strip family — movable, scalable, snaps to your
+  other strips, listed under Options → Strips — so it sits with the Kick and
+  Taunt strips rather than being a window of its own.
+- **The button for the mark your target already carries lights up**, read back
+  off the unit with `GetRaidTargetIndex` and refreshed on the strip's own tick.
+  That is also the only feedback needed for permission: a mark you were not
+  allowed to set never lights up.
+- **`/rpc marks`** toggles it (`/rpc mark` works too).
+
+### Notes
+- **It starts hidden.** Eight buttons is a tall frame and nobody asked for one
+  to land in the middle of their screen on an update, so it is opt-in on first
+  run; after that the shown/hidden choice is remembered like any other strip.
+  Show it with `/rpc marks` or the "Show Marks" box in Options.
+- Not class-gated: any class can be asked to mark.
+- **No permission pre-check before marking.** Whether you may mark depends on
+  lead/assist, and a guess that says no is the shape that makes a button
+  quietly stop working with nothing saying why. The server ignores a call you
+  are not allowed to make, and the highlight is read back from the unit — so
+  the strip tells the truth without guessing.
+- The strip reuses the Crowd Ctrl tab's mark catalog rather than keeping a
+  second copy of the eight icons.
+- Not yet seen in game.
+
 ## [1.13.5] — 2026-09-17
 ### Changed
 - **The Kick and Taunt strips now read green when the ability is usable and red
