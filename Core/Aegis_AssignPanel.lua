@@ -2650,6 +2650,113 @@ function AegisRP.HasTaunt()     return MyClassHas(ROT.taunt) end
 function AegisRP.BuildKickStrip()  return BuildRotStrip(ROT.kick)  end
 function AegisRP.BuildTauntStrip() return BuildRotStrip(ROT.taunt) end
 
+--------------------------------------------------------------------------
+-- THE MARKER STRIP - eight buttons, one per raid icon, acting on your target.
+--
+-- The Crowd Ctrl tab PLANS which mark each CC goes on; this is the thing you
+-- click mid-pull, so it lives in the strip family with everything else:
+-- movable, scalable, snaps to the other strips, listed in Options.
+--
+-- It reuses CC.MARKS and CC.ORDER rather than carrying its own copy of the
+-- eight icons - a second catalog is the DUTY_ICONS mistake waiting to happen.
+-- And it is ONE file-scope local, because this is the file that has already
+-- hit Lua's 200-local ceiling once (hard rule 9).
+--------------------------------------------------------------------------
+
+local MARKSTRIP = {}
+
+-- The mark on your current target, or nil. An unmarked unit answers 0 on some
+-- calls and nil on others; both mean the same thing here.
+function MARKSTRIP.OnTarget()
+    if not (GetRaidTargetIndex and UnitExists("target")) then return nil end
+    local i = GetRaidTargetIndex("target")
+    if not i or i == 0 then return nil end
+    return i
+end
+
+function MARKSTRIP.Hex(rgb)
+    return string.format("|cff%02x%02x%02x",
+        math.floor(rgb[1] * 255), math.floor(rgb[2] * 255), math.floor(rgb[3] * 255))
+end
+
+-- Left sets this mark on your target, right clears whatever it carries (index
+-- 0 removes a mark).
+--
+-- No permission pre-check. Whether you MAY mark depends on lead/assist and we
+-- would be guessing at it - and a guess that says no is the shape that makes a
+-- button quietly stop working with nothing saying why. The server ignores a
+-- call you are not allowed to make, and the button reads its highlight back
+-- off the unit on the next tick, so a mark that did not take simply never
+-- lights up. That is the honest feedback, and it needs no guess.
+function MARKSTRIP.Click(mark, mb)
+    if not SetRaidTarget then
+        Msg("This client has no SetRaidTarget, so marks can't be set.")
+        return
+    end
+    if not UnitExists("target") then
+        Msg("Target something first, then click a mark.")
+        return
+    end
+    if mb == "RightButton" then
+        SetRaidTarget("target", 0)
+    else
+        SetRaidTarget("target", mark)
+    end
+end
+
+function MARKSTRIP.Build()
+    if MARKSTRIP.strip then return MARKSTRIP.strip end
+    -- Opt-in on first run: this is eight buttons tall and nobody asked for it
+    -- to land in the middle of their screen on an update. Once shown, the flag
+    -- is false and the player's choice is what persists.
+    if AegisRP_Settings.stripHidden_marks == nil then
+        AegisRP_Settings.stripHidden_marks = true
+    end
+    local S = AegisRP.NewStrip("marks", "Marks")
+    MARKSTRIP.strip = S
+    for i = 1, table.getn(CC.ORDER) do
+        local mark = CC.ORDER[i]
+        local m = CC.MARKS[mark]
+        S:AddButton{
+            -- unique per mark: Reflow gates a button on btn_<key>, so a shared
+            -- key would hide all eight together
+            key = "mark" .. mark,
+            refresh = function(b)
+                b:SetIcon(m.tex)
+                b:SetLabel(MARKSTRIP.Hex(m.rgb) .. m.name .. "|r")
+                b:SetTimer("")
+                if MARKSTRIP.OnTarget() == mark then
+                    b:SetSub("|cff5be07aon " .. (UnitName("target") or "?") .. "|r")
+                    b:SetState("good")
+                else
+                    b:SetSub("")
+                    b:SetState("off")
+                end
+            end,
+            onClick = function(b, mb) MARKSTRIP.Click(mark, mb) end,
+            tooltip = function(b, tt)
+                tt:AddLine(m.name, m.rgb[1], m.rgb[2], m.rgb[3])
+                tt:AddLine("Click: put this mark on your target", 1, 1, 1)
+                tt:AddLine("Right-click: clear your target's mark", 0.7, 0.7, 0.7)
+                tt:AddLine("In a raid that needs lead or assist.", 0.6, 0.6, 0.6)
+            end,
+        }
+    end
+    S:Finish()
+    return S
+end
+
+-- /rpc marks - show/hide (also builds on first use)
+function AegisRP_ToggleMarkStrip()
+    local ok, S = pcall(MARKSTRIP.Build)
+    if not ok then
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff5555Aegis error:|r " .. tostring(S)
+            .. " |cffaaaaaa(marks strip)|r")
+        return
+    end
+    if S and S.Toggle then S:Toggle() end
+end
+
 -- Build the strips once, for classes that actually have the ability. Deferred
 -- to login because it needs the player's class. Hiding works exactly like every
 -- other strip - /rpc kick, /rpc taunt - and the strip engine remembers it.
@@ -2665,6 +2772,14 @@ rotInit:SetScript("OnEvent", function()
                     .. " |cffaaaaaa(" .. r.kind .. " strip)|r")
             end
         end
+    end
+    -- Marks are not class-gated: every class can be asked to mark. Built here
+    -- rather than on first use so Options lists "Show Marks" without needing
+    -- the player to find the slash command first.
+    local ok, err = pcall(MARKSTRIP.Build)
+    if not ok then
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff5555Aegis error:|r " .. tostring(err)
+            .. " |cffaaaaaa(marks strip)|r")
     end
 end)
 

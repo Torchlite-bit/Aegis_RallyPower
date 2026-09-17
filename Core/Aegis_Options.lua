@@ -436,7 +436,8 @@ end
 -- buttons - that is what tells you which frame on screen a row refers to.
 -- Bound through AegisRP.SetStripShown so these agree with /rpc kick, /rpc taunt
 -- and a strip's own Toggle instead of being a second, rival writer.
-local SLASH_FOR_STRIP = { kick = "/rpc kick", taunt = "/rpc taunt", classbuffs = "/rpc" }
+local SLASH_FOR_STRIP = { kick = "/rpc kick", taunt = "/rpc taunt",
+                          marks = "/rpc marks", classbuffs = "/rpc" }
 
 -- `noHeader` is for a caller that has already opened a "Strips" section of its
 -- own (the Paladin tab, which puts the strip settings above these toggles).
