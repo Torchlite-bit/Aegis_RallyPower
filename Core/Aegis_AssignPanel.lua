@@ -2471,15 +2471,28 @@ end
 --
 -- The panel's Rotations tab is where a rotation gets PLANNED; a strip is where
 -- it gets USED, so it answers exactly one question at a glance: is it me?
--- Colours keep the addon's language - red means act, never "you're fine" - so
--- it reads the same way as every other strip under pressure.
+--
+-- The BACKDROP carries readiness and nothing else: green = your ability is up,
+-- red = it is on cooldown. WHOSE TURN it is rides in the label instead - red
+-- "KICK NOW", amber "On deck" - which is how the Rotations tab has always drawn
+-- the same data: a ready member gets a green row whether or not they are the one
+-- up, with a red "UP" tag on top of it.
+--
+-- This inverts the strip against the class-buff strips, where red means a buff
+-- is MISSING. Deliberate. Those show COVERAGE, where red is a gap to go fill;
+-- this shows a COOLDOWN, where green-means-usable is what every cooldown display
+-- does and what the tab beside it already did. Until 1.13.5 the strip and the
+-- tab disagreed about the same numbers, which is the worse inconsistency of the
+-- two.
 --------------------------------------------------------------------------
 
 local ROT_STATE = {
-    now  = { state = "need" },                              -- label is built per rotation
-    deck = { label = "|cffffcc00On deck|r",  state = "warn" },
+    -- three `good`s on purpose: all three mean "your ability is up", and the
+    -- label is what separates them
+    now  = { state = "good" },                              -- label is built per rotation
+    deck = { label = "|cffffcc00On deck|r",  state = "good" },
     hold = { label = "|cff5be07aHolding|r",  state = "good" },
-    cd   = { label = "|cff888888Cooldown|r", state = "off"  },
+    cd   = { label = "|cff888888Cooldown|r", state = "need" },
 }
 
 -- "|cffRRGGBB" for a class token, so a strip row can colour a name the way the
@@ -2517,10 +2530,13 @@ local function RotRowRefresh(r, idx, b)
     local rem = RotRemaining(r, name)
     b:SetTimer(rem > 0 and AegisRP.FmtTime(rem) or "")
     local q = RotQueue(r)
+    -- same rule as the button above: backdrop = readiness, label = turn.
+    -- `away` stays neutral rather than red - they are not on cooldown, they
+    -- are dead or gone, which is not a thing a timer will fix.
     if name == q[1] then
-        b:SetSub("|cffff4040UP|r");            b:SetState("need")
+        b:SetSub("|cffff4040UP|r");            b:SetState("good")
     elseif rem > 0 then
-        b:SetSub("|cff888888cooldown|r");      b:SetState("off")
+        b:SetSub("|cff888888cooldown|r");      b:SetState("need")
     elseif RotAvailable(r, name) then
         b:SetSub("|cff5be07aready|r");         b:SetState("good")
     else

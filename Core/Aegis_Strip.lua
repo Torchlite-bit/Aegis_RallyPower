@@ -47,8 +47,12 @@ local SKIN = {
 }
 -- good/need/off are PallyPower's own three (locked). `warn` is ours: amber for
 -- "not yet, but be ready" - the same meaning yellow already carries on the
--- Core's class rows (a buff about to expire), reused by the kick rotation's
--- on-deck state.
+-- Core's class rows (a buff about to expire).
+--
+-- `warn` has no backdrop user as of 1.13.5: the rotation strips took it for
+-- their on-deck state and gave it back, because on deck means the ability IS
+-- up and the backdrop there carries readiness only. It stays in the engine's
+-- vocabulary for the next thing that genuinely means "soon".
 local COLORS = {
     good = { 0, 0.7, 0, 0.5 },
     need = { 1, 0,   0, 0.5 },

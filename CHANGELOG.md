@@ -14,6 +14,30 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.13.5] — 2026-09-17
+### Changed
+- **The Kick and Taunt strips now read green when the ability is usable and red
+  when it is on cooldown** — the reverse of what they did. Previously "your
+  turn" was red and a cooldown was grey, which is an alarm scheme; a cooldown
+  display wants a readiness scheme.
+- **This also makes the strip agree with the Rotations tab**, which has drawn it
+  the readiness way since it shipped: a ready member gets a green row, an
+  on-cooldown one a red row. The two had disagreed about the same numbers for
+  eight releases.
+- On both, the **backdrop is readiness only** and whose turn it is rides in the
+  label: a red "UP" / "KICK NOW" tag, an amber "On deck". So "on deck" is now
+  green too — the ability is up; the amber is in the text, exactly as the tab
+  already did it.
+- `away` on a queue row stays neutral grey rather than going red. Those members
+  are dead or gone, which is not something a timer will fix.
+
+### Notes
+- Colour only. No timer, order, cooldown or sync behaviour changed.
+- Not yet seen in game — colour is one of the things `check.sh` deliberately
+  cannot judge.
+- The strip engine's amber `warn` state now has no user. It stays in the
+  vocabulary for the next thing that genuinely means "soon".
+
 ## [1.13.4] — 2026-09-15
 ### Removed
 - **The "Bless warlock pets" option**, added one release ago. A warlock's demon

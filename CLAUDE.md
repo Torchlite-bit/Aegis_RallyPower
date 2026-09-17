@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.13.4**. See `CHANGELOG.md` for the full history,
+Current version: **1.13.5**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -437,6 +437,18 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   the scan, and nothing gates that sweep (see the pet note above). It declines
   to CAST; the `classID 9` assignment is still stored and broadcast
   byte-identically, so `PLPWR` is untouched.
+- **The rotation strips read GREEN = usable, RED = on cooldown — the opposite
+  of the class-buff strips, on purpose (1.13.5).** A buff strip shows COVERAGE,
+  where red is a gap to go fill; a rotation strip shows a COOLDOWN, where
+  green-means-usable is what every cooldown display does. On both the strip and
+  the Rotations tab the **backdrop is readiness and nothing else**, and WHOSE
+  TURN it is rides in the label — a red "UP"/"KICK NOW" tag, an amber "On deck"
+  — so a ready member is green whether or not they are the one up.
+  The tab had always drawn it that way and the strip had not, so the two
+  disagreed about the same numbers for eight releases. **If you touch one,
+  check the other**: `ROT_STATE` + `RotRowRefresh` (strip) and `RefreshRotTab`
+  (tab) are the two places, and nothing off-client can catch them drifting
+  apart — the panel needs a real client to load.
 - **Strip snapping and the rotation "next three" — untested in-game.**
   `SnapStrip` in `Aegis_Strip.lua` runs on every strip's `OnDragStop` and lines
   a strip up flush with a screen edge or another strip within 12px. All of its
