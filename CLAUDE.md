@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.13.5**. See `CHANGELOG.md` for the full history,
+Current version: **1.14.1**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -261,6 +261,7 @@ lua scripts/test_strip.lua       # strip engine: edge snapping + alpha floor
 lua scripts/test_duties.lua      # duty catalog: unique wids, tab fits its cards
 lua scripts/test_cc.lua          # crowd control: mark-major view + RPCX round-trip
 lua scripts/test_pets.lua        # pet token shapes + the owner-class gate
+lua scripts/test_soulstone.lua   # warlock soulstone tiers rank by name
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -610,7 +611,38 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   before it shipped and `cc-never-broadcast` keeps it caught. Any NEW domain
   needs the same line in `A.Subscribe` in `Aegis_Sync.lua` — serialising it is
   only half the job.
-- **Phase 3 remaining:** raid markers + roles.
+- **A TIERED family is ranked by NAME, never by list position.** Vanilla's
+  soulstones are Minor / Lesser / unprefixed / Greater / Major — five separate
+  spells and five separate items — and nothing orders either list by tier: the
+  spellbook is not guaranteed to be in learn order, and bag order is wherever
+  the player keeps things. `StoneTier` in `Class_Warlock.lua` scores the name;
+  `M.StoneTier` exposes it so `scripts/test_soulstone.lua` can check the
+  ordering off-client.
+  **Both halves shipped wrong until 1.14.1**, and for the same reason: the
+  create path and the bag lookup each took the LAST match, and alphabetically
+  `(Minor)` sorts last of the five — so the button reliably made and used the
+  weakest stone. A stone still appeared, which is why nothing complained.
+  **`AegisRP.FindBagItem` is last-match-wins by design** (right for a single
+  name, which is what the Rogue poisons want) and cannot express "best of a
+  family". A caller that needs that walks `AegisRP.BagItems()` — the cached bag
+  list, read-only — and scores the names itself. Healthstones, Spellstones and
+  Firestones are the same shape if they are ever added.
+- **The Marks strip (`MARKSTRIP`, `Aegis_AssignPanel.lua`) — untested
+  in-game.** Eight buttons, one per raid icon, acting on your TARGET: left sets,
+  right clears (index 0 removes a mark). It reuses `CC.MARKS` / `CC.ORDER`
+  rather than a second copy of the icons, and it is ONE file-scope local for
+  the same reason `CC` is — this file has hit the 200-local ceiling once.
+  **No permission pre-check.** Whether you may mark depends on lead/assist and
+  a guess that says no is exactly the gate-closed-on-an-unknown failure; the
+  server ignores a call you may not make, and the button reads its highlight
+  back off the unit, so a mark that did not take simply never lights up. That
+  is the feedback, and it needs no guess.
+  It is **opt-in on first run** (`stripHidden_marks` seeded true at build time,
+  not at file scope) because eight buttons is a tall frame to drop on someone
+  during an update; after that the player's choice persists like any strip.
+  Built at `PLAYER_LOGIN` for every class, so Options lists "Show Marks"
+  without the player having to find `/rpc marks` first.
+- **Phase 3 remaining:** the rest of raid markers + roles.
   **Raid marks are CONFIRMED to work BOTH WAYS on Turtle 1.18.1.**
   `SetRaidTarget` and `GetRaidTargetIndex` both exist, and a mark set on a unit
   reads straight back from it (`SetRaidTarget("target", 8)` then

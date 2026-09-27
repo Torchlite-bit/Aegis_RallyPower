@@ -172,9 +172,29 @@ validated the tank slots.
   Neither is raid CC in practice; if one is ever wanted, it needs a home file
   decided first.
 
-### 3.2 Raid markers + roles ⬜
-**Unblocked — both prerequisites confirmed on Turtle 1.18.1.** Nothing about
-the API stands in the way now; what is left is the feature itself.
+### 3.2 Raid markers + roles 🚧
+**The marker strip shipped in v1.14.0 (🟡 untested in-game).** The roles half
+was already built — the Roles tab has MT/OT slots, healers and tank blessings
+— so what was left of this item was markers, and the in-combat tool is the
+piece that was missing.
+
+- 🟡 **Marks strip** (v1.14.0) — eight buttons, one per raid icon, on your
+  target: left sets, right clears. In the usual strip family (movable,
+  scalable, snaps, listed in Options). The button for the mark your target
+  already carries lights up, read back with `GetRaidTargetIndex`. `/rpc marks`.
+  **Opt-in on first run**: eight buttons is a tall frame to drop on someone
+  during an update.
+- ⬜ **Marks for the tank slots** — give MT/OT1/OT2 a mark and a button to
+  apply them to whoever holds the slots. This is the piece that would actually
+  tie "markers" to "roles"; not built.
+- ⬜ **Live "which marks are out"** — deliberately not built. Vanilla cannot
+  enumerate marks in the world: `GetRaidTargetIndex` only answers for a unit
+  token you already hold, so the best available answer is a sweep of what the
+  raid is targeting, and an unmarked-looking row would often just mean nobody
+  is looking at it. Worth doing only if it is labelled as that weaker claim.
+
+**Both API prerequisites are confirmed on Turtle 1.18.1**, so nothing about the
+client stands in the way of the remaining two.
 
 - ✅ **`SetRaidTarget` exists** — marks can be assigned from the panel. Already
   used: clicking a mark icon on the Crowd Ctrl tab marks your current target.

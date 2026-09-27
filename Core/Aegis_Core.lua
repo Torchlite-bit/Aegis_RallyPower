@@ -1998,6 +1998,11 @@ SlashCmdList["AEGISRP"] = function(msg)
         if AegisRP_ToggleTauntStrip then AegisRP_ToggleTauntStrip() end
         return
     end
+    -- not class-gated: anyone can be asked to mark
+    if msg == "marks" or msg == "mark" then
+        if AegisRP_ToggleMarkStrip then AegisRP_ToggleMarkStrip() end
+        return
+    end
 
     -- Diagnostics: the live state of both rotations.
     --

@@ -125,6 +125,11 @@ local function BagContents()
     end
     return bagCache
 end
+-- NOTE: this returns the LAST match in bag order, which is arbitrary whenever
+-- several items share the pattern. A caller that has to pick the BEST of a
+-- tiered family (Minor/Lesser/Greater/Major Soulstone) must rank them itself -
+-- see StoneTier in Class_Warlock.lua - and walk AegisRP.BagItems() rather than
+-- hoping bag order happens to agree.
 function AegisRP.FindBagItem(pattern)
     local fb, fs, fn = nil, nil, nil
     local items = BagContents()
@@ -134,6 +139,14 @@ function AegisRP.FindBagItem(pattern)
         end
     end
     return fb, fs, fn
+end
+
+-- The cached bag list, as { {bag=, slot=, name=}, ... }. Treat it as read-only:
+-- it IS the cache, handed out rather than copied so a caller that needs to rank
+-- or filter does not trigger a second bag walk. Invalidated on BAG_UPDATE with
+-- everything else.
+function AegisRP.BagItems()
+    return BagContents()
 end
 
 -- cache invalidation

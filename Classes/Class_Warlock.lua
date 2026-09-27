@@ -118,17 +118,82 @@ local function SelectCurse(name)
     end
 end
 
--- highest "Create Soulstone" rank in the spellbook
+--------------------------------------------------------------------------
+-- SOULSTONE TIERS
+--
+-- Vanilla has five, as five separate SPELLS and five separate ITEMS:
+-- Minor / Lesser / (unprefixed) / Greater / Major. Neither list is ordered by
+-- tier anywhere we can rely on - the spellbook is not guaranteed to be in learn
+-- order, and bag order is wherever the player keeps things - so tier is read
+-- from the NAME and never from position.
+--
+-- Position is exactly what the old code used: both `CreateSpell` and
+-- `FindBagItem` took the LAST match, and alphabetically "(Minor)" sorts last of
+-- the five, so the button reliably created the weakest stone the character
+-- knew. That is the bug this replaces.
+--------------------------------------------------------------------------
+
+-- Ordered, not a hash: pairs() order is not defined and this project has been
+-- bitten by depending on it before.
+local SS_TIERS = {
+    { "minor", 1 }, { "lesser", 2 }, { "greater", 4 }, { "major", 5 },
+}
+
+-- Tier of a soulstone spell or item by name, or nil if it is not one at all.
+-- The unprefixed stone is 3. A name we do not recognise also scores 3: a Turtle
+-- rename must not make the button dead, and mid is the honest guess - it still
+-- loses to a Greater or Major we CAN identify.
+local function StoneTier(name)
+    if not name then return nil end
+    local lower = string.lower(name)
+    if not string.find(lower, "soulstone", 1, true) then return nil end
+    for i = 1, table.getn(SS_TIERS) do
+        if string.find(lower, SS_TIERS[i][1], 1, true) then return SS_TIERS[i][2] end
+    end
+    return 3
+end
+-- Exposed on the module (like M.buffs / M.optionsInfo) so the ranking can be
+-- tested off-client. It is the whole fix, and it is the kind of ordering bug
+-- that is invisible until a player says "it only ever makes the worst one".
+M.StoneTier = StoneTier
+
+-- The best "Create Soulstone" in the spellbook, by tier. If the client happens
+-- to collapse them into one ranked slot instead, there is a single match and
+-- CastSpell casts its highest rank - correct either way.
 local function CreateSpell()
-    local found = nil
+    local best, bestTier = nil, -1
     local i = 1
     while true do
         local sn = GetSpellName(i, "spell")
         if not sn then break end
-        if string.find(sn, "Create Soulstone", 1, true) then found = i end
+        if string.find(sn, "Create Soulstone", 1, true) then
+            local t = StoneTier(sn) or 0
+            if t > bestTier then best, bestTier = i, t end
+        end
         i = i + 1
     end
-    return found
+    return best
+end
+
+-- The best soulstone in the bags, by tier, so a leftover Minor never beats the
+-- Major you just made. Walks the engine's cached bag list rather than asking
+-- FindBagItem, whose last-match-wins cannot express "best of a family".
+--
+-- Known simplification: tier wins even when that stone is on cooldown and a
+-- weaker one is ready. Whether the cooldown is per-item or shared across the
+-- family is not something this was verified against, and the button shows the
+-- timer for whichever stone it picked, so the player can see it.
+local function BestStone()
+    local items = AegisRP.BagItems and AegisRP.BagItems()
+    if not items then return AegisRP.FindBagItem("Soulstone") end
+    local fb, fs, fn, bestTier = nil, nil, nil, -1
+    for _, it in ipairs(items) do
+        local t = StoneTier(it.name)
+        if t and t > bestTier then
+            fb, fs, fn, bestTier = it.bag, it.slot, it.name, t
+        end
+    end
+    return fb, fs, fn
 end
 
 local function BuildUI()
@@ -186,7 +251,7 @@ local function BuildUI()
         key = "soulstone",
         refresh = function(b)
             b:SetLabel("|cffffd100Soulstone|r")
-            local bag, slot, name = AegisRP.FindBagItem("Soulstone")
+            local bag, slot, name = BestStone()
             if bag then
                 b:SetIcon(GetContainerItemInfo(bag, slot))
                 b:SetSub(name)
@@ -204,7 +269,7 @@ local function BuildUI()
             end
         end,
         onClick = function(b)
-            local bag, slot = AegisRP.FindBagItem("Soulstone")
+            local bag, slot = BestStone()
             if not bag then
                 local ci = CreateSpell()
                 if ci then CastSpell(ci, "spell") end
@@ -223,7 +288,7 @@ local function BuildUI()
         end,
         tooltip = function(b, tt)
             tt:AddLine("Soulstone")
-            local bag, slot, name = AegisRP.FindBagItem("Soulstone")
+            local bag, slot, name = BestStone()
             if bag then
                 tt:AddLine(name, 1, 1, 1)
                 tt:AddLine("Click: use on friendly target (or yourself).", 0.6, 0.6, 0.6)

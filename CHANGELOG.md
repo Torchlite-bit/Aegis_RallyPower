@@ -14,6 +14,64 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.14.1] — 2026-09-27
+### Fixed
+- **The Warlock Soulstone button created the weakest stone the character knew.**
+  Reported from play. Vanilla has five soulstones — Minor / Lesser /
+  unprefixed / Greater / Major — as five separate spells and five separate
+  items, and both the create path and the bag lookup picked the **last match in
+  list order**. Alphabetically `(Minor)` sorts last of the five, so the button
+  reliably made the worst one. Tier is now read from the **name**, never from
+  position.
+- **The same flaw applied to using one.** A leftover Minor Soulstone in your
+  bags could beat the Major you had just made, depending on which bag slot it
+  happened to sit in. The button now takes the best stone you carry.
+
+### Notes
+- An unrecognised soulstone still ranks mid rather than nil, so a Turtle rename
+  cannot make the button dead — it just never outranks a Greater or Major we can
+  identify. A Healthstone or Spellstone is correctly not a soulstone at all.
+- **Known simplification:** tier wins even when that stone is on cooldown and a
+  weaker one is ready. Whether the soulstone cooldown is per-item or shared
+  across the family was not verified, and the button shows the timer for
+  whichever stone it picked.
+- `AegisRP.FindBagItem` keeps its last-match-wins behaviour — the Rogue poison
+  buttons rely on it and it is right for a single name — but it now says in
+  comment that a caller ranking a tiered family must walk the new
+  `AegisRP.BagItems()` and score the names itself.
+- New off-client suite `scripts/test_soulstone.lua`, with the exact comparison
+  the bug got wrong: `(Major)` must outrank `(Minor)` even though `(Minor)`
+  sorts first. Four matching sabotages; all 38 caught.
+- Not yet seen in game.
+
+## [1.14.0] — 2026-09-17
+### Added (the marker strip — Phase 3.2)
+- **A Marks strip: eight buttons, one per raid icon, acting on your target.**
+  Left-click puts that mark on your target, right-click clears whatever mark it
+  carries. It is in the usual strip family — movable, scalable, snaps to your
+  other strips, listed under Options → Strips — so it sits with the Kick and
+  Taunt strips rather than being a window of its own.
+- **The button for the mark your target already carries lights up**, read back
+  off the unit with `GetRaidTargetIndex` and refreshed on the strip's own tick.
+  That is also the only feedback needed for permission: a mark you were not
+  allowed to set never lights up.
+- **`/rpc marks`** toggles it (`/rpc mark` works too).
+
+### Notes
+- **It starts hidden.** Eight buttons is a tall frame and nobody asked for one
+  to land in the middle of their screen on an update, so it is opt-in on first
+  run; after that the shown/hidden choice is remembered like any other strip.
+  Show it with `/rpc marks` or the "Show Marks" box in Options.
+- Not class-gated: any class can be asked to mark.
+- **No permission pre-check before marking.** Whether you may mark depends on
+  lead/assist, and a guess that says no is the shape that makes a button
+  quietly stop working with nothing saying why. The server ignores a call you
+  are not allowed to make, and the highlight is read back from the unit — so
+  the strip tells the truth without guessing.
+- The strip reuses the Crowd Ctrl tab's mark catalog rather than keeping a
+  second copy of the eight icons.
+- Not yet seen in game.
+
 ## [1.13.5] — 2026-09-17
 ### Changed
 - **The Kick and Taunt strips now read green when the ability is usable and red
