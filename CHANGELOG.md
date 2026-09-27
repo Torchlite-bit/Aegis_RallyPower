@@ -14,6 +14,36 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.14.1] — 2026-09-27
+### Fixed
+- **The Warlock Soulstone button created the weakest stone the character knew.**
+  Reported from play. Vanilla has five soulstones — Minor / Lesser /
+  unprefixed / Greater / Major — as five separate spells and five separate
+  items, and both the create path and the bag lookup picked the **last match in
+  list order**. Alphabetically `(Minor)` sorts last of the five, so the button
+  reliably made the worst one. Tier is now read from the **name**, never from
+  position.
+- **The same flaw applied to using one.** A leftover Minor Soulstone in your
+  bags could beat the Major you had just made, depending on which bag slot it
+  happened to sit in. The button now takes the best stone you carry.
+
+### Notes
+- An unrecognised soulstone still ranks mid rather than nil, so a Turtle rename
+  cannot make the button dead — it just never outranks a Greater or Major we can
+  identify. A Healthstone or Spellstone is correctly not a soulstone at all.
+- **Known simplification:** tier wins even when that stone is on cooldown and a
+  weaker one is ready. Whether the soulstone cooldown is per-item or shared
+  across the family was not verified, and the button shows the timer for
+  whichever stone it picked.
+- `AegisRP.FindBagItem` keeps its last-match-wins behaviour — the Rogue poison
+  buttons rely on it and it is right for a single name — but it now says in
+  comment that a caller ranking a tiered family must walk the new
+  `AegisRP.BagItems()` and score the names itself.
+- New off-client suite `scripts/test_soulstone.lua`, with the exact comparison
+  the bug got wrong: `(Major)` must outrank `(Minor)` even though `(Minor)`
+  sorts first. Four matching sabotages; all 38 caught.
+- Not yet seen in game.
+
 ## [1.14.0] — 2026-09-17
 ### Added (the marker strip — Phase 3.2)
 - **A Marks strip: eight buttons, one per raid icon, acting on your target.**

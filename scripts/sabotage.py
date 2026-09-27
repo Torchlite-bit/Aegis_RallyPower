@@ -35,6 +35,7 @@ SUITES = {
     "rotation":  "scripts/test_rotation.lua",
     "strip":     "scripts/test_strip.lua",
     "pets":      "scripts/test_pets.lua",
+    "soulstone": "scripts/test_soulstone.lua",
     "cc":        "scripts/test_cc.lua",
 }
 
@@ -132,6 +133,33 @@ SABOTAGES = [
      '        if table.getn(ents) > 0 then table.insert(parts, "p" .. table.concat(ents, ",")) end',
      '        if false then table.insert(parts, "p" .. table.concat(ents, ",")) end',
      "groupbuff"),
+
+    # ---- soulstone tiers -------------------------------------------------
+    # The shipped bug, restored: rank by LIST POSITION instead of by name.
+    # Alphabetically "(Minor)" sorts last of the five, so last-match-wins makes
+    # the weakest stone every time - and a stone IS made, so nothing complains.
+    ("soulstone-tier-flat", "Classes/Class_Warlock.lua",
+     "        if string.find(lower, SS_TIERS[i][1], 1, true) then return SS_TIERS[i][2] end",
+     "        if false then return SS_TIERS[i][2] end",
+     "soulstone"),
+
+    # Inverting the tiers is the same bug wearing a different hat.
+    ("soulstone-tiers-inverted", "Classes/Class_Warlock.lua",
+     '    { "minor", 1 }, { "lesser", 2 }, { "greater", 4 }, { "major", 5 },',
+     '    { "minor", 5 }, { "lesser", 4 }, { "greater", 2 }, { "major", 1 },',
+     "soulstone"),
+
+    # Dropping the family check ranks a Healthstone as a rescue stone.
+    ("soulstone-matches-any-item", "Classes/Class_Warlock.lua",
+     '    if not string.find(lower, "soulstone", 1, true) then return nil end',
+     "",
+     "soulstone"),
+
+    # Case matters: item links and spell names are not consistently cased.
+    ("soulstone-case-sensitive", "Classes/Class_Warlock.lua",
+     "    local lower = string.lower(name)",
+     "    local lower = name",
+     "soulstone"),
 
     # ---- pet ownership ---------------------------------------------------
     # "Cannot tell whose pet this is" must be permission, not refusal. Treating
