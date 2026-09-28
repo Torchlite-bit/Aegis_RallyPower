@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.14.1**. See `CHANGELOG.md` for the full history,
+Current version: **1.14.2**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -423,6 +423,19 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   positively see is not a hunter, so an unresolvable owner is permission rather
   than refusal (a hunter pet silently unbuffable during roster churn is the
   worse failure). Gates use the second one.
+- **Stock PallyPowerTW has a family of UNGUARDED reads, and they surface only
+  under conditions a solo tester never hits.** Two have been fixed from our
+  side so far, both by save-and-replace with `PallyPower/` left byte-identical:
+  `PallyPower_AutoBuffAll` compared `tonumber("3 (1)") > 0` the moment anyone
+  in the raid was dead (1.1.1), and `PallyPower_ParseMessage`'s **COOLDOWNS**
+  branch indexed `AllPallys[sender]` with no nil check when a paladin
+  broadcast before their announce arrived (1.14.2) — while its SYMCOUNT and
+  both FREEASSIGN siblings guard it and answer with a `REQ`.
+  **Neither is a version mismatch, and the reported line numbers match our copy
+  exactly** — that diagnosis has now come in twice and been wrong twice.
+  When the next one lands, look for the guarded SIBLING first: the engine
+  usually has the correct shape a few lines away, and copying it is both the
+  fix and the proof of what the fix should be.
 - **Half the vendored engine's "globals" are forward-declared FILE-LOCALS.**
   `RebuildRoster`, `ScanOneUnit` and `IsRosterUnit` are declared
   `local` at `PallyPower.lua:104-106` and only assigned later, so they read as
