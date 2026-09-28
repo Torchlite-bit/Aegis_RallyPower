@@ -686,6 +686,42 @@ if orig_PallyPower_ScaleFrame then
 end
 
 --=============================================================================
+-- FIX: a COOLDOWNS message from a paladin we have not met yet threw
+-- "PallyPower.lua:2212: attempt to index field '?' (a nil value)".
+--
+-- PallyPower_ParseMessage guards every OTHER branch that touches
+-- AllPallys[sender] - SYMCOUNT at :2198, both FREEASSIGN branches at :2216 and
+-- :2223 all do `if AllPallys[sender] then ... else PallyPower_SendMessage("REQ")`.
+-- The COOLDOWNS branch (:2212-2213) is the one that does not, so it indexes nil
+-- the moment a paladin broadcasts their Divine Intervention / Lay on Hands
+-- state before we have their announce. The '?' in the message is `sender`:
+-- Lua cannot name a computed key.
+--
+-- Another latent bug in stock PallyPowerTW, like the /pp buff one above, and
+-- again NOT a version mismatch - PallyPower/ is byte-identical and :2212 is
+-- exactly that line in our copy.
+--
+-- Fixed by save-and-replace of the parser, which is a real global (:2031) with
+-- one call site that resolves it by name (:498). We do not reimplement it: an
+-- unguarded COOLDOWNS from an unknown sender is answered the way its guarded
+-- siblings answer, with a REQ so the sender re-announces and the NEXT one
+-- lands, and everything else falls through to the engine untouched. The branch
+-- tests are anchored `^COOLDOWNS`, and no other branch can match a message that
+-- starts with it, so skipping the call drops nothing else.
+--=============================================================================
+local orig_PallyPower_ParseMessage = PallyPower_ParseMessage
+if orig_PallyPower_ParseMessage then
+    PallyPower_ParseMessage = function(sender, msg)
+        if sender and msg and string.find(msg, "^COOLDOWNS")
+           and not (AllPallys and AllPallys[sender]) then
+            if PallyPower_SendMessage then PallyPower_SendMessage("REQ") end
+            return
+        end
+        return orig_PallyPower_ParseMessage(sender, msg)
+    end
+end
+
+--=============================================================================
 -- FIX: /pp buff (PallyPower_AutoBuffAll) errored whenever anyone was dead.
 --
 -- The engine writes a buff-bar count as "3 (1)" as soon as ndead > 0

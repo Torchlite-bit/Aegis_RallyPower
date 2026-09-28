@@ -14,6 +14,31 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.14.2] — 2026-09-28
+### Fixed (`COOLDOWNS` from an unknown paladin threw)
+- **`PallyPower.lua:2212: attempt to index field '?' (a nil value)`.**
+  `PallyPower_ParseMessage` guards every other branch that touches
+  `AllPallys[sender]` — SYMCOUNT and both FREEASSIGN branches all do
+  `if AllPallys[sender] then … else PallyPower_SendMessage("REQ")`. The
+  COOLDOWNS branch does not, so it indexed nil the moment a paladin broadcast
+  their Divine Intervention / Lay on Hands state before we had their announce.
+  The `'?'` in the message is `sender`: Lua cannot name a computed key.
+- **Not a version mismatch or a line-number shift** — another latent bug in
+  stock PallyPowerTW, like the `/pp buff` crash, and `:2212` is exactly that
+  line in our byte-identical copy.
+- Fixed by **save-and-replace of the parser** from our side. An unguarded
+  COOLDOWNS from an unknown sender is answered the way its guarded siblings
+  answer — with a `REQ`, so the sender re-announces and the next one lands —
+  and every other message falls through to the engine untouched.
+
+### Notes
+- The branch tests are anchored `^COOLDOWNS` and no other branch can match a
+  message starting with it, so skipping that one call drops nothing else.
+- No test: the guard lives in `Aegis_Popout.lua`, which is not loadable
+  off-client, and its failure mode is a loud error rather than a silent wrong
+  answer. Same position as the `/pp buff` fix.
+- Not yet seen in game.
+
 ## [1.14.1] — 2026-09-27
 ### Fixed
 - **The Warlock Soulstone button created the weakest stone the character knew.**
