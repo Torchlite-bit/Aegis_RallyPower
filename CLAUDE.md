@@ -771,6 +771,26 @@ Miss one and the in-game version stops matching the release:
 (There is no `A.version` global in our Lua; `PallyPower_Version` belongs to the
 vendored engine and is not ours to bump.)
 
+**Those three sites are now load-bearing for the RELEASE, not just for tidiness.**
+`.github/workflows/release.yml` publishes a GitHub release for every new version
+that reaches `main`: the push run reads `## Version:` from the `.toc`, tags
+`vX.Y.Z` if that tag is new, and starts itself again on the tag, where the
+version's `CHANGELOG.md` entry becomes the release notes and
+`BigWigsMods/packager` builds and publishes the zip. So:
+
+- **Never push a `v*` tag or cut a release by hand.** The merge does it. A merge
+  that does not change the version (docs, `scripts/`, `CLAUDE.md`) releases
+  nothing, because the tag already exists.
+- The push run gates on `scripts/lint/version.py`. If the three sites disagree
+  the release fails rather than publishing with empty notes, so a bump that
+  misses README's H1 now breaks the release as well as the docs.
+- A changelog heading must stay `## [X.Y.Z] — YYYY-MM-DD`; the notes are
+  extracted by exact prefix match on `## [X.Y.Z]`.
+- `.pkgmeta` carries `package-as: Aegis_RallyPower`. The repository folder is
+  `RallyPowerCP` and the addon folder is not — a 1.12 client loads an addon from
+  the folder named after its `.toc`, so dropping that key would ship a zip that
+  installs and never loads.
+
 ### WHICH number to bump
 
 `MAJOR.MINOR.PATCH`. **RallyPower has had a public release, so MAJOR is 1.**

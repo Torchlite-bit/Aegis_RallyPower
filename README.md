@@ -100,7 +100,12 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 ## 🚀 Quick Start
 
 ### Installation
-1. Download and extract to `Interface/AddOns/Aegis_RallyPower/`
+1. Download the latest zip from
+   [Releases](https://github.com/Torchlite-bit/rallypowercp/releases) and
+   extract it to `Interface/AddOns/Aegis_RallyPower/`
+   - The zip already contains the `Aegis_RallyPower` folder, so extract it into
+     `AddOns` and not into a folder of your own naming — a 1.12 client loads an
+     addon from the folder named after its `.toc`
    - Upgrading from pre-rebrand? Delete old `RallyPowerCP/` folder first (SavedVariables aren't carried over)
 2. Launch WoW, log in
 3. Left-click the minimap icon or use `/rpc` to toggle the buff bar
