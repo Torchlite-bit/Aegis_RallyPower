@@ -1,4 +1,4 @@
-# Aegis: RallyPower (v1.14.2)
+# Aegis: RallyPower (v1.14.3)
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
@@ -100,7 +100,12 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 ## 🚀 Quick Start
 
 ### Installation
-1. Download and extract to `Interface/AddOns/Aegis_RallyPower/`
+1. Download the latest zip from
+   [Releases](https://github.com/Torchlite-bit/rallypowercp/releases) and
+   extract it to `Interface/AddOns/Aegis_RallyPower/`
+   - The zip already contains the `Aegis_RallyPower` folder, so extract it into
+     `AddOns` and not into a folder of your own naming — a 1.12 client loads an
+     addon from the folder named after its `.toc`
    - Upgrading from pre-rebrand? Delete old `RallyPowerCP/` folder first (SavedVariables aren't carried over)
 2. Launch WoW, log in
 3. Left-click the minimap icon or use `/rpc` to toggle the buff bar
@@ -120,6 +125,7 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 | `/rpc slots` | Tank plan, plus whether sync is actually reaching you |
 | `/rpc castdbg` | Log raw cast events (SuperWoW only; for debugging) |
 | `/rpc alpha` | Report what colour each strip button is actually painted |
+| `/rpc strips` | Report where every strip is: shown, on screen, scale, anchor |
 | `/rpc rot` | Report both rotations: which store, who is in them, where you are |
 | `/rpc reset` | Put the bar back if it ends up off-screen |
 | `/rpc icon` | Cycle the minimap icon skin (or shift-click the icon) |

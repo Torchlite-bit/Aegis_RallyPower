@@ -1876,6 +1876,13 @@ function AegisRP_ApplyStripScale(s)
         for key, S in pairs(AegisRP.strips) do
             AegisRP_Settings["stripScale_" .. key] = nil
             S.frame:SetScale(s)
+            -- SetScale does NOT re-anchor. A strip anchored TOPLEFT to the
+            -- screen's BOTTOM-LEFT keeps its offsets, so scaling up walks it
+            -- away from that corner - far enough, at 1.5, to leave the screen
+            -- entirely and look like the addon stopped drawing.
+            if AegisRP.EnsureOnScreen then
+                AegisRP.EnsureOnScreen(S.frame, "stripPos_" .. key)
+            end
         end
     end
     if popout then popout:SetScale(s) end
@@ -2072,6 +2079,49 @@ SlashCmdList["AEGISRP"] = function(msg)
         end
         DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaa(covered green is 0,0.70,0 - "
             .. "needed red 1,0,0 - idle grey 0.25,0.25,0.25)|r")
+        return
+    end
+
+    -- Diagnostics: where every strip actually IS.
+    --
+    -- "My whole UI is gone" has several causes that look identical from the
+    -- player's side - never built, built and hidden, every button switched off,
+    -- or anchored somewhere off the screen - and the Options tick is no help,
+    -- because it reads the stripHidden_* flag rather than the frame. This
+    -- prints the frame's real state next to the flag, so the two can be seen
+    -- disagreeing. Same job /rpc alpha does for a colour that looks wrong.
+    if msg == "strips" then
+        local order = AegisRP.stripOrder or {}
+        if table.getn(order) == 0 then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r no strips built for this class.")
+            return
+        end
+        DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r strips (flag / frame / anchor):")
+        for i = 1, table.getn(order) do
+            local k = order[i]
+            local S = AegisRP.strips and AegisRP.strips[k]
+            if S and S.frame then
+                local f = S.frame
+                local on = 0
+                for j = 1, table.getn(S.buttons or {}) do
+                    if S.buttons[j]:IsShown() then on = on + 1 end
+                end
+                local vis = "?"
+                if AegisRP.StripPos then
+                    vis = AegisRP.StripPos.OnScreen(f) and "|cff5be07ayes|r" or "|cffff5555NO|r"
+                end
+                DEFAULT_CHAT_FRAME:AddMessage(string.format(
+                    "  |cff88ccff%s|r  shown=%s frame=%s onscreen=%s  buttons=%d/%d  scale=%.2f  L=%s T=%s",
+                    k,
+                    AegisRP.IsStripShown(k) and "yes" or "no",
+                    f:IsShown() and "yes" or "|cffff5555no|r",
+                    vis, on, table.getn(S.buttons or {}),
+                    f:GetScale() or -1,
+                    tostring(f:GetLeft()), tostring(f:GetTop())))
+            end
+        end
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaa(shown=yes with frame=no, or "
+            .. "onscreen=NO, is the bug - Reset Frames in the options puts them back)|r")
         return
     end
 

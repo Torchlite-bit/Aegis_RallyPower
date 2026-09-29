@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.14.2**. See `CHANGELOG.md` for the full history,
+Current version: **1.14.3**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -552,6 +552,26 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   still count toward every index so the row's wheel stays instant. An override
   naming an uncastable buff resolves to nil, so the player falls back to the
   row rather than dropping out of coverage.
+- **A strip's SAVED POSITION is not trusted, and the Options tick is not
+  evidence.** The "Show <strip>" checkbox reads the `stripHidden_*` flag, never
+  the frame, so a strip that is hidden or anchored off screen keeps reporting
+  itself as shown — which is what "my whole UI is gone" looks like from the
+  player's side, with a ticked box next to nothing. Three routes led there and
+  all three are now closed in `POS` (`Aegis_Strip.lua`, exposed as
+  `AegisRP.StripPos`): a stored anchor missing its offsets (the scale grip
+  persisted `x = f:GetLeft()`, and `GetLeft()` is nil on an unanchored frame —
+  restoring `{p, rel}` with no offsets puts the strip's TOP-LEFT on the
+  screen's BOTTOM-LEFT, entirely below the bottom edge); a rescale, since
+  `SetScale` does not re-anchor and `AegisRP_ApplyStripScale` moves every strip
+  proportionally away from its corner; and an error in a button's FIRST
+  `refresh`, which used to abort `Finish` before `f:Show()`. **Restore
+  validates and falls back, `POS.Save` is the only writer and refuses a partial
+  table, and `Finish` shows the frame BEFORE the first refresh.** Use
+  **`/rpc strips`** before theorising about a strip that is not there — it
+  prints flag vs frame vs on-screen vs enabled-button count, the way
+  `/rpc alpha` does for a colour. A position this addon cannot verify is not a
+  position: 24px reachable is the test, so a strip parked half off an edge on
+  purpose is left alone.
 - **Strip show/hide has one writer: `AegisRP.SetStripShown`.** The Options
   checkboxes, `/rpc kick`, `/rpc taunt` and `S:Toggle` all route through it, so
   the frame and its saved flag cannot disagree. Options builds its list from
@@ -750,6 +770,26 @@ Miss one and the in-game version stops matching the release:
 
 (There is no `A.version` global in our Lua; `PallyPower_Version` belongs to the
 vendored engine and is not ours to bump.)
+
+**Those three sites are now load-bearing for the RELEASE, not just for tidiness.**
+`.github/workflows/release.yml` publishes a GitHub release for every new version
+that reaches `main`: the push run reads `## Version:` from the `.toc`, tags
+`vX.Y.Z` if that tag is new, and starts itself again on the tag, where the
+version's `CHANGELOG.md` entry becomes the release notes and
+`BigWigsMods/packager` builds and publishes the zip. So:
+
+- **Never push a `v*` tag or cut a release by hand.** The merge does it. A merge
+  that does not change the version (docs, `scripts/`, `CLAUDE.md`) releases
+  nothing, because the tag already exists.
+- The push run gates on `scripts/lint/version.py`. If the three sites disagree
+  the release fails rather than publishing with empty notes, so a bump that
+  misses README's H1 now breaks the release as well as the docs.
+- A changelog heading must stay `## [X.Y.Z] — YYYY-MM-DD`; the notes are
+  extracted by exact prefix match on `## [X.Y.Z]`.
+- `.pkgmeta` carries `package-as: Aegis_RallyPower`. The repository folder is
+  `RallyPowerCP` and the addon folder is not — a 1.12 client loads an addon from
+  the folder named after its `.toc`, so dropping that key would ship a zip that
+  installs and never loads.
 
 ### WHICH number to bump
 

@@ -1,0 +1,110 @@
+# Publishes a GitHub release for every new version that reaches main.
+#
+# Launchers compare an installed addon against the latest GitHub release, so a
+# repo with no releases either keeps offering an update that never lands or
+# never offers one at all.
+#
+# Two runs, on purpose:
+#
+#   push to main -> read ## Version: from the .toc, tag it if that tag is new,
+#                   then start this same workflow on the tag.
+#   tag ref      -> write that version's CHANGELOG entry into RELEASE_NOTES.md
+#                   and let BigWigsMods/packager build and publish.
+#
+# Three traps this shape exists to avoid. None of them is decoration:
+#
+#  1. A tag pushed with GITHUB_TOKEN does NOT start a workflow run, so
+#     `on: push: tags` never fires for it. A workflow_dispatch made with the
+#     same token does - hence `gh workflow run` on the new tag.
+#  2. The packager refuses to package a branch push whose commit carries a tag:
+#     it logs `Found future tag "vX.Y.Z", not packaging.`, exits 0 and publishes
+#     nothing. So the packager step runs ONLY on a tag ref.
+#  3. With no manual changelog the packager uses the commit log since the
+#     previous tag as the release body. Before the first release that is the
+#     entire history and GitHub rejects it with
+#     `body is too long (maximum is 125000 characters)`. The tag run writes
+#     RELEASE_NOTES.md and .pkgmeta names it as the manual changelog.
+#
+# A merge that does not change the version (docs or tooling only) releases
+# nothing: the tag already exists and the push run stops there.
+
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The project's own rule is that .toc, the README H1 and CHANGELOG.md all
+      # carry the version. Releasing from a .toc that disagrees with the
+      # changelog would publish a release with no notes in it, so this fails
+      # the run instead - loudly, and before anything is tagged.
+      - name: Version sites agree
+        if: github.ref_type == 'branch'
+        run: python3 scripts/lint/version.py
+
+      - name: Tag the version, if it is new
+        if: github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^## Version:[[:space:]]*\([^[:space:]]*\).*/\1/p' Aegis_RallyPower.toc | tr -d '\r')
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::No MAJOR.MINOR.PATCH version in Aegis_RallyPower.toc (got '$version')"
+            exit 1
+          fi
+          tag="v$version"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag is released already; nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Aegis: RallyPower $version"
+          git push origin "$tag"
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$tag"
+          echo "Tagged $tag; it is packaged in the run started on the tag."
+
+      # Headings here are `## [X.Y.Z] - YYYY-MM-DD` (an em dash) and there are
+      # no link-reference lines at the foot of the file. The stop rule keeps
+      # the link-ref case anyway: it costs nothing and is what would truncate
+      # the last entry if they are ever added.
+      - name: Release notes from CHANGELOG.md
+        if: github.ref_type == 'tag'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v head="## [$version]" '
+            index($0, head) == 1 { on = 1; print; next }
+            on && (/^## \[/ || /^\[[^]]*\]: /) { exit }
+            on { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "Aegis: RallyPower $version" > RELEASE_NOTES.md
+          fi
+          cat RELEASE_NOTES.md
+
+      - name: Package and release to GitHub
+        if: github.ref_type == 'tag'
+        uses: BigWigsMods/packager@v2
+        env:
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}

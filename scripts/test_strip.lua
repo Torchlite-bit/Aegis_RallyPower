@@ -85,6 +85,11 @@ local function Frame(left, top, w, h, scale, shown)
         -- anchor is resolved by the client, so leave our fake position alone
         if rel == UIParent then self.left, self.top = x, y end
     end
+    function f:GetPoint()
+        local a = self.anchor
+        if not a then return end
+        return a.p, a.rel, a.rp, a.x, a.y
+    end
     return f
 end
 
@@ -499,9 +504,98 @@ check("an unbuilt strip does not error", okUnbuilt, true)
 check("...and still remembers the choice", AegisRP.IsStripShown("notbuilt"), false)
 
 --------------------------------------------------------------------------
+-- Saved positions: reject the unusable, keep the deliberate
+--
+-- This is the guard behind "my whole UI is gone". A strip anchored off the
+-- screen is Shown, ticking and completely invisible, and the Options checkbox
+-- reads the saved FLAG rather than the frame, so it keeps claiming the strip
+-- is there. Every assertion below is a stored value that used to be applied
+-- without question.
+--------------------------------------------------------------------------
+print("")
+print("strip engine - saved position validation")
+
+AegisRP.strips = {}
+AegisRP_Settings = {}
+
+local POS = AegisRP.StripPos
+local onScreen = POS.OnScreen
+
+check("a centred frame is on screen", onScreen(Frame(400, 400, W, H)), true)
+check("half off the left edge is still reachable", onScreen(Frame(-60, 400, W, H)), true)
+check("fully past the left edge is not", onScreen(Frame(-W, 400, W, H)), false)
+check("fully past the right edge is not", onScreen(Frame(SCREEN_W, 400, W, H)), false)
+-- the exact failure the scale-grip's nil offsets produced: TOPLEFT anchored to
+-- the screen's BOTTOM-LEFT, so the whole frame hangs below the bottom edge
+check("TOPLEFT at the screen's bottom-left is not", onScreen(Frame(0, 0, W, H)), false)
+check("fully above the top edge is not", onScreen(Frame(400, SCREEN_H + H, W, H)), false)
+-- an unanchored frame has no position at all, which is not the same as
+-- "cannot tell" - it genuinely is not anywhere
+check("an unanchored frame is not on screen", onScreen(Frame(nil, nil, W, H)), false)
+
+-- EnsureOnScreen: the post-rescale rescue. SetScale does not re-anchor, so the
+-- same stored offsets can be on screen at 1.0 and off it at 1.5.
+local good = Frame(400, 400, W, H)
+AegisRP_Settings.stripPos_good = { p = "TOPLEFT", rel = "BOTTOMLEFT", x = 400, y = 400 }
+check("a visible strip is left alone", AegisRP.EnsureOnScreen(good, "stripPos_good"), false)
+check("...and keeps its stored position",
+      AegisRP_Settings.stripPos_good ~= nil, true)
+
+local flung = Frame(400, SCREEN_H + 200, W, H)
+AegisRP_Settings.stripPos_flung = { p = "TOPLEFT", rel = "BOTTOMLEFT", x = 400, y = 968 }
+check("a strip off the top is rescued", AegisRP.EnsureOnScreen(flung, "stripPos_flung"), true)
+check("...and the bad position is cleared so it stays fixed",
+      AegisRP_Settings.stripPos_flung, nil)
+check("...and it is re-anchored to the default", flung.anchor.p, "CENTER")
+
+-- POS.Restore: what Finish() does with whatever SavedVariables handed back.
+local function restore(stored)
+    AegisRP_Settings.stripPos_r = stored
+    local f = Frame(nil, nil, W, H)
+    local used = POS.Restore(f, "stripPos_r")
+    return used, f, AegisRP_Settings.stripPos_r
+end
+
+local used, f = restore({ p = "TOPLEFT", rel = "BOTTOMLEFT", x = 300, y = 500 })
+check("a good stored position is used", used, true)
+check("...at the stored offsets", f.anchor.x, 300)
+
+used, f = restore(nil)
+check("no stored position falls back", used, false)
+check("...to the default anchor", f.anchor.p, "CENTER")
+
+-- The exact table the scale grip used to write when GetLeft() was nil.
+local left
+used, f, left = restore({ p = "TOPLEFT", rel = "BOTTOMLEFT" })
+check("a stored position with no offsets is refused", used, false)
+check("...and falls back to the default", f.anchor.p, "CENTER")
+check("...and is cleared rather than retried next login", left, nil)
+
+used, f, left = restore({ p = "TOPLEFT", rel = "BOTTOMLEFT", x = 300, y = 2000 })
+check("a stored position off the top is refused", used, false)
+check("...and is cleared", left, nil)
+
+-- POS.Save: the single writer both persist sites go through.
+AegisRP_Settings.stripPos_s = nil
+local sf = Frame(120, 400, W, H)
+sf:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", 120, 400)
+check("saving reads the live anchor", POS.Save(sf, "stripPos_s"), true)
+check("...and stores the offsets", AegisRP_Settings.stripPos_s.x, 120)
+
+AegisRP_Settings.stripPos_s = nil
+check("saving nil offsets is refused",
+      POS.Save(sf, "stripPos_s", "TOPLEFT", "BOTTOMLEFT", nil, nil), false)
+check("...and nothing is written", AegisRP_Settings.stripPos_s, nil)
+
+AegisRP_Settings.stripPos_s = nil
+check("saving an unanchored frame is refused",
+      POS.Save(Frame(nil, nil, W, H), "stripPos_s"), false)
+check("...and nothing is written", AegisRP_Settings.stripPos_s, nil)
+
+--------------------------------------------------------------------------
 print("")
 if failures == 0 then
-    print("PASS - snapping, docking, z-order, alpha floor, scale and visibility")
+    print("PASS - snapping, docking, z-order, alpha floor, scale, visibility and positions")
     os.exit(0)
 end
 print("FAIL - " .. failures .. " check(s)")

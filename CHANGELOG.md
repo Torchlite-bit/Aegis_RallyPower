@@ -14,6 +14,52 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.14.3] — 2026-09-29
+### Fixed (a strip could be "shown" and nowhere on screen)
+- **Reported from play: the whole class strip missing while the Options
+  "Show <class>" box was still ticked**, and the Kick and Marks strips
+  appearing normally when enabled. The two are consistent — the checkbox reads
+  the saved `stripHidden_*` **flag**, never the frame — so a strip that is
+  hidden or anchored off screen goes on reporting itself as shown, and there
+  was nothing that could say otherwise.
+- **Saved positions are now validated on restore.** A stored anchor is applied
+  only when it is complete (point, x and y) and the frame lands somewhere
+  reachable; otherwise it is cleared and the strip goes back to its default
+  position, so the rescue does not have to happen again on the next login.
+  "Reachable" is 24px of the frame, not the whole of it — a strip parked half
+  off an edge on purpose is left alone.
+- **An incomplete position can no longer be stored.** The scale grip persisted
+  `x = f:GetLeft()`, which is `nil` on a frame with no anchor yet, so
+  `{ point, relative }` with no offsets could be written. Restoring that
+  anchored the strip's TOP-LEFT to the screen's BOTTOM-LEFT — the whole frame
+  below the bottom edge. Both writers (drag end and the grip) now go through
+  one function that refuses a partial table.
+- **Rescaling re-checks the position.** `SetScale` does not re-anchor, so a
+  strip anchored to the screen's bottom-left corner moves proportionally: at
+  1.5 a strip stored at y=620 lands at 930 on a 768-unit screen. The UI-scale
+  slider rescales every strip at once, and now rescues any that left the
+  screen.
+- **A strip is shown before its first refresh, not after.** A button whose
+  `refresh` threw on its very first call aborted the build with the frame still
+  hidden. That first refresh is now wrapped and reports the error instead of
+  deciding whether the strip exists.
+
+### Added
+- **`/rpc strips`** — per strip: the saved flag, whether the frame is actually
+  shown, whether it is on screen, how many buttons are enabled, its scale and
+  its anchor. The same job `/rpc alpha` does for a colour that looks wrong:
+  "my UI is gone" has four causes that look identical, and this separates them.
+- `AegisRP.StripPos` exposes the position helpers so they can be driven
+  off-client.
+
+### Notes
+- Root cause not confirmed on the reporter's client — the guards close every
+  route to an unreachable strip that the code had, and `/rpc strips` names the
+  one that was taken if it happens again.
+- **Options "Reset Frames"** already fixes a strip in this state by hand.
+- 20 new checks in `scripts/test_strip.lua` and 5 new sabotages; all 43 caught.
+- Not yet seen in game.
+
 ## [1.14.2] — 2026-09-28
 ### Fixed (`COOLDOWNS` from an unknown paladin threw)
 - **`PallyPower.lua:2212: attempt to index field '?' (a nil value)`.**

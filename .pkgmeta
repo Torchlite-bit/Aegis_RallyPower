@@ -1,0 +1,20 @@
+# BigWigsMods/packager manifest.
+#
+# package-as is NOT optional here. The repository is RallyPowerCP and the addon
+# is Aegis_RallyPower; a 1.12 client loads an addon from the folder named after
+# its .toc, so a zip built under the repository name would install and never
+# load.
+package-as: Aegis_RallyPower
+
+manual-changelog:
+    filename: RELEASE_NOTES.md
+    markup-type: markdown
+
+# Development-only. Everything else ships, including the vendored PallyPower
+# engine, the media folders and Bindings.xml.
+ignore:
+    - .github
+    - .gitignore
+    - CLAUDE.md
+    - docs
+    - scripts
