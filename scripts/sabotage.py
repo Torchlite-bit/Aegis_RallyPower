@@ -323,6 +323,55 @@ SABOTAGES = [
      "    if not shown then S.frame:Hide()",
      "    if not shown then",
      "strip"),
+
+    # ---- saved positions -------------------------------------------------
+    # The whole family behind "my UI is gone": a strip anchored where it cannot
+    # be seen is Shown, ticking, and invisible, and the Options checkbox reads
+    # the flag rather than the frame so it never says otherwise.
+
+    # Applying a stored position without checking where it landed.
+    ("pos-restore-unchecked", "Core/Aegis_Strip.lua",
+     "    if not POS.OnScreen(f) then\n"
+     "        AegisRP_Settings[posKey] = nil\n"
+     "        POS.Default(f)\n"
+     "        return false\n"
+     "    end\n"
+     "    return true\n"
+     "end",
+     "    return true\n"
+     "end",
+     "strip"),
+
+    # A frame with no anchor at all reported as fine. GetLeft() is nil there,
+    # and treating that as "cannot tell, so allow it" is the exact reading that
+    # lets an unplaced strip through.
+    ("pos-unanchored-counts-as-onscreen", "Core/Aegis_Strip.lua",
+     "    if not (l and t) then return false end",
+     "    if not (l and t) then return true end",
+     "strip"),
+
+    # Only the horizontal half checked - a strip flung off the TOP by a rescale
+    # still passes, which is the direction AegisRP_ApplyStripScale moves them.
+    ("pos-vertical-check-dropped", "Core/Aegis_Strip.lua",
+     "    if t < vis or t - h > sh - vis then return false end",
+     "",
+     "strip"),
+
+    # Rescuing the frame but leaving the bad value stored, so it comes back on
+    # every login and the fix looks like it did not take.
+    ("pos-rescue-keeps-bad-value", "Core/Aegis_Strip.lua",
+     "    if posKey then AegisRP_Settings[posKey] = nil end\n"
+     "    POS.Default(f)",
+     "    POS.Default(f)",
+     "strip"),
+
+    # Storing a partial table. This is how { p, rel } with no offsets got
+    # saved in the first place - GetLeft() is nil on an unanchored frame.
+    ("pos-save-accepts-partial", "Core/Aegis_Strip.lua",
+     "    if not POS.Valid(pos) then return false end\n"
+     "    AegisRP_Settings[posKey] = pos",
+     "    AegisRP_Settings[posKey] = pos",
+     "strip"),
 ]
 
 

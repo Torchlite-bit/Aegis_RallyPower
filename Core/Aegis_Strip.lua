@@ -468,6 +468,127 @@ end
 AegisRP.SnapStrip = SnapStrip
 
 --------------------------------------------------------------------------
+-- SAVED POSITIONS - stored, restored and kept on screen.
+--
+-- A strip that is Shown but anchored off the screen is indistinguishable from
+-- an addon that has stopped working, and this is the failure players report as
+-- "my whole UI is gone". Nothing used to catch it: the Options checkbox reads
+-- the stripHidden_* FLAG, not the frame, so it goes on showing a tick next to
+-- a strip nobody can see.
+--
+-- Three separate ways in, which is why the guard belongs here rather than at
+-- any one call site:
+--
+--  * an incomplete stored table. The scale grip persists x = f:GetLeft(), and
+--    GetLeft() is nil on a frame with no anchor yet, so { p, rel } could be
+--    saved with no offsets at all. Restoring that anchors TOPLEFT to the
+--    screen's BOTTOM-LEFT - the whole strip hangs below the bottom edge.
+--  * a rescale. SetScale does not re-anchor, so a TOPLEFT->BOTTOMLEFT frame
+--    moves proportionally: at 1.5 a strip stored at y=620 lands at 930 on a
+--    768-unit screen. AegisRP_ApplyStripScale rescales every strip at once.
+--  * anything that leaves SavedVariables half-written - a crash mid-session, a
+--    hand-edited file, a resolution change between logins.
+--
+-- One shape fixes all three: never STORE a position that isn't complete, and
+-- never TRUST a restored one without checking it landed somewhere visible.
+--------------------------------------------------------------------------
+
+local POS = {}
+
+-- Enough of the frame to grab with the mouse. Not "fully on screen": a player
+-- may deliberately park a strip half off the edge, and healing that would move
+-- a frame they placed on purpose. Only an unreachable one is a fault.
+POS.MIN_VISIBLE = 24
+
+-- UIParent's extent in `f`'s own coordinate space, which is what GetLeft() and
+-- GetTop() report (see the coordinate note on SnapStrip).
+function POS.Screen(f)
+    local es = f:GetEffectiveScale()
+    if not (es and es > 0) then return nil end
+    local ps = UIParent:GetEffectiveScale()
+    if not (ps and ps > 0) then return nil end
+    return UIParent:GetWidth() * ps / es, UIParent:GetHeight() * ps / es
+end
+
+-- Is enough of the frame reachable? An unanchored frame answers nil from
+-- GetLeft and is NOT on screen - it has no position at all.
+function POS.OnScreen(f)
+    local sw, sh = POS.Screen(f)
+    if not sw then return true end          -- cannot tell: never close the gate
+    local l, t = f:GetLeft(), f:GetTop()
+    if not (l and t) then return false end
+    local w, h = f:GetWidth() or 0, f:GetHeight() or 0
+    local vis = POS.MIN_VISIBLE
+    if w < vis then vis = w end
+    if h < vis then vis = h end
+    if l + w < vis or l > sw - vis then return false end
+    if t < vis or t - h > sh - vis then return false end
+    return true
+end
+
+-- Every field or none. A table missing p/x/y is what produced the bottom-left
+-- anchor above, so it is not a position and must never reach SetPoint.
+function POS.Valid(pos)
+    return pos and type(pos.p) == "string"
+       and type(pos.x) == "number" and type(pos.y) == "number"
+end
+
+function POS.Default(f)
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", UIParent, "CENTER", 260, 0)
+end
+
+-- Apply a stored position, falling back to the default when the stored one is
+-- incomplete or lands somewhere unreachable. Returns true when the stored
+-- value was used; a rejected one is CLEARED, so the strip does not have to be
+-- rescued again on the next login.
+function POS.Restore(f, posKey)
+    local pos = AegisRP_Settings[posKey]
+    if not POS.Valid(pos) then
+        AegisRP_Settings[posKey] = nil
+        POS.Default(f)
+        return false
+    end
+    f:ClearAllPoints()
+    f:SetPoint(pos.p, UIParent, pos.rel or pos.p, pos.x, pos.y)
+    if not POS.OnScreen(f) then
+        AegisRP_Settings[posKey] = nil
+        POS.Default(f)
+        return false
+    end
+    return true
+end
+
+-- The one writer. Both persist sites (drag end, and the scale grip's
+-- re-anchor) come through here so neither can store a partial table.
+function POS.Save(f, posKey, p, rel, x, y)
+    if p == nil then
+        local gp, _, grp, gx, gy = f:GetPoint()
+        p, rel, x, y = gp, grp, gx, gy
+    end
+    local pos = { p = p, rel = rel, x = x, y = y }
+    if not POS.Valid(pos) then return false end
+    AegisRP_Settings[posKey] = pos
+    return true
+end
+
+-- Exposed whole, the way class modules expose M.StoneTier: /rpc strips reads
+-- OnScreen so "my strip is gone" is answered from the frame rather than
+-- guessed at, and scripts/test_strip.lua drives Save and Restore off-client.
+-- Validation that is never exercised is the same as no validation.
+AegisRP.StripPos = POS
+
+-- Post-rescale rescue, called from AegisRP_ApplyStripScale: SetScale moves a
+-- frame without re-anchoring it, so the same position can be on screen at one
+-- scale and off it at another.
+function AegisRP.EnsureOnScreen(f, posKey)
+    if not f or POS.OnScreen(f) then return false end
+    if posKey then AegisRP_Settings[posKey] = nil end
+    POS.Default(f)
+    return true
+end
+
+--------------------------------------------------------------------------
 -- PANEL DOCKING - the options frame and the assignment panel both open
 -- centred, so opening both put one squarely on top of the other. Docked, they
 -- sit side by side with their tops aligned: options to the RIGHT of the panel
@@ -559,9 +680,9 @@ function AegisRP.NewStrip(key, title)
     f:SetScript("OnDragStop", function()
         f:StopMovingOrSizing()
         SnapStrip(f)                  -- may re-anchor, so snap BEFORE saving
-        -- keep the relative point: grip-scaling re-anchors TOPLEFT->BOTTOMLEFT
-        local p, _, rp, x, y = f:GetPoint()
-        AegisRP_Settings[posKey] = { p = p, rel = rp, x = x, y = y }
+        -- keep the relative point: grip-scaling re-anchors TOPLEFT->BOTTOMLEFT.
+        -- POS.Save reads the live point itself and refuses a partial one.
+        POS.Save(f, posKey)
     end)
     -- Right-click on the strip frame (the title area - the buttons swallow
     -- their own clicks) opens the assignment panel.
@@ -690,15 +811,14 @@ function AegisRP.NewStrip(key, title)
 
     function S:Finish()
         self:Reflow()
-        local pos = AegisRP_Settings[posKey]
-        if pos then f:SetPoint(pos.p, UIParent, pos.rel or pos.p, pos.x, pos.y)
-        else f:SetPoint("CENTER", UIParent, "CENTER", 260, 0) end
+        POS.Restore(f, posKey)
         -- scale grip (bottom-right, PallyPower art); scaling re-anchors the
-        -- frame, so persist the new position alongside the scale
+        -- frame, so persist the new position alongside the scale. GetLeft() is
+        -- nil on an unanchored frame, which is how a { p, rel } table with no
+        -- offsets used to get stored - POS.Save drops it instead.
         if not S.grip then
             S.grip = AegisRP.AddScaleGrip(f, "stripScale_" .. key, function()
-                AegisRP_Settings[posKey] = { p = "TOPLEFT", rel = "BOTTOMLEFT",
-                    x = f:GetLeft(), y = f:GetTop() }
+                POS.Save(f, posKey, "TOPLEFT", "BOTTOMLEFT", f:GetLeft(), f:GetTop())
             end)
         end
         local accum = 0
@@ -708,8 +828,18 @@ function AegisRP.NewStrip(key, title)
             accum = 0
             S:Refresh()
         end)
-        self:Refresh()
+        -- Shown BEFORE the first refresh, not after. A button whose refresh
+        -- throws on its very first call used to abort Finish with the frame
+        -- still hidden, and the Options tick - which reads the flag, not the
+        -- frame - went on claiming the strip was shown. The strip is built at
+        -- this point; whether one button can paint itself is a separate
+        -- question, and it must not decide whether the strip exists on screen.
         if AegisRP_Settings[hidKey] then f:Hide() else f:Show() end
+        local ok, err = pcall(function() S:Refresh() end)
+        if not ok then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffff5555AegisRP error:|r " .. tostring(err)
+                .. " |cffaaaaaa(" .. key .. " strip, first refresh)|r")
+        end
     end
 
     function S:Toggle() AegisRP.SetStripShown(key, not f:IsShown()) end

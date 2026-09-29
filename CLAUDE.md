@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.14.2**. See `CHANGELOG.md` for the full history,
+Current version: **1.14.3**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -552,6 +552,26 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   still count toward every index so the row's wheel stays instant. An override
   naming an uncastable buff resolves to nil, so the player falls back to the
   row rather than dropping out of coverage.
+- **A strip's SAVED POSITION is not trusted, and the Options tick is not
+  evidence.** The "Show <strip>" checkbox reads the `stripHidden_*` flag, never
+  the frame, so a strip that is hidden or anchored off screen keeps reporting
+  itself as shown — which is what "my whole UI is gone" looks like from the
+  player's side, with a ticked box next to nothing. Three routes led there and
+  all three are now closed in `POS` (`Aegis_Strip.lua`, exposed as
+  `AegisRP.StripPos`): a stored anchor missing its offsets (the scale grip
+  persisted `x = f:GetLeft()`, and `GetLeft()` is nil on an unanchored frame —
+  restoring `{p, rel}` with no offsets puts the strip's TOP-LEFT on the
+  screen's BOTTOM-LEFT, entirely below the bottom edge); a rescale, since
+  `SetScale` does not re-anchor and `AegisRP_ApplyStripScale` moves every strip
+  proportionally away from its corner; and an error in a button's FIRST
+  `refresh`, which used to abort `Finish` before `f:Show()`. **Restore
+  validates and falls back, `POS.Save` is the only writer and refuses a partial
+  table, and `Finish` shows the frame BEFORE the first refresh.** Use
+  **`/rpc strips`** before theorising about a strip that is not there — it
+  prints flag vs frame vs on-screen vs enabled-button count, the way
+  `/rpc alpha` does for a colour. A position this addon cannot verify is not a
+  position: 24px reachable is the test, so a strip parked half off an edge on
+  purpose is left alone.
 - **Strip show/hide has one writer: `AegisRP.SetStripShown`.** The Options
   checkboxes, `/rpc kick`, `/rpc taunt` and `S:Toggle` all route through it, so
   the frame and its saved flag cannot disagree. Options builds its list from

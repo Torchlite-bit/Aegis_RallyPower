@@ -1,4 +1,4 @@
-# Aegis: RallyPower (v1.14.2)
+# Aegis: RallyPower (v1.14.3)
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
@@ -120,6 +120,7 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 | `/rpc slots` | Tank plan, plus whether sync is actually reaching you |
 | `/rpc castdbg` | Log raw cast events (SuperWoW only; for debugging) |
 | `/rpc alpha` | Report what colour each strip button is actually painted |
+| `/rpc strips` | Report where every strip is: shown, on screen, scale, anchor |
 | `/rpc rot` | Report both rotations: which store, who is in them, where you are |
 | `/rpc reset` | Put the bar back if it ends up off-screen |
 | `/rpc icon` | Cycle the minimap icon skin (or shift-click the icon) |
