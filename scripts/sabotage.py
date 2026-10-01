@@ -373,6 +373,50 @@ SABOTAGES = [
      "    AegisRP_Settings.minimapSkinAegis = true",
      "minimap"),
 
+    # The 1.15.0 bug: setting WIDTH on a button a collector addon has adopted
+    # silently does nothing, because the bar re-applies its own size or pins the
+    # button by anchors. The button stays 32 next to neighbours at ~25.
+    ("minimap-adopted-sized-by-width", "Core/Aegis_Core.lua",
+     "        f:SetScale(s / MMB.ART)\n"
+     "        MMB.SetDrag(false)",
+     "        f:SetWidth(s); f:SetHeight(s)\n"
+     "        MMB.SetDrag(false)",
+     "minimap"),
+
+    # Re-anchoring an adopted button to the minimap ring is a tug of war with
+    # the bar that owns its position.
+    ("minimap-adopted-still-repositioned", "Core/Aegis_Core.lua",
+     "        MMB.SetDrag(false)\n"
+     "        return\n"
+     "    end",
+     "        MMB.SetDrag(false)\n"
+     "        MMB.Position()\n"
+     "        return\n"
+     "    end",
+     "minimap"),
+
+    # Adoption looks at the container AND the button; a bar may take either.
+    ("minimap-adoption-ignores-button", "Core/Aegis_Core.lua",
+     "    if b and b.GetParent and b:GetParent() ~= f then return true end",
+     "",
+     "minimap"),
+
+    # Leaving the scale set when the button comes back to the minimap makes the
+    # two mechanisms compound: 26 wide at 0.8125 is 21 on screen.
+    ("minimap-scale-not-reset", "Core/Aegis_Core.lua",
+     "    f:SetScale(1)\n"
+     "    f:SetWidth(s); f:SetHeight(s)",
+     "    f:SetWidth(s); f:SetHeight(s)",
+     "minimap"),
+
+    # A second drag handler on a button the bar already drags is a fight.
+    ("minimap-drag-kept-while-adopted", "Core/Aegis_Core.lua",
+     "        MMB.SetDrag(false)\n"
+     "        return",
+     "        MMB.SetDrag(true)\n"
+     "        return",
+     "minimap"),
+
     # ---- saved positions -------------------------------------------------
     # The whole family behind "my UI is gone": a strip anchored where it cannot
     # be seen is Shown, ticking, and invisible, and the Options checkbox reads

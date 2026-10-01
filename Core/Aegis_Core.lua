@@ -1938,6 +1938,20 @@ function AegisRP_ApplyMinimapSkin(name)
     local base = "Interface\\AddOns\\Aegis_RallyPower\\Icons\\" .. SKIN_FILE[name]
     btn:SetNormalTexture(base)
     btn:SetPushedTexture(base .. "_Down")
+    -- The engine's XML highlights with Interface\Minimap\UI-Minimap-ZoomButton-
+    -- Highlight in ADD mode - a blue-white glow built for Blizzard's round zoom
+    -- buttons. Added over a gold-and-red badge it reads as a blue disc behind
+    -- the art, which is what it looks like to a player hovering to read the
+    -- tooltip. It was invisible for eight releases because the legacy skins are
+    -- themselves blue.
+    --
+    -- The skin's OWN art, added back over itself, brightens the button in its
+    -- own colours and carries the right alpha mask for free - so the glow is
+    -- the shape of the disc rather than a square behind it, whichever skin is
+    -- selected.
+    btn:SetHighlightTexture(base, "ADD")
+    local hl = btn.GetHighlightTexture and btn:GetHighlightTexture()
+    if hl then hl:SetAlpha(0.35) end
 end
 
 --------------------------------------------------------------------------
@@ -1964,6 +1978,7 @@ local MMB = {}
 
 MMB.DEFAULT_SIZE = 26
 MMB.MIN_SIZE, MMB.MAX_SIZE = 16, 32   -- 32 is the art's native size; past it it just blurs
+MMB.ART = 32                          -- what the engine's XML builds, in both directions
 
 function MMB.Size()
     local n = tonumber(AegisRP_Settings.minimapSize) or MMB.DEFAULT_SIZE
@@ -2014,6 +2029,28 @@ function MMB.Position()
         (r * sin(pos)) - cy + (s / 2))
 end
 
+-- Has a minimap-button-collector addon taken this button into a bar of its own?
+--
+-- Those addons re-parent the button out of the minimap and lay it out in a row.
+-- Two things follow, and both were wrong in 1.15.0: the ring placement is no
+-- longer ours to apply (the bar owns the position, and re-anchoring to the
+-- minimap every PLAYER_ENTERING_WORLD is a tug of war we should not start),
+-- and WIDTH is no longer a reliable way to resize - a bar that measured the
+-- 32px frame may re-apply that size, or pin the button by anchors, after we
+-- have set ours.
+--
+-- Either the container or the button alone may be the thing adopted, so both
+-- are checked.
+function MMB.Adopted()
+    local mm = getglobal("Minimap")
+    local f = getglobal("PallyPowerMinimapButtonFrame")
+    local b = getglobal("PallyPowerMinimapButton")
+    if not (mm and f and f.GetParent) then return false end
+    if f:GetParent() ~= mm then return true end
+    if b and b.GetParent and b:GetParent() ~= f then return true end
+    return false
+end
+
 -- Drag: follow the cursor around the ring, writing the engine's angle as we
 -- go. A driver frame rather than an OnUpdate on the button itself, so nothing
 -- ticks while the button is sitting still.
@@ -2034,26 +2071,56 @@ MMB.driver:SetScript("OnUpdate", function()
     MMB.Position()
 end)
 
--- Idempotent: re-applies art, size, scripts and placement. Safe to call again
--- on every PLAYER_ENTERING_WORLD, which is what happens.
+-- Dragging is ours only while the button is on the minimap. In a collector's
+-- bar the bar owns placement, and a second drag handler on the same button is
+-- a fight, not a feature.
+function MMB.SetDrag(on)
+    local btn = getglobal("PallyPowerMinimapButton")
+    if not btn then return end
+    if on and not MMB.drag then
+        MMB.drag = true
+        btn:RegisterForDrag("LeftButton")
+        btn:SetScript("OnDragStart", function() MMB.driver:Show() end)
+        btn:SetScript("OnDragStop", function()
+            MMB.driver:Hide()
+            MMB.Position()
+        end)
+    elseif (not on) and MMB.drag then
+        MMB.drag = false
+        MMB.driver:Hide()
+        btn:RegisterForDrag()            -- no buttons = drag off
+        btn:SetScript("OnDragStart", nil)
+        btn:SetScript("OnDragStop", nil)
+    end
+end
+
+-- Idempotent: re-applies size, drag and placement. Safe to call again on every
+-- PLAYER_ENTERING_WORLD, which is what happens - and which is also how a
+-- collector that grabs the button after login gets picked up, since that event
+-- fires again on every zone and instance change.
 function AegisRP_ApplyMinimapButton()
     local f = getglobal("PallyPowerMinimapButtonFrame")
     local btn = getglobal("PallyPowerMinimapButton")
     if not (f and btn) then return end
     local s = MMB.Size()
+
+    if MMB.Adopted() then
+        -- Resize by SCALE, not width. The bar measured a 32px frame and may
+        -- re-apply that size or pin the button by anchors; scale survives both
+        -- because nothing out there reads it back. Width is restored to the
+        -- art's native size first so the two mechanisms cannot compound into
+        -- 26 x 0.8125.
+        f:SetWidth(MMB.ART); f:SetHeight(MMB.ART)
+        btn:SetWidth(MMB.ART); btn:SetHeight(MMB.ART)
+        f:SetScale(s / MMB.ART)
+        MMB.SetDrag(false)
+        return
+    end
+
+    f:SetScale(1)
     f:SetWidth(s); f:SetHeight(s)
     btn:SetWidth(s); btn:SetHeight(s)
-    if not MMB.hooked then
-        MMB.hooked = true
-        btn:RegisterForDrag("LeftButton")
-        btn:SetScript("OnDragStart", function()
-            MMB.driver:Show()
-        end)
-        btn:SetScript("OnDragStop", function()
-            MMB.driver:Hide()
-            MMB.Position()
-        end)
-    end
+    MMB.SetDrag(true)
     MMB.Position()
 end
 
@@ -2236,6 +2303,49 @@ SlashCmdList["AEGISRP"] = function(msg)
         end
         DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaa(covered green is 0,0.70,0 - "
             .. "needed red 1,0,0 - idle grey 0.25,0.25,0.25)|r")
+        return
+    end
+
+    -- Diagnostics: the minimap button's real geometry.
+    --
+    -- Written because the first attempt at resizing it was debugged from a
+    -- screenshot, which cannot tell you whether a size was never applied or
+    -- applied and then overwritten by a button-collector addon. The two look
+    -- identical and need opposite fixes.
+    if msg == "minimap" then
+        local f = getglobal("PallyPowerMinimapButtonFrame")
+        local b = getglobal("PallyPowerMinimapButton")
+        if not (f and b) then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r the engine's minimap button does not exist.")
+            return
+        end
+        local function who(fr)
+            if not (fr and fr.GetParent) then return "?" end
+            local p = fr:GetParent()
+            if not p then return "none" end
+            return (p.GetName and p:GetName()) or "unnamed"
+        end
+        local ad = AegisRP.MinimapButton and AegisRP.MinimapButton.Adopted()
+        DEFAULT_CHAT_FRAME:AddMessage(string.format(
+            "|cffffff00Aegis:|r minimap button - skin=%s wanted=%d  %s",
+            tostring(AegisRP_Settings.minimapSkin),
+            AegisRP.MinimapButton and AegisRP.MinimapButton.Size() or -1,
+            ad and "|cffff8800adopted by another addon|r" or "on the minimap"))
+        DEFAULT_CHAT_FRAME:AddMessage(string.format(
+            "  frame  parent=%s  w=%.1f h=%.1f  scale=%.3f  eff=%.3f",
+            who(f), f:GetWidth() or -1, f:GetHeight() or -1,
+            f:GetScale() or -1, f:GetEffectiveScale() or -1))
+        DEFAULT_CHAT_FRAME:AddMessage(string.format(
+            "  button parent=%s  w=%.1f h=%.1f  scale=%.3f  eff=%.3f",
+            who(b), b:GetWidth() or -1, b:GetHeight() or -1,
+            b:GetScale() or -1, b:GetEffectiveScale() or -1))
+        local eff = (b:GetWidth() or 0) * (b:GetEffectiveScale() or 1)
+            / (UIParent:GetEffectiveScale() or 1)
+        DEFAULT_CHAT_FRAME:AddMessage(string.format(
+            "  on screen it is %.1f UI units wide; angle=%s",
+            eff, tostring(PP_PerUser and PP_PerUser.minimapbuttonpos)))
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaa(compare that width with your other "
+            .. "minimap buttons - the slider is Options > Settings > Minimap icon size)|r")
         return
     end
 
