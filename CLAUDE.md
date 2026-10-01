@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.15.0**. See `CHANGELOG.md` for the full history,
+Current version: **1.15.1**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -593,6 +593,29 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   of `PallyPower.lua`. Covered by `scripts/test_minimap.lua`, which loads
   `Aegis_Core.lua` whole under stubs; that works, so new Core logic can be
   tested off-client too.
+- **A button-collector addon may OWN the minimap button, and then size and
+  placement are not ours.** Those addons re-parent it out of the minimap into a
+  bar; `MMB.Adopted()` detects it on either the container or the button, since
+  a bar may take either. When adopted: resize by **`SetScale`**, never width —
+  the bar measured a 32px frame and may re-apply that size or pin the button by
+  anchors, so a width we set silently does nothing (this is exactly how 1.15.0
+  shipped looking unchanged, at 1.28× its neighbours). Width is restored to
+  `MMB.ART` first so scale and width cannot compound, and `SetScale(1)` on the
+  way back out for the same reason. Also **do not re-anchor an adopted button**
+  and **do not install our drag** — the bar owns both, and
+  `PLAYER_ENTERING_WORLD` fires on every zone change, so a tug of war there is
+  continuous. Use **`/rpc minimap`** before theorising: a size never applied
+  and a size applied then overwritten look identical on screen and need
+  opposite fixes.
+- **The engine highlights the minimap button with a BLUE-WHITE glow.**
+  `MinimapButton.xml` uses `UI-Minimap-ZoomButton-Highlight` in `ADD` mode,
+  which is built for Blizzard's round zoom buttons. Over warm art it reads as a
+  blue disc behind the icon on hover, and it went unnoticed for eight releases
+  because every legacy skin is itself blue. `ApplyMinimapSkin` replaces it with
+  the selected skin's OWN art at alpha 0.35 — added back over itself it
+  brightens in the skin's colours and carries the right alpha mask for free, so
+  the glow is disc-shaped rather than a square behind the art. Any new skin
+  gets this automatically; do not re-introduce a fixed highlight file.
 - **A new minimap skin is three things, not one**: a `SKIN_FILE` entry, the art
   pair in `Icons/` (`X.tga` + `X_Down.tga`, 32x32 BGRA TGA, bottom-up,
   descriptor `0x08`, 4140 bytes, the pushed one the normal one times **0.70**),

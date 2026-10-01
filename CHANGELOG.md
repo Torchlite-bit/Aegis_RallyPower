@@ -14,6 +14,43 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.15.1] — 2026-10-01
+### Fixed
+- **The minimap button stayed 32px for anyone using a button-collector addon.**
+  Those addons re-parent the button out of the minimap into a bar of their own,
+  and may re-apply the size they measured, or pin the button by anchors, after
+  we have set ours — so setting the width silently did nothing. Measured from
+  the report: ours rendered 1.28× its neighbours, the same ratio as before
+  1.15.0. An adopted button is now resized by **scale**, which nothing out
+  there reads back, and its width is left at the art's native size so the two
+  mechanisms cannot compound.
+- **An adopted button is no longer dragged back to the minimap ring.** 1.15.0
+  re-anchored it on every `PLAYER_ENTERING_WORLD`, which is a tug of war with
+  the bar that owns its position. The ring placement and our drag handler now
+  apply only while the button is actually on the minimap.
+- **The blue wash behind the icon on hover.** The engine's XML highlights with
+  `UI-Minimap-ZoomButton-Highlight` in ADD mode — a blue-white glow built for
+  Blizzard's round zoom buttons. Over a gold-and-red badge it reads as a blue
+  disc behind the art. It went unnoticed for eight releases because the legacy
+  skins are themselves blue. The highlight is now the selected skin's own art
+  added back over itself at 0.35: it brightens the button in its own colours
+  and carries the right alpha mask, so the glow is the shape of the disc
+  instead of a square behind it.
+
+### Added
+- **`/rpc minimap`** — the button's real geometry: which addon owns it, the
+  frame and button sizes, scale and effective scale, how wide it actually
+  renders, and the stored ring angle. A size that was never applied and one
+  that was applied and then overwritten look identical on screen and need
+  opposite fixes.
+
+### Notes
+- The art itself was never blue: its mean colour matches a plain downsample of
+  the source logo to within one step per channel.
+- 18 new checks in `scripts/test_minimap.lua` and five new sabotages; all 54
+  caught.
+- Not yet seen in game.
+
 ## [1.15.0] — 2026-10-01
 ### Added
 - **The minimap button can be dragged** around the minimap ring. It stores the

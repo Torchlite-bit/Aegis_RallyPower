@@ -40,7 +40,11 @@ local function Widget(name)
     function f:GetScript(k) return self["_s_" .. k] end
     function f:CreateTexture() return Widget() end
     function f:CreateFontString() return Widget() end
-    function f:GetParent() return UIParent end
+    function f:SetParent(v) self._parent = v end
+    function f:GetParent() return self._parent or UIParent end
+    function f:SetScale(v) self._scale = v end
+    function f:GetScale() return self._scale or 1 end
+    function f:RegisterForDrag(...) self._drag = arg and arg[1] or nil end
     function f:GetFrameLevel() return 1 end
     function f:GetCenter() return (self._cx or 0), (self._cy or 0) end
     return f
@@ -265,7 +269,68 @@ near("a far cursor and a near one at the same bearing agree",
      PP_PerUser.minimapbuttonpos, far)
 
 --------------------------------------------------------------------------
--- 5. The one-time move to the Aegis badge
+-- 5. A button-collector addon has taken the button into a bar of its own
+--
+-- This is the 1.15.0 bug. Those addons re-parent the button out of the minimap
+-- and lay it out in a row, and they may re-apply the size they measured, or
+-- pin the button by anchors, after we have set ours - so setting WIDTH silently
+-- did nothing and the button stayed 32 against neighbours at ~25. Re-anchoring
+-- it to the minimap ring every PLAYER_ENTERING_WORLD was the other half: a tug
+-- of war with the bar over where the button lives.
+--------------------------------------------------------------------------
+print("")
+print("minimap button - a collector addon owns the button")
+
+local btnFrame = _G.PallyPowerMinimapButton or CreateFrame("Button", "PallyPowerMinimapButton")
+btnFrame:SetParent(frame)
+frame:SetParent(MM)
+AegisRP_Settings.minimapSize = 26
+
+check("on the minimap, nothing is adopted", MMB.Adopted(), false)
+AegisRP_ApplyMinimapButton()
+check("...so width carries the size", frame:GetWidth(), 26)
+check("...the button too", btnFrame:GetWidth(), 26)
+check("...scale stays 1", frame:GetScale(), 1)
+check("...and drag is ours", MMB.drag, true)
+frame.anchor = nil
+AegisRP_ApplyMinimapButton()
+check("...and it is placed on the ring", frame.anchor ~= nil, true)
+
+-- now a bar adopts the container
+local bar = Widget("SomeButtonBar")
+frame:SetParent(bar)
+check("a re-parented container reads as adopted", MMB.Adopted(), true)
+
+frame.anchor = nil
+AegisRP_ApplyMinimapButton()
+check("adopted: width is left at the art's native size", frame:GetWidth(), MMB.ART)
+check("...the button too", btnFrame:GetWidth(), MMB.ART)
+check("...the size rides on scale instead", frame:GetScale(), 26 / MMB.ART)
+check("...which still renders 26 wide", frame:GetWidth() * frame:GetScale(), 26)
+check("...placement is left to the bar", frame.anchor, nil)
+check("...and drag is handed back", MMB.drag, false)
+
+-- the slider must still move it while adopted
+AegisRP_Settings.minimapSize = 20
+AegisRP_ApplyMinimapButton()
+check("the slider still resizes an adopted button",
+      frame:GetWidth() * frame:GetScale(), 20)
+AegisRP_Settings.minimapSize = 26
+
+-- a bar that adopts the BUTTON instead of the container counts too
+frame:SetParent(MM)
+btnFrame:SetParent(bar)
+check("a re-parented button reads as adopted", MMB.Adopted(), true)
+btnFrame:SetParent(frame)
+check("...and putting it back clears it", MMB.Adopted(), false)
+
+-- going back to the minimap must undo the scale, or the two compound
+AegisRP_ApplyMinimapButton()
+check("back on the minimap, scale returns to 1", frame:GetScale(), 1)
+check("...and width carries the size again", frame:GetWidth(), 26)
+
+--------------------------------------------------------------------------
+-- 6. The one-time move to the Aegis badge
 --------------------------------------------------------------------------
 AegisRP_Settings.minimapSkin = nil
 AegisRP_Settings.minimapSkinAegis = nil
