@@ -1731,7 +1731,9 @@ f:SetScript("OnEvent", function()
     if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
         Activate()
         AegisRP_ApplyVisibility()    -- honor show-solo/party/raid
+        AegisRP_MigrateMinimapSkin() -- one-time move to the Aegis badge
         AegisRP_ApplyMinimapSkin()   -- restore the saved icon skin
+        AegisRP_ApplyMinimapButton() -- size, drag and ring placement
         if event == "PLAYER_LOGIN" and not HAS_SUPERWOW and not AegisRP_Settings._swowNagged then
             AegisRP_Settings._swowNagged = true
             DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r SuperWoW not detected - running in 1.12 compatibility mode (icon-based buff detection). SuperWoW is recommended on Turtle for exact tracking.")
@@ -1905,31 +1907,186 @@ function AegisRP_ResetBarPosition()
 end
 
 --=============================================================================
--- MINIMAP ICON SKINS  (shared minimap button -> works for every class)
+-- MINIMAP BUTTON  (shared with the engine -> works for every class)
+--
+-- The button itself is the engine's (PallyPower/MinimapButton.xml), so
+-- everything here is applied from our side at PLAYER_LOGIN rather than by
+-- editing the vendored file. Three things are ours: which art it wears, how
+-- big it is, and that it can be dragged around the ring.
 --=============================================================================
-AegisRP_MinimapSkins = { "blue", "ivory", "white", "gold", "pearl" }
+AegisRP_MinimapSkins = { "aegis", "blue", "ivory", "white", "gold", "pearl" }
 local SKIN_FILE = {
-    blue  = "Minimap",        -- the default (also the XML fallback)
+    aegis = "Minimap_aegis",  -- the Aegis badge; the default since 1.15.0
+    blue  = "Minimap",        -- the old default (also the XML's own fallback)
     ivory = "Minimap_ivory",
     white = "Minimap_white",
     gold  = "Minimap_gold",
     pearl = "Minimap_pearl",
 }
 local SKIN_LABEL = {
-    blue="Blue & Gold", ivory="Ivory & Gold", white="White & Gold",
-    gold="Gold & White", pearl="Pearl & Gold",
+    aegis="Aegis badge", blue="Blue & Gold", ivory="Ivory & Gold",
+    white="White & Gold", gold="Gold & White", pearl="Pearl & Gold",
 }
 AegisRP_MinimapSkinLabels = SKIN_LABEL   -- exposed for the options dropdown
 
 function AegisRP_ApplyMinimapSkin(name)
-    name = name or AegisRP_Settings.minimapSkin or "blue"
-    if not SKIN_FILE[name] then name = "blue" end
+    name = name or AegisRP_Settings.minimapSkin or "aegis"
+    if not SKIN_FILE[name] then name = "aegis" end
     AegisRP_Settings.minimapSkin = name
     local btn = getglobal("PallyPowerMinimapButton")
     if not btn then return end
     local base = "Interface\\AddOns\\Aegis_RallyPower\\Icons\\" .. SKIN_FILE[name]
     btn:SetNormalTexture(base)
     btn:SetPushedTexture(base .. "_Down")
+end
+
+--------------------------------------------------------------------------
+-- Size and placement.
+--
+-- ONE file-scope local for the whole thing (hard rule 9) - the size helpers,
+-- the angle maths and the drag driver all hang off MMB.
+--
+-- The engine draws the button at the art's native 32px with no border ring
+-- around it, so the whole 32px reads as icon. Every other button on the ring
+-- is a ~20px icon inside Blizzard's border, so ours measured about a quarter
+-- wider than its neighbours on screen. 26 is the default; the slider exists
+-- because "matches my other buttons" depends on which other addons are
+-- installed, and that is not something this addon can see.
+--
+-- Placement keeps the engine's own PP_PerUser.minimapbuttonpos (degrees), so
+-- nothing about SavedVariables changes and the engine's own callers still
+-- work. What changes is that the offsets are derived from the CURRENT size
+-- instead of a hardcoded 32, and from the minimap's real centre instead of the
+-- engine's 68 (it is 70 on a stock 140px minimap, so the ring sat 2px off).
+--------------------------------------------------------------------------
+
+local MMB = {}
+
+MMB.DEFAULT_SIZE = 26
+MMB.MIN_SIZE, MMB.MAX_SIZE = 16, 32   -- 32 is the art's native size; past it it just blurs
+
+function MMB.Size()
+    local n = tonumber(AegisRP_Settings.minimapSize) or MMB.DEFAULT_SIZE
+    if n < MMB.MIN_SIZE then n = MMB.MIN_SIZE elseif n > MMB.MAX_SIZE then n = MMB.MAX_SIZE end
+    return n
+end
+
+-- math.atan2 is present on this client, but a source that may simply not
+-- answer gets a fallback rather than an assumption (see the capability rule).
+function MMB.Atan2(y, x)
+    if math.atan2 then return math.atan2(y, x) end
+    if x > 0 then return math.atan(y / x) end
+    if x < 0 then
+        if y >= 0 then return math.atan(y / x) + math.pi end
+        return math.atan(y / x) - math.pi
+    end
+    if y > 0 then return math.pi / 2 end
+    if y < 0 then return -math.pi / 2 end
+    return 0
+end
+
+-- The ring the button rides on, in Minimap-TOPLEFT coordinates: centre, and
+-- radius. Stock is a 140px minimap, giving centre 70 and radius 80 - the same
+-- ring the engine hardcoded, just measured instead of assumed.
+function MMB.Ring()
+    local mm = getglobal("Minimap")
+    local w = mm and mm:GetWidth() or 0
+    local h = mm and mm:GetHeight() or 0
+    if not (w > 0 and h > 0) then w, h = 140, 140 end
+    return w / 2, h / 2, (w / 2) + 10
+end
+
+-- Replaces the engine's PallyPower_MinimapButton_UpdatePosition. Same stored
+-- angle, same direction of travel (0 = left of the minimap, 90 = above it),
+-- size-aware offsets.
+function MMB.Position()
+    local f = getglobal("PallyPowerMinimapButtonFrame")
+    if not f then return end
+    local pos = 30                       -- the engine's own default
+    if type(PP_PerUser) == "table" and tonumber(PP_PerUser.minimapbuttonpos) then
+        pos = tonumber(PP_PerUser.minimapbuttonpos)
+    end
+    local cx, cy, r = MMB.Ring()
+    local s = MMB.Size()
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", "Minimap", "TOPLEFT",
+        cx - (r * cos(pos)) - (s / 2),
+        (r * sin(pos)) - cy + (s / 2))
+end
+
+-- Drag: follow the cursor around the ring, writing the engine's angle as we
+-- go. A driver frame rather than an OnUpdate on the button itself, so nothing
+-- ticks while the button is sitting still.
+MMB.driver = CreateFrame("Frame", "AegisRP_MinimapDrag")
+MMB.driver:Hide()
+MMB.driver:SetScript("OnUpdate", function()
+    local mm = getglobal("Minimap")
+    if not mm then return end
+    local scale = mm:GetEffectiveScale()
+    local mx, my = mm:GetCenter()
+    local px, py = GetCursorPosition()
+    if not (scale and scale > 0 and mx and my and px and py) then return end
+    px, py = px / scale, py / scale
+    -- The engine's angle runs anticlockwise from the LEFT of the minimap
+    -- (x = -r*cos, y = +r*sin), so the inverse takes -dx.
+    PP_PerUser = PP_PerUser or {}
+    PP_PerUser.minimapbuttonpos = math.deg(MMB.Atan2(py - my, mx - px))
+    MMB.Position()
+end)
+
+-- Idempotent: re-applies art, size, scripts and placement. Safe to call again
+-- on every PLAYER_ENTERING_WORLD, which is what happens.
+function AegisRP_ApplyMinimapButton()
+    local f = getglobal("PallyPowerMinimapButtonFrame")
+    local btn = getglobal("PallyPowerMinimapButton")
+    if not (f and btn) then return end
+    local s = MMB.Size()
+    f:SetWidth(s); f:SetHeight(s)
+    btn:SetWidth(s); btn:SetHeight(s)
+    if not MMB.hooked then
+        MMB.hooked = true
+        btn:RegisterForDrag("LeftButton")
+        btn:SetScript("OnDragStart", function()
+            MMB.driver:Show()
+        end)
+        btn:SetScript("OnDragStop", function()
+            MMB.driver:Hide()
+            MMB.Position()
+        end)
+    end
+    MMB.Position()
+end
+
+-- Exposed whole, like AegisRP.StripPos: the ring arithmetic is the kind that
+-- is silently wrong rather than visibly broken (a button a few pixels off the
+-- ring still looks like a button), so scripts/test_minimap.lua drives it.
+AegisRP.MinimapButton = MMB
+
+-- Options hook: the size slider.
+function AegisRP_ApplyMinimapSize(n)
+    AegisRP_Settings.minimapSize = tonumber(n) or MMB.DEFAULT_SIZE
+    AegisRP_ApplyMinimapButton()
+end
+
+-- Save-and-replace, not an edit: PallyPower/ stays byte-identical. This is a
+-- real global in MinimapButton.lua (not one of the forward-declared file-locals
+-- PallyPower.lua is full of), and both of its callers - MinimapButton_Init and
+-- the frame's OnEvent - look it up by name at call time, so replacing it here
+-- is enough.
+PallyPower_MinimapButton_UpdatePosition = function() MMB.Position() end
+
+-- One-time move to the new default art.
+--
+-- "blue" was the old default and every existing character already has it
+-- WRITTEN to SavedVariables (ApplyMinimapSkin stores whatever it resolves,
+-- including the fallback), so a changed default alone would reach nobody. The
+-- flag means this runs once: a player who picks blue back afterwards keeps it.
+function AegisRP_MigrateMinimapSkin()
+    if AegisRP_Settings.minimapSkinAegis then return end
+    AegisRP_Settings.minimapSkinAegis = true
+    if (AegisRP_Settings.minimapSkin or "blue") == "blue" then
+        AegisRP_Settings.minimapSkin = "aegis"
+    end
 end
 
 -- Cycle to the next skin, or set one directly by name. Callable from the slash

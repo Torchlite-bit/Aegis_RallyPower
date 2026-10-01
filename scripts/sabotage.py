@@ -37,6 +37,7 @@ SUITES = {
     "pets":      "scripts/test_pets.lua",
     "soulstone": "scripts/test_soulstone.lua",
     "cc":        "scripts/test_cc.lua",
+    "minimap":   "scripts/test_minimap.lua",
 }
 
 # (name, file, find, replace, suite that must fail)
@@ -323,6 +324,54 @@ SABOTAGES = [
      "    if not shown then S.frame:Hide()",
      "    if not shown then",
      "strip"),
+
+    # ---- minimap button --------------------------------------------------
+    # The button rides a circle by angle. Every formula here carries a
+    # half-size term, and getting one wrong still draws a button - just not
+    # on the ring, or not where the cursor left it.
+
+    ("minimap-size-not-clamped", "Core/Aegis_Core.lua",
+     "    if n < MMB.MIN_SIZE then n = MMB.MIN_SIZE elseif n > MMB.MAX_SIZE then n = MMB.MAX_SIZE end",
+     "",
+     "minimap"),
+
+    # The engine's own mistake, restored: a half-size of 16 because its button
+    # was always 32. Any other size then walks off the ring.
+    ("minimap-halfsize-hardcoded", "Core/Aegis_Core.lua",
+     "        cx - (r * cos(pos)) - (s / 2),\n"
+     "        (r * sin(pos)) - cy + (s / 2))",
+     "        cx - (r * cos(pos)) - 16,\n"
+     "        (r * sin(pos)) - cy + 16)",
+     "minimap"),
+
+    # Ring measured off the minimap, not assumed. A UI that resizes the minimap
+    # otherwise gets the button floating somewhere inside or outside it.
+    ("minimap-ring-hardcoded", "Core/Aegis_Core.lua",
+     "    return w / 2, h / 2, (w / 2) + 10",
+     "    return 70, 70, 80",
+     "minimap"),
+
+    # The drag inverse. A flipped sign mirrors the button across the minimap,
+    # so it jumps to the far side the instant you grab it.
+    ("minimap-drag-angle-mirrored", "Core/Aegis_Core.lua",
+     "    PP_PerUser.minimapbuttonpos = math.deg(MMB.Atan2(py - my, mx - px))",
+     "    PP_PerUser.minimapbuttonpos = math.deg(MMB.Atan2(py - my, px - mx))",
+     "minimap"),
+
+    # A missing angle is the key the PP_PerUser repair exists for. Defaulting
+    # it to 0 moves every upgrading player's button without being asked.
+    ("minimap-missing-angle-defaults-zero", "Core/Aegis_Core.lua",
+     "    local pos = 30                       -- the engine's own default",
+     "    local pos = 0",
+     "minimap"),
+
+    # Without the flag the migration runs every login, so a player who picks a
+    # legacy skin back gets overruled on their next reload.
+    ("minimap-migration-repeats", "Core/Aegis_Core.lua",
+     "    if AegisRP_Settings.minimapSkinAegis then return end\n"
+     "    AegisRP_Settings.minimapSkinAegis = true",
+     "    AegisRP_Settings.minimapSkinAegis = true",
+     "minimap"),
 
     # ---- saved positions -------------------------------------------------
     # The whole family behind "my UI is gone": a strip anchored where it cannot

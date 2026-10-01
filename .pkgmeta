@@ -1,9 +1,10 @@
 # BigWigsMods/packager manifest.
 #
-# package-as is NOT optional here. The repository is RallyPowerCP and the addon
-# is Aegis_RallyPower; a 1.12 client loads an addon from the folder named after
-# its .toc, so a zip built under the repository name would install and never
-# load.
+# package-as pins the FOLDER NAME the zip installs as. A 1.12 client loads an
+# addon from the folder named after its .toc, and the packager otherwise names
+# that folder after the repository - which was RallyPowerCP when this was
+# written and is Aegis_RallyPower now. Stating it means a future rename cannot
+# ship a zip that installs and never loads.
 package-as: Aegis_RallyPower
 
 manual-changelog:

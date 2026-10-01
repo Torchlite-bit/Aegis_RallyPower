@@ -14,6 +14,53 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.15.0] — 2026-10-01
+### Added
+- **The minimap button can be dragged** around the minimap ring. It stores the
+  angle in the engine's own `PP_PerUser.minimapbuttonpos`, so nothing about
+  SavedVariables changes and the engine's own callers still work.
+- **Minimap icon size slider** (Options → Settings, both class branches),
+  16–32px.
+- **New default minimap icon: the Aegis badge.** The five legacy skins
+  (Blue, Gold, Ivory, White, Pearl) are unchanged and still selectable.
+
+### Changed
+- **The minimap button is 26px by default, down from 32.** Measured against the
+  reported screenshot: the engine draws the art at its native 32 with no border
+  ring, while a stock Blizzard ring button is a ~20px icon inside a border, so
+  ours rendered about a quarter wider than its neighbours. 26 sits level with
+  them. The slider exists because what counts as level depends on which other
+  addons are installed, which this addon cannot see.
+- **Placement is derived from the current size and the minimap's real centre**,
+  rather than from a hardcoded 32px button and a hardcoded 68. On a stock 140px
+  minimap the centre is 70, so the ring was 2px off as well as size-blind.
+- **One-time migration to the new icon.** `"blue"` was the old default and every
+  existing character already has it written to SavedVariables, so changing the
+  default alone would have reached nobody. A flag means this runs once: pick a
+  legacy skin afterwards and it sticks.
+- **The Options frame now yields its +40 lift to fit on screen.** The Paladin
+  Settings tab is the tallest in the addon and sat 3px inside the top edge at
+  682px, so *any* new row pushed it off — the size slider would have put it 19px
+  over. It now reduces the offset instead, and only while undocked; docking owns
+  the position when the assignment panel is open.
+
+### Notes
+- `PallyPower/` is untouched: `PallyPower_MinimapButton_UpdatePosition` is
+  save-and-replaced from our side. It is a real global in `MinimapButton.lua`,
+  and both of its callers look it up by name at call time.
+- The new art is a 32×32 BGRA TGA with the same header, size and pushed-state
+  ratio (×0.70) as the five legacy skins, byte-for-byte the same format.
+- `math.atan2` carries a hand-rolled fallback, checked against the real one in
+  every quadrant.
+- New `scripts/test_minimap.lua` — 37 checks covering the size clamp, ring
+  placement at four angles and three sizes, the missing-angle fallback, the
+  drag round-trip through the real handler, and the skin migration. Six new
+  sabotages; all 49 caught. Sabotage caught the first drag test reimplementing
+  the angle formula instead of driving the handler, which let a mirrored drag
+  through.
+- Sizing and placement are **not yet seen in game**; the maths is tested, the
+  look is not.
+
 ## [1.14.3] — 2026-09-29
 ### Fixed (a strip could be "shown" and nowhere on screen)
 - **Reported from play: the whole class strip missing while the Options
