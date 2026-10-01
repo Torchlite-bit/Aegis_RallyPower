@@ -101,7 +101,7 @@ Left-click opens the right thing for your class. Right-click opens Options. **Dr
 
 ### Installation
 1. Download the latest zip from
-   [Releases](https://github.com/Torchlite-bit/rallypowercp/releases) and
+   [Releases](https://github.com/Torchlite-bit/Aegis_RallyPower/releases) and
    extract it to `Interface/AddOns/Aegis_RallyPower/`
    - The zip already contains the `Aegis_RallyPower` folder, so extract it into
      `AddOns` and not into a folder of your own naming — a 1.12 client loads an

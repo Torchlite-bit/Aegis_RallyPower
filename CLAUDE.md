@@ -826,10 +826,13 @@ version's `CHANGELOG.md` entry becomes the release notes and
   misses README's H1 now breaks the release as well as the docs.
 - A changelog heading must stay `## [X.Y.Z] — YYYY-MM-DD`; the notes are
   extracted by exact prefix match on `## [X.Y.Z]`.
-- `.pkgmeta` carries `package-as: Aegis_RallyPower`. The repository folder is
-  `RallyPowerCP` and the addon folder is not — a 1.12 client loads an addon from
-  the folder named after its `.toc`, so dropping that key would ship a zip that
-  installs and never loads.
+- `.pkgmeta` carries `package-as: Aegis_RallyPower`, which pins the folder name
+  the zip installs as. A 1.12 client loads an addon from the folder named after
+  its `.toc`, and the packager otherwise names that folder after the
+  REPOSITORY — which was `RallyPowerCP` when this was written and is
+  `Aegis_RallyPower` now. The key is what makes a rename harmless; dropping it
+  because the two names currently agree would ship a zip that installs and
+  never loads the next time they do not.
 
 ### WHICH number to bump
 
