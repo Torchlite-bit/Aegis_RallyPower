@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.14.3**. See `CHANGELOG.md` for the full history,
+Current version: **1.15.0**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -262,6 +262,7 @@ lua scripts/test_duties.lua      # duty catalog: unique wids, tab fits its cards
 lua scripts/test_cc.lua          # crowd control: mark-major view + RPCX round-trip
 lua scripts/test_pets.lua        # pet token shapes + the owner-class gate
 lua scripts/test_soulstone.lua   # warlock soulstone tiers rank by name
+lua scripts/test_minimap.lua     # minimap ring placement, drag angle, skin migration
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -572,6 +573,45 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   `/rpc alpha` does for a colour. A position this addon cannot verify is not a
   position: 24px reachable is the test, so a strip parked half off an edge on
   purpose is left alone.
+- **The minimap button is the ENGINE's frame, dressed from our side.**
+  `PallyPower/MinimapButton.xml` builds it at the art's native 32px with no
+  border ring, so the whole 32 reads as icon while every other button on the
+  ring is a ~20px icon inside a border — ours measured about a quarter wider
+  than its neighbours. `MMB` in `Aegis_Core.lua` (one file-scope local,
+  exposed as `AegisRP.MinimapButton`) owns size, placement and drag;
+  `AegisRP_ApplyMinimapButton()` is idempotent and runs at every
+  `PLAYER_ENTERING_WORLD`. Three things to keep straight:
+  **the stored angle stays the engine's `PP_PerUser.minimapbuttonpos`** (0 is
+  LEFT of the minimap, 90 ABOVE, so the engine's default of 30 lands
+  upper-left), so SavedVariables never change and the engine's own callers keep
+  working; **every offset carries a half-size term**, which is what the engine
+  got wrong by hardcoding 16 for its fixed 32px button — resize it and the
+  centre leaves the circle; and **the ring is measured, not assumed**
+  (`MMB.Ring()` reads `Minimap:GetWidth()`, giving 70/80 on a stock minimap
+  where the engine hardcoded 68). `PallyPower_MinimapButton_UpdatePosition` is
+  save-and-replaced — it IS a real global in `MinimapButton.lua`, unlike half
+  of `PallyPower.lua`. Covered by `scripts/test_minimap.lua`, which loads
+  `Aegis_Core.lua` whole under stubs; that works, so new Core logic can be
+  tested off-client too.
+- **A new minimap skin is three things, not one**: a `SKIN_FILE` entry, the art
+  pair in `Icons/` (`X.tga` + `X_Down.tga`, 32x32 BGRA TGA, bottom-up,
+  descriptor `0x08`, 4140 bytes, the pushed one the normal one times **0.70**),
+  and a `SKIN_LABEL`. Changing the DEFAULT additionally needs a migration:
+  `ApplyMinimapSkin` writes back whatever it resolves, including the fallback,
+  so every existing character already has the old default stored and a changed
+  default reaches nobody. `AegisRP_MigrateMinimapSkin` does it once behind a
+  flag, so a player who picks a legacy skin afterwards keeps it.
+- **The Options frame yields its +40 lift rather than running off screen.**
+  `ShowTab` grows the frame to its tallest tab and then clamps the centre
+  offset; there is no scrollbar, so a tab that does not fit is simply cut off.
+  The Paladin Settings tab is the tallest in the addon and sat **3px** inside
+  the top edge at 682, so any new row at all put it over. Still measure before
+  adding one (header 26, check 24, slider 44, select 34, button 30, note h+8) —
+  the clamp buys room, it does not make the tab infinite, and past a
+  screen-height tab it can only split the overflow. The clamp is skipped while
+  the frame is docked, because `AegisRP.DockPanels` anchors it `TOPLEFT`/
+  `TOPRIGHT` to the panel and owns its position; `GetPoint() == "CENTER"` is
+  the discriminator.
 - **Strip show/hide has one writer: `AegisRP.SetStripShown`.** The Options
   checkboxes, `/rpc kick`, `/rpc taunt` and `S:Toggle` all route through it, so
   the frame and its saved flag cannot disagree. Options builds its list from

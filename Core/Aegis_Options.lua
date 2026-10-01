@@ -34,6 +34,9 @@
 AegisRP_Settings = AegisRP_Settings or {}
 
 local FRAME_W, FRAME_H = 360, 480
+-- How far above centre the frame sits when it is not docked. ShowTab
+-- reduces it for a tab too tall to fit at this lift.
+local OPT_Y = 40
 local PAD_X = 16                       -- left inset for controls
 local NOTE_W = FRAME_W - 44            -- wrap width for note text
 
@@ -403,7 +406,7 @@ local function LegacySlider(label, ppKey, lo, hi, step, dflt, apply, tip)
 end
 
 local function MinimapSkinEntry()
-    return { type = "select", key = "minimapSkin", label = "Minimap icon", default = "blue",
+    return { type = "select", key = "minimapSkin", label = "Minimap icon", default = "aegis",
       values = function()
           local out = {}
           for i = 1, table.getn(AegisRP_MinimapSkins) do
@@ -414,6 +417,18 @@ local function MinimapSkinEntry()
           return out
       end,
       set = function(v) AegisRP_ApplyMinimapSkin(v) end }
+end
+
+-- A slider rather than a fixed size: what "the same as my other buttons" means
+-- depends on which other addons are installed, and this addon cannot see them.
+-- 26 matches a stock Blizzard ring button; the old 32 is still reachable.
+local function MinimapSizeEntry()
+    return { type = "slider", key = "minimapSize", label = "Minimap icon size",
+      min = 16, max = 32, step = 1, default = 26,
+      tip = "Width of the minimap button in pixels.\nThe art is 32 across, which "
+         .. "is wider than the icon inside a stock Blizzard ring button - 26 sits "
+         .. "level with those.\nDrag the button itself to move it around the ring.",
+      set = function(v) AegisRP_ApplyMinimapSize(v) end }
 end
 
 local function TestModeEntry()
@@ -524,6 +539,7 @@ local function SettingsTabEntries()
             ShowMinimapButtonEntry(),
             { type = "header", label = "Looks" },
             MinimapSkinEntry(),
+            MinimapSizeEntry(),
             { type = "header", label = "PallyPower engine" },
             LegacyCheck("Lock frames", "frameslocked",
                 "FramesLockedOptionChk", "PallyPower_FramesLockedOption", false),
@@ -577,6 +593,7 @@ local function SettingsTabEntries()
         StripHorizontalEntry(),
         StripSnapEntry(),
         MinimapSkinEntry(),
+        MinimapSizeEntry(),
         ShowMinimapButtonEntry(),
         LockFramesEntry(),
         ResetFramesEntry(),
@@ -870,6 +887,24 @@ local function ShowTab(i)
     local want = 56 + (p.contentH or 0) + 18
     if want < FRAME_H then want = FRAME_H end
     optFrame:SetHeight(want)
+    -- ...then keep it on screen. The +40 lift is a nicety; fitting is not, and
+    -- there is no scrollbar to rescue a tab that runs off the top. The Paladin
+    -- Settings tab is the tallest in the addon and sat 3px inside the edge at
+    -- 682, so the next row added to it - any row - put it over. Measuring and
+    -- yielding the offset is what makes adding one safe.
+    -- Skipped while the frame is docked beside the assignment panel: docking
+    -- anchors it TOPLEFT/TOPRIGHT to that panel and owns its position.
+    local anchor = optFrame:GetPoint()
+    if anchor == "CENTER" then
+        local sh = UIParent:GetHeight() or 768
+        local off = OPT_Y
+        local room = (sh / 2) - (want / 2)
+        if room < 0 then off = 0                     -- taller than the screen: split the overflow
+        elseif off > room then off = room
+        elseif off < -room then off = -room end
+        optFrame:ClearAllPoints()
+        optFrame:SetPoint("CENTER", UIParent, "CENTER", 0, off)
+    end
     StyleTabs()
     RefreshControls()
 end
@@ -878,7 +913,7 @@ local function CreateOptionsFrame()
     local f = CreateFrame("Frame", "AegisRP_OptionsFrame", UIParent)
     optFrame = f
     f:SetWidth(FRAME_W); f:SetHeight(FRAME_H)
-    f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, OPT_Y)
     f:SetBackdrop({
         bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -941,7 +976,7 @@ local function CreateOptionsFrame()
             if AegisRP.DockPanels then AegisRP.DockPanels() end
         else
             f:ClearAllPoints()
-            f:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
+            f:SetPoint("CENTER", UIParent, "CENTER", 0, OPT_Y)
         end
         ShowTab(AegisRP_Settings.optLastTab or 1)
     end)

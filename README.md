@@ -1,4 +1,4 @@
-# Aegis: RallyPower (v1.14.3)
+# Aegis: RallyPower (v1.15.0)
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 
@@ -93,7 +93,7 @@ One hook feeds everything: the class bar, the player pop-out, coverage counts, s
 Preview every buff on a fake 40-man raid of lore characters, simulate casts with real timers, and test UI changes without affecting live assignments.
 
 ### 🔧 Minimap Icon
-Left-click opens the right thing for your class. Right-click opens Options. Shift-click cycles skins (5 included: Blue, Gold, Ivory, White, Pearl).
+Left-click opens the right thing for your class. Right-click opens Options. **Drag it** to move it around the minimap ring. Shift-click cycles skins — the Aegis badge is the default, with the five legacy skins still there (Blue, Gold, Ivory, White, Pearl). Size is a slider under Options → Settings.
 
 ---
 
@@ -129,6 +129,7 @@ Left-click opens the right thing for your class. Right-click opens Options. Shif
 | `/rpc rot` | Report both rotations: which store, who is in them, where you are |
 | `/rpc reset` | Put the bar back if it ends up off-screen |
 | `/rpc icon` | Cycle the minimap icon skin (or shift-click the icon) |
+| — | Drag the minimap icon to move it around the ring |
 | `/pp`, `/pallypower`, `/rp`, `/rallypower` | PallyPower grid / buff bar (Paladins) |
 | `/rpc legacy` | The classic PallyPower options frame (escape hatch) |
 
