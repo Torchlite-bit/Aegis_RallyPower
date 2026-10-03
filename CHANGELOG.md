@@ -14,6 +14,42 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.15.2] — 2026-10-03
+### Fixed
+- **The minimap icon is sized by resizing the ART, not the button.** Two
+  earlier attempts changed the button's geometry and both made it worse,
+  reported from two different minimap-button bars:
+  - **1.15.0 resized the frame.** A button bar may re-apply the size it
+    measured, or may have been handed the inner button rather than the
+    container, so the width was simply overridden. Measured from a grid bar:
+    every neighbour rendered ~24px and ours rendered 32.
+  - **1.15.1 used scale.** A scaled frame renders at one size and *reports*
+    another, so the bar laid it out on the reported width and the button
+    overlapped its neighbours — oversized *and* offset.
+
+  The artwork is the one thing nothing else reads, so the frame and the button
+  now keep whatever size they were given — **no `SetWidth`, no `SetHeight`, no
+  `SetScale`, on either frame, ever** — and the normal, pushed and highlight
+  textures are inset inside them. Both corners are anchored, so the art stays
+  centred whatever the button's size is, and it is clamped so a bar that hands
+  us a smaller button never gets art hanging over the edge.
+- **Ring placement follows the frame's width again**, since the frame is no
+  longer resized; the art size no longer moves the button.
+- **A skin change no longer undoes the inset.** `SetNormalTexture` and friends
+  reset a texture's anchors, so the inset is re-applied every time.
+
+### Changed
+- Default icon size **26 → 25**, the width a stock minimap button's icon
+  measures on two separate reports. The slider's floor drops to 12, and its
+  label now says it sizes the artwork rather than the button.
+- `/rpc minimap` reports the **art** width inside the button width, which is
+  the pair that matters now.
+
+### Notes
+- 65 checks in `scripts/test_minimap.lua`; both shipped mistakes are now
+  sabotages, so neither can come back unnoticed. 57 sabotages, all caught.
+- Not yet seen in game.
+
 ## [1.15.1] — 2026-10-01
 ### Fixed
 - **The minimap button stayed 32px for anyone using a button-collector addon.**

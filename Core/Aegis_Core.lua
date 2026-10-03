@@ -1914,6 +1914,11 @@ end
 -- editing the vendored file. Three things are ours: which art it wears, how
 -- big it is, and that it can be dragged around the ring.
 --=============================================================================
+-- Declared up here, not next to its own functions, because ApplyMinimapSkin
+-- below reaches into it: a file-scope local is not in scope for a function
+-- defined above it (hard rule 12), it would silently read a nil global.
+local MMB = {}
+
 AegisRP_MinimapSkins = { "aegis", "blue", "ivory", "white", "gold", "pearl" }
 local SKIN_FILE = {
     aegis = "Minimap_aegis",  -- the Aegis badge; the default since 1.15.0
@@ -1952,6 +1957,9 @@ function AegisRP_ApplyMinimapSkin(name)
     btn:SetHighlightTexture(base, "ADD")
     local hl = btn.GetHighlightTexture and btn:GetHighlightTexture()
     if hl then hl:SetAlpha(0.35) end
+    -- Setting a texture resets its anchors to fill the button, so the inset has
+    -- to be re-applied every time, not just at login.
+    MMB.Dress()
 end
 
 --------------------------------------------------------------------------
@@ -1960,30 +1968,69 @@ end
 -- ONE file-scope local for the whole thing (hard rule 9) - the size helpers,
 -- the angle maths and the drag driver all hang off MMB.
 --
--- The engine draws the button at the art's native 32px with no border ring
--- around it, so the whole 32px reads as icon. Every other button on the ring
--- is a ~20px icon inside Blizzard's border, so ours measured about a quarter
--- wider than its neighbours on screen. 26 is the default; the slider exists
--- because "matches my other buttons" depends on which other addons are
--- installed, and that is not something this addon can see.
+-- SIZE IS THE ART, NEVER THE FRAME. This took three attempts; the first two
+-- are worth stating because both look obviously right.
+--
+-- The engine draws the button at the art's native 32px with no border ring, so
+-- the whole 32 reads as icon, while a stock minimap button is a ~20px icon
+-- inside a border. Measured from two different players' button bars, every
+-- neighbour rendered ~24px and ours rendered 32.
+--
+--   * Resizing the FRAME (1.15.0) did nothing. A minimap-button bar may re-
+--     apply the size it measured, may have been handed the inner button rather
+--     than the container, and lays its grid out from a width it read once. Ours
+--     still rendered 32.
+--   * SCALE (1.15.1) was worse. A scaled frame renders at one size and REPORTS
+--     another, so the bar's layout and the pixels disagree by construction -
+--     the button overlapped its neighbours. "Extra large and offset" is what
+--     that looks like.
+--
+-- The art is the one thing that is ours alone: nothing else reads it, resizing
+-- it moves no layout, and it behaves identically on the minimap ring and in
+-- somebody else's grid. So the frame and the button keep whatever size they
+-- were given, and the textures are inset inside them.
 --
 -- Placement keeps the engine's own PP_PerUser.minimapbuttonpos (degrees), so
 -- nothing about SavedVariables changes and the engine's own callers still
--- work. What changes is that the offsets are derived from the CURRENT size
--- instead of a hardcoded 32, and from the minimap's real centre instead of the
--- engine's 68 (it is 70 on a stock 140px minimap, so the ring sat 2px off).
+-- work. What changes is that it is measured off the minimap's real centre
+-- rather than the engine's hardcoded 68 (it is 70 on a stock 140px minimap).
 --------------------------------------------------------------------------
 
-local MMB = {}
-
-MMB.DEFAULT_SIZE = 26
-MMB.MIN_SIZE, MMB.MAX_SIZE = 16, 32   -- 32 is the art's native size; past it it just blurs
+MMB.DEFAULT_SIZE = 25                 -- measured: neighbours render 24-25 where ours rendered 32
+MMB.MIN_SIZE, MMB.MAX_SIZE = 12, 32   -- 32 is the art's native size, and the button's
 MMB.ART = 32                          -- what the engine's XML builds, in both directions
 
 function MMB.Size()
     local n = tonumber(AegisRP_Settings.minimapSize) or MMB.DEFAULT_SIZE
     if n < MMB.MIN_SIZE then n = MMB.MIN_SIZE elseif n > MMB.MAX_SIZE then n = MMB.MAX_SIZE end
     return n
+end
+
+-- Centre one texture inside the button at the wanted art size.
+--
+-- Both corners are anchored, so the art stays centred whatever the button's
+-- size is - which is the bit that fixes "offset". The inset is computed from
+-- the button's CURRENT width, so a bar that gave us a 24px button gets 24px of
+-- art rather than a 25px texture hanging over the edge.
+function MMB.Inset(tex, btn)
+    if not (tex and btn and tex.SetPoint) then return end
+    local bw = btn:GetWidth() or MMB.ART
+    if not (bw > 0) then bw = MMB.ART end
+    local want = MMB.Size()
+    if want > bw then want = bw end        -- never larger than the button itself
+    local k = (bw - want) / 2
+    tex:ClearAllPoints()
+    tex:SetPoint("TOPLEFT", btn, "TOPLEFT", k, -k)
+    tex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -k, k)
+end
+
+-- All three states, since SetNormalTexture and friends reset the anchors.
+function MMB.Dress()
+    local btn = getglobal("PallyPowerMinimapButton")
+    if not btn then return end
+    MMB.Inset(btn.GetNormalTexture and btn:GetNormalTexture(), btn)
+    MMB.Inset(btn.GetPushedTexture and btn:GetPushedTexture(), btn)
+    MMB.Inset(btn.GetHighlightTexture and btn:GetHighlightTexture(), btn)
 end
 
 -- math.atan2 is present on this client, but a source that may simply not
@@ -2022,7 +2069,10 @@ function MMB.Position()
         pos = tonumber(PP_PerUser.minimapbuttonpos)
     end
     local cx, cy, r = MMB.Ring()
-    local s = MMB.Size()
+    -- the FRAME's size, not the art's: we no longer resize the frame, so this
+    -- is the engine's 32 and the ring offsets have to use it
+    local s = f:GetWidth() or MMB.ART
+    if not (s > 0) then s = MMB.ART end
     f:ClearAllPoints()
     f:SetPoint("TOPLEFT", "Minimap", "TOPLEFT",
         cx - (r * cos(pos)) - (s / 2),
@@ -2094,32 +2144,26 @@ function MMB.SetDrag(on)
     end
 end
 
--- Idempotent: re-applies size, drag and placement. Safe to call again on every
--- PLAYER_ENTERING_WORLD, which is what happens - and which is also how a
--- collector that grabs the button after login gets picked up, since that event
--- fires again on every zone and instance change.
+-- Idempotent: re-applies the art inset, the drag handler and the ring
+-- placement. Safe to call again on every PLAYER_ENTERING_WORLD, which is what
+-- happens - and which is also how a collector that grabs the button after
+-- login gets picked up, since that event fires again on every zone change.
+--
+-- Note what is NOT here: no SetWidth, no SetHeight, no SetScale, on either
+-- frame. The button's geometry belongs to whoever is laying it out - the
+-- engine on the minimap, or a button bar - and both earlier attempts to own it
+-- from here made things worse rather than better.
 function AegisRP_ApplyMinimapButton()
     local f = getglobal("PallyPowerMinimapButtonFrame")
     local btn = getglobal("PallyPowerMinimapButton")
     if not (f and btn) then return end
-    local s = MMB.Size()
+
+    MMB.Dress()                      -- the art, inside whatever button we were given
 
     if MMB.Adopted() then
-        -- Resize by SCALE, not width. The bar measured a 32px frame and may
-        -- re-apply that size or pin the button by anchors; scale survives both
-        -- because nothing out there reads it back. Width is restored to the
-        -- art's native size first so the two mechanisms cannot compound into
-        -- 26 x 0.8125.
-        f:SetWidth(MMB.ART); f:SetHeight(MMB.ART)
-        btn:SetWidth(MMB.ART); btn:SetHeight(MMB.ART)
-        f:SetScale(s / MMB.ART)
-        MMB.SetDrag(false)
+        MMB.SetDrag(false)           -- the bar owns position and dragging
         return
     end
-
-    f:SetScale(1)
-    f:SetWidth(s); f:SetHeight(s)
-    btn:SetWidth(s); btn:SetHeight(s)
     MMB.SetDrag(true)
     MMB.Position()
 end
@@ -2339,13 +2383,17 @@ SlashCmdList["AEGISRP"] = function(msg)
             "  button parent=%s  w=%.1f h=%.1f  scale=%.3f  eff=%.3f",
             who(b), b:GetWidth() or -1, b:GetHeight() or -1,
             b:GetScale() or -1, b:GetEffectiveScale() or -1))
-        local eff = (b:GetWidth() or 0) * (b:GetEffectiveScale() or 1)
-            / (UIParent:GetEffectiveScale() or 1)
+        -- The ART is what a player compares with their other buttons, and it is
+        -- the only thing this addon sets, so it is the number to print.
+        local tex = b.GetNormalTexture and b:GetNormalTexture()
         DEFAULT_CHAT_FRAME:AddMessage(string.format(
-            "  on screen it is %.1f UI units wide; angle=%s",
-            eff, tostring(PP_PerUser and PP_PerUser.minimapbuttonpos)))
-        DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaa(compare that width with your other "
-            .. "minimap buttons - the slider is Options > Settings > Minimap icon size)|r")
+            "  art    %.1f wide inside a %.1f button; angle=%s",
+            (tex and tex.GetWidth and tex:GetWidth()) or -1,
+            b:GetWidth() or -1,
+            tostring(PP_PerUser and PP_PerUser.minimapbuttonpos)))
+        DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaa(compare the ART width with your other "
+            .. "minimap buttons - the slider is Options > Settings > Minimap icon size. "
+            .. "The button's own size belongs to whoever lays it out.)|r")
         return
     end
 
