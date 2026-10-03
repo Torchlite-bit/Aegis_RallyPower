@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.15.1**. See `CHANGELOG.md` for the full history,
+Current version: **1.15.2**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -593,20 +593,29 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   of `PallyPower.lua`. Covered by `scripts/test_minimap.lua`, which loads
   `Aegis_Core.lua` whole under stubs; that works, so new Core logic can be
   tested off-client too.
-- **A button-collector addon may OWN the minimap button, and then size and
-  placement are not ours.** Those addons re-parent it out of the minimap into a
-  bar; `MMB.Adopted()` detects it on either the container or the button, since
-  a bar may take either. When adopted: resize by **`SetScale`**, never width —
-  the bar measured a 32px frame and may re-apply that size or pin the button by
-  anchors, so a width we set silently does nothing (this is exactly how 1.15.0
-  shipped looking unchanged, at 1.28× its neighbours). Width is restored to
-  `MMB.ART` first so scale and width cannot compound, and `SetScale(1)` on the
-  way back out for the same reason. Also **do not re-anchor an adopted button**
-  and **do not install our drag** — the bar owns both, and
-  `PLAYER_ENTERING_WORLD` fires on every zone change, so a tug of war there is
-  continuous. Use **`/rpc minimap`** before theorising: a size never applied
-  and a size applied then overwritten look identical on screen and need
-  opposite fixes.
+- **The minimap icon is sized by resizing the ART. NEVER the frame.** No
+  `SetWidth`, no `SetHeight`, no `SetScale`, on either the container or the
+  button, in any code path. Two releases shipped doing exactly that and both
+  were worse than doing nothing, which is why this is stated as a prohibition:
+  **1.15.0** resized the frame, and a minimap-button bar re-applied the size it
+  measured (or had been handed the inner button rather than the container), so
+  ours still rendered 32 against neighbours at ~24. **1.15.1** used scale, and
+  a scaled frame renders at one size while REPORTING another — the bar lays it
+  out on the reported width, so the button overlaps its neighbours. "Extra
+  large and offset" is the signature of that one.
+  `MMB.Inset`/`MMB.Dress` inset the normal, pushed and highlight textures
+  instead: nothing else reads a texture's anchors, it moves no layout, and it
+  behaves the same on the ring and in somebody's grid. Both corners are
+  anchored so the art stays centred at any button size, and the art is clamped
+  to the button so a smaller slot never gets overhang. **Re-apply after any
+  `SetNormalTexture`** — setting a texture resets its anchors, so a skin change
+  silently restores full size otherwise.
+  `MMB.Adopted()` still exists, but now gates only two things: **do not
+  re-anchor** an adopted button and **do not install our drag**, since the bar
+  owns both and `PLAYER_ENTERING_WORLD` fires on every zone change. Use
+  **`/rpc minimap`** before theorising — it prints the art width next to the
+  button width, which is the pair that distinguishes "never applied" from
+  "applied then overwritten".
 - **The engine highlights the minimap button with a BLUE-WHITE glow.**
   `MinimapButton.xml` uses `UI-Minimap-ZoomButton-Highlight` in `ADD` mode,
   which is built for Blizzard's round zoom buttons. Over warm art it reads as a

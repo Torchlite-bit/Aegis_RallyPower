@@ -373,48 +373,67 @@ SABOTAGES = [
      "    AegisRP_Settings.minimapSkinAegis = true",
      "minimap"),
 
-    # The 1.15.0 bug: setting WIDTH on a button a collector addon has adopted
-    # silently does nothing, because the bar re-applies its own size or pins the
-    # button by anchors. The button stays 32 next to neighbours at ~25.
-    ("minimap-adopted-sized-by-width", "Core/Aegis_Core.lua",
-     "        f:SetScale(s / MMB.ART)\n"
-     "        MMB.SetDrag(false)",
-     "        f:SetWidth(s); f:SetHeight(s)\n"
-     "        MMB.SetDrag(false)",
+    # The two shipped mistakes, both restorable in one line each.
+    #
+    # 1.15.0: resize the FRAME. A minimap-button bar re-applies its own size, or
+    # was handed the inner button rather than the container, so ours still
+    # rendered 32 next to neighbours at ~24.
+    ("minimap-sized-by-frame-width", "Core/Aegis_Core.lua",
+     "    MMB.Dress()                      -- the art, inside whatever button we were given",
+     "    f:SetWidth(MMB.Size()); f:SetHeight(MMB.Size())\n"
+     "    btn:SetWidth(MMB.Size()); btn:SetHeight(MMB.Size())",
+     "minimap"),
+
+    # 1.15.1: resize by SCALE. The button then renders at one size and REPORTS
+    # another, so a bar lays it out on the reported width and it overlaps its
+    # neighbours - "extra large and offset".
+    ("minimap-sized-by-scale", "Core/Aegis_Core.lua",
+     "    MMB.Dress()                      -- the art, inside whatever button we were given",
+     "    f:SetScale(MMB.Size() / MMB.ART)",
+     "minimap"),
+
+    # Art wider than the button hangs over the edge of whatever slot a bar gave
+    # us, which is the overlap all over again.
+    ("minimap-art-not-clamped-to-button", "Core/Aegis_Core.lua",
+     "    if want > bw then want = bw end        -- never larger than the button itself",
+     "",
+     "minimap"),
+
+    # Anchoring one corner instead of two puts the art off-centre in the button.
+    ("minimap-art-anchored-one-corner", "Core/Aegis_Core.lua",
+     '    tex:SetPoint("TOPLEFT", btn, "TOPLEFT", k, -k)\n'
+     '    tex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -k, k)',
+     '    tex:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)\n'
+     '    tex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2 * k, 2 * k)',
      "minimap"),
 
     # Re-anchoring an adopted button to the minimap ring is a tug of war with
     # the bar that owns its position.
     ("minimap-adopted-still-repositioned", "Core/Aegis_Core.lua",
-     "        MMB.SetDrag(false)\n"
-     "        return\n"
-     "    end",
+     "        MMB.SetDrag(false)           -- the bar owns position and dragging\n"
+     "        return",
      "        MMB.SetDrag(false)\n"
      "        MMB.Position()\n"
-     "        return\n"
-     "    end",
-     "minimap"),
-
-    # Adoption looks at the container AND the button; a bar may take either.
-    ("minimap-adoption-ignores-button", "Core/Aegis_Core.lua",
-     "    if b and b.GetParent and b:GetParent() ~= f then return true end",
-     "",
-     "minimap"),
-
-    # Leaving the scale set when the button comes back to the minimap makes the
-    # two mechanisms compound: 26 wide at 0.8125 is 21 on screen.
-    ("minimap-scale-not-reset", "Core/Aegis_Core.lua",
-     "    f:SetScale(1)\n"
-     "    f:SetWidth(s); f:SetHeight(s)",
-     "    f:SetWidth(s); f:SetHeight(s)",
+     "        return",
      "minimap"),
 
     # A second drag handler on a button the bar already drags is a fight.
     ("minimap-drag-kept-while-adopted", "Core/Aegis_Core.lua",
-     "        MMB.SetDrag(false)\n"
-     "        return",
-     "        MMB.SetDrag(true)\n"
-     "        return",
+     "        MMB.SetDrag(false)           -- the bar owns position and dragging",
+     "        MMB.SetDrag(true)",
+     "minimap"),
+
+    # Setting a texture resets its anchors, so a skin change silently undoes the
+    # inset and the icon jumps back to full size.
+    ("minimap-skin-change-loses-inset", "Core/Aegis_Core.lua",
+     "    MMB.Dress()\nend",
+     "end",
+     "minimap"),
+
+    # Placement must follow the FRAME's width; the art size must not move it.
+    ("minimap-placement-follows-art-size", "Core/Aegis_Core.lua",
+     "    local s = f:GetWidth() or MMB.ART",
+     "    local s = MMB.Size()",
      "minimap"),
 
     # ---- saved positions -------------------------------------------------
