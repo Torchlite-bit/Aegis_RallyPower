@@ -14,6 +14,54 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.15.3] — 2026-10-06
+### Fixed
+- **Strips forgot their position on every login and reload.** Introduced in
+  1.14.3. The saved position is restored inside the strip's build, before it is
+  first shown, and at that moment the client has not laid the frame out yet,
+  so `GetLeft()` returns nil. 1.14.3 read that nil as "off screen", deleted the
+  saved position and put the strip at its default — on every login, for every
+  strip. An unreadable position now counts as "cannot tell" and the saved one
+  is used; the on-screen check runs once the strip can actually be measured,
+  so a strip that really is off screen is still rescued.
+  - Positions already lost to this cannot be recovered: place each strip once
+    more and it stays.
+  - The unit test for this passed because its stub frame resolved its position
+    the moment it was anchored, which the real client does not. The test now
+    models a frame that is not laid out yet, and a sabotage that used to
+    *enforce* the wrong reading now plants it instead.
+- **The minimap button is now built the way Aegis: Pathfinder builds its own**:
+  one button, a direct child of the Minimap, anchored by its centre, with the
+  art as a texture inside it. The engine's button is parked out of sight.
+  - The cause the previous three attempts missed is the engine's *shape*:
+    `MinimapButton.xml` builds a 32px container with a 32px button pinned to its
+    top-left corner. A minimap-button collector fits the container into its
+    grid, but the button inside keeps its own size and its corner pin, so it
+    spills down and to the right of its slot. 1.15.0–1.15.2 resized, scaled and
+    inset that button; each fixed the size and left the shape.
+  - Anchoring by the centre means the button's size no longer enters the ring
+    arithmetic, and the art is anchored by both corners so it fills whatever
+    size a collector gives it.
+  - Default size **26**, as Pathfinder's. Hover shows a gold ring outside the
+    art's own rim; pressing sinks the art one pixel.
+  - Unchanged: clicks still go through the engine (left toggles your bar,
+    right opens options, shift-click changes the icon), the tooltip is the
+    engine's credits, and the show/hide option and saved angle are the engine's
+    own `PP_PerUser` keys — no SavedVariables change, and existing positions
+    land where they were.
+  - The Aegis badge is now 64×64 for a sharper image at 26px. The legacy RP
+    skins are unchanged.
+
+### Notes
+- Pathfinder is GPLv3 and RallyPower is MIT, so no Pathfinder asset was
+  copied. The hover ring is generated for this repo.
+- `/rpc minimap` reports the new button: shown or hidden, on the minimap or in
+  which collector, its size, the saved angle, and whether the engine's button is
+  parked.
+- `scripts/test_minimap.lua` rewritten for the new button; 63 sabotages, all
+  caught.
+- Not yet seen in game.
+
 ## [1.15.2] — 2026-10-03
 ### Fixed
 - **The minimap icon is sized by resizing the ART, not the button.** Two

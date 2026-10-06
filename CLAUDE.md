@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.15.2**. See `CHANGELOG.md` for the full history,
+Current version: **1.15.3**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -262,7 +262,7 @@ lua scripts/test_duties.lua      # duty catalog: unique wids, tab fits its cards
 lua scripts/test_cc.lua          # crowd control: mark-major view + RPCX round-trip
 lua scripts/test_pets.lua        # pet token shapes + the owner-class gate
 lua scripts/test_soulstone.lua   # warlock soulstone tiers rank by name
-lua scripts/test_minimap.lua     # minimap ring placement, drag angle, skin migration
+lua scripts/test_minimap.lua     # minimap button: shape, ring, drag, collectors, skins
 ```
 
 Anything that crosses the wire should have one — a silent serialise/deserialise
@@ -570,69 +570,65 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   table, and `Finish` shows the frame BEFORE the first refresh.** Use
   **`/rpc strips`** before theorising about a strip that is not there — it
   prints flag vs frame vs on-screen vs enabled-button count, the way
-  `/rpc alpha` does for a colour. A position this addon cannot verify is not a
-  position: 24px reachable is the test, so a strip parked half off an edge on
-  purpose is left alone.
-- **The minimap button is the ENGINE's frame, dressed from our side.**
-  `PallyPower/MinimapButton.xml` builds it at the art's native 32px with no
-  border ring, so the whole 32 reads as icon while every other button on the
-  ring is a ~20px icon inside a border — ours measured about a quarter wider
-  than its neighbours. `MMB` in `Aegis_Core.lua` (one file-scope local,
-  exposed as `AegisRP.MinimapButton`) owns size, placement and drag;
-  `AegisRP_ApplyMinimapButton()` is idempotent and runs at every
-  `PLAYER_ENTERING_WORLD`. Three things to keep straight:
-  **the stored angle stays the engine's `PP_PerUser.minimapbuttonpos`** (0 is
-  LEFT of the minimap, 90 ABOVE, so the engine's default of 30 lands
-  upper-left), so SavedVariables never change and the engine's own callers keep
-  working; **every offset carries a half-size term**, which is what the engine
-  got wrong by hardcoding 16 for its fixed 32px button — resize it and the
-  centre leaves the circle; and **the ring is measured, not assumed**
-  (`MMB.Ring()` reads `Minimap:GetWidth()`, giving 70/80 on a stock minimap
-  where the engine hardcoded 68). `PallyPower_MinimapButton_UpdatePosition` is
-  save-and-replaced — it IS a real global in `MinimapButton.lua`, unlike half
-  of `PallyPower.lua`. Covered by `scripts/test_minimap.lua`, which loads
-  `Aegis_Core.lua` whole under stubs; that works, so new Core logic can be
-  tested off-client too.
-- **The minimap icon is sized by resizing the ART. NEVER the frame.** No
-  `SetWidth`, no `SetHeight`, no `SetScale`, on either the container or the
-  button, in any code path. Two releases shipped doing exactly that and both
-  were worse than doing nothing, which is why this is stated as a prohibition:
-  **1.15.0** resized the frame, and a minimap-button bar re-applied the size it
-  measured (or had been handed the inner button rather than the container), so
-  ours still rendered 32 against neighbours at ~24. **1.15.1** used scale, and
-  a scaled frame renders at one size while REPORTING another — the bar lays it
-  out on the reported width, so the button overlaps its neighbours. "Extra
-  large and offset" is the signature of that one.
-  `MMB.Inset`/`MMB.Dress` inset the normal, pushed and highlight textures
-  instead: nothing else reads a texture's anchors, it moves no layout, and it
-  behaves the same on the ring and in somebody's grid. Both corners are
-  anchored so the art stays centred at any button size, and the art is clamped
-  to the button so a smaller slot never gets overhang. **Re-apply after any
-  `SetNormalTexture`** — setting a texture resets its anchors, so a skin change
-  silently restores full size otherwise.
-  `MMB.Adopted()` still exists, but now gates only two things: **do not
-  re-anchor** an adopted button and **do not install our drag**, since the bar
-  owns both and `PLAYER_ENTERING_WORLD` fires on every zone change. Use
-  **`/rpc minimap`** before theorising — it prints the art width next to the
-  button width, which is the pair that distinguishes "never applied" from
-  "applied then overwritten".
-- **The engine highlights the minimap button with a BLUE-WHITE glow.**
-  `MinimapButton.xml` uses `UI-Minimap-ZoomButton-Highlight` in `ADD` mode,
-  which is built for Blizzard's round zoom buttons. Over warm art it reads as a
-  blue disc behind the icon on hover, and it went unnoticed for eight releases
-  because every legacy skin is itself blue. `ApplyMinimapSkin` replaces it with
-  the selected skin's OWN art at alpha 0.35 — added back over itself it
-  brightens in the skin's colours and carries the right alpha mask for free, so
-  the glow is disc-shaped rather than a square behind the art. Any new skin
-  gets this automatically; do not re-introduce a fixed highlight file.
-- **A new minimap skin is three things, not one**: a `SKIN_FILE` entry, the art
-  pair in `Icons/` (`X.tga` + `X_Down.tga`, 32x32 BGRA TGA, bottom-up,
-  descriptor `0x08`, 4140 bytes, the pushed one the normal one times **0.70**),
-  and a `SKIN_LABEL`. Changing the DEFAULT additionally needs a migration:
-  `ApplyMinimapSkin` writes back whatever it resolves, including the fallback,
-  so every existing character already has the old default stored and a changed
-  default reaches nobody. `AegisRP_MigrateMinimapSkin` does it once behind a
-  flag, so a player who picks a legacy skin afterwards keeps it.
+  `/rpc alpha` does for a colour. 24px reachable is the test, so a strip
+  parked half off an edge on purpose is left alone.
+  **`POS.OnScreen` answers true, false or NIL, and only false moves a strip.**
+  1.14.3 shipped it two-valued, reading an unreadable rect as "off screen" —
+  and `Restore` runs inside `Finish`, before the strip is first shown, when the
+  client has not laid it out and `GetLeft()` is nil. So every saved position
+  was judged unreachable, DELETED and replaced by the default on every login,
+  for four releases ("my strips reset to the middle every reload"). It is the
+  suite's first relearned rule — a detection that cannot answer must never
+  close a gate — arriving through a geometry check. `POS.Settle` makes the
+  real check once from the strip's ticker, the first time it can be measured.
+  **The off-client test hid it**: its stub frame resolved its rect the moment
+  it was anchored, which the client does not, and a sabotage even planted the
+  CORRECT behaviour and called it the bug. A test frame for anything that runs
+  at login must model "anchored, not laid out yet" (`Pending()` in
+  `test_strip.lua`).
+- **The minimap button is OUR OWN, built the way Aegis: Pathfinder builds
+  its (`MinimapButton.lua` in that repo), and the engine's is parked.** One
+  Button, `AegisRP_MinimapButton`, a DIRECT child of the Minimap, anchored by
+  its CENTER, the art an ARTWORK texture anchored by both corners, a gold
+  OVERLAY ring on hover, the art sinking 1px when pressed. `MMB` in
+  `Aegis_Core.lua` (one file-scope local, exposed as `AegisRP.MinimapButton`).
+  **Why not dress the engine's:** its SHAPE. `PallyPower/MinimapButton.xml`
+  builds a 32px container frame with a 32px button pinned to the container's
+  TOPLEFT. A minimap-button collector (pfUI's, or a dedicated addon) fits the
+  container — the Minimap's child — into its grid, and the button inside keeps
+  its own size and corner pin, so it spills down and right of its slot.
+  1.15.0 resized it, 1.15.1 scaled it (which also renders at one size while
+  reporting another), 1.15.2 inset its art: each fixed the SIZE and left the
+  SHAPE, and three reports came back "bigger and offset". When a frame we do
+  not own keeps looking wrong after a size fix, check its anchoring and its
+  parentage before trying another size.
+  **The engine's button is parked, not hidden**: re-parented into a frame that
+  is never shown and its `Show` shadowed with a no-op, because the engine calls
+  `Show()` from Init and from its own options checkbox, and a collector that
+  scans the Minimap's children would otherwise find a second, misshapen button.
+  **What stays the engine's**, so no SavedVariables change: clicks go to
+  `PallyPower_MinimapButton_OnClick` (shift-click = skin), the tooltip is
+  `PallyPower_ShowCredits` plus our hint lines, show/hide is
+  `PP_PerUser.minimapbuttonshow`, the angle is `PP_PerUser.minimapbuttonpos` in
+  the ENGINE's convention (0 = LEFT, 90 = above) — Pathfinder's runs from the
+  right, and switching would move every existing button. `UpdatePosition`,
+  `MinimapButton_Init` and `MinimapButtonOption` are save-and-replaced; all
+  three are real globals, and Options' `LegacyCheck` calls by `getglobal`.
+  **Built at file scope, hidden** (as Pathfinder does) so it exists when a
+  collector scans at login; it reads no setting there (rule 10).
+  `MMB.Adopted()` (our button's parent is not the Minimap) means a collector
+  owns it: then do not size it, place it or let it drag.
+  **Licence:** Pathfinder is GPLv3, this repo is MIT — reuse its DESIGN, never
+  copy its files. The hover ring (`Icons/MinimapRing.tga`) is generated here.
+- **A new minimap skin is a `SKIN_FILE` entry, a `SKIN_LABEL` and one TGA in
+  `Icons/`** (BGRA, bottom-up, descriptor `0x08`; the legacy five are 32x32,
+  the Aegis badge 64x64 for a sharp 26px). No pushed or highlight art: the
+  press sinks the icon and the hover ring is shared. Changing the DEFAULT needs
+  a migration as well: `ApplyMinimapSkin` writes back whatever it resolves,
+  including the fallback, so every existing character already has the old
+  default stored and a changed default reaches nobody.
+  `AegisRP_MigrateMinimapSkin` does it once behind a flag, so a player who
+  picks a legacy skin afterwards keeps it.
 - **The Options frame yields its +40 lift rather than running off screen.**
   `ShowTab` grows the frame to its tallest tab and then clamps the centre
   offset; there is no scrollbar, so a tab that does not fit is simply cut off.

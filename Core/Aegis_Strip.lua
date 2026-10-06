@@ -510,13 +510,20 @@ function POS.Screen(f)
     return UIParent:GetWidth() * ps / es, UIParent:GetHeight() * ps / es
 end
 
--- Is enough of the frame reachable? An unanchored frame answers nil from
--- GetLeft and is NOT on screen - it has no position at all.
+-- Is enough of the frame reachable? Answers true, false, or NIL for "cannot
+-- tell yet" - and only false is a reason to move anything.
+--
+-- The nil case is the whole of the 1.15.3 fix. A frame's rect is not resolved
+-- until the client has laid it out, so GetLeft() on a strip that has just been
+-- anchored but not yet shown returns nil. Restore runs at exactly that moment,
+-- inside Finish at login, and 1.14.3 read the nil as "no position at all":
+-- every saved strip position was judged unreachable, DELETED, and replaced by
+-- the default, on every login. "Cannot tell" is permission, never refusal.
 function POS.OnScreen(f)
     local sw, sh = POS.Screen(f)
-    if not sw then return true end          -- cannot tell: never close the gate
+    if not sw then return nil end
     local l, t = f:GetLeft(), f:GetTop()
-    if not (l and t) then return false end
+    if not (l and t) then return nil end
     local w, h = f:GetWidth() or 0, f:GetHeight() or 0
     local vis = POS.MIN_VISIBLE
     if w < vis then vis = w end
@@ -551,10 +558,26 @@ function POS.Restore(f, posKey)
     end
     f:ClearAllPoints()
     f:SetPoint(pos.p, UIParent, pos.rel or pos.p, pos.x, pos.y)
-    if not POS.OnScreen(f) then
+    -- Only a MEASURED miss is rejected. At login the rect is usually not
+    -- readable yet; the stored value has already passed Valid(), so it is
+    -- applied as-is and POS.Settle checks it once the strip is on screen.
+    if POS.OnScreen(f) == false then
         AegisRP_Settings[posKey] = nil
         POS.Default(f)
         return false
+    end
+    return true
+end
+
+-- The deferred half of Restore: once the frame can actually be measured, check
+-- it once. Returns true when the check has been made (whatever its outcome),
+-- false while the rect is still unreadable - the caller keeps asking until then.
+function POS.Settle(f, posKey)
+    local on = POS.OnScreen(f)
+    if on == nil then return false end
+    if on == false then
+        if posKey then AegisRP_Settings[posKey] = nil end
+        POS.Default(f)
     end
     return true
 end
@@ -582,7 +605,8 @@ AegisRP.StripPos = POS
 -- frame without re-anchoring it, so the same position can be on screen at one
 -- scale and off it at another.
 function AegisRP.EnsureOnScreen(f, posKey)
-    if not f or POS.OnScreen(f) then return false end
+    -- the rescale path runs on hidden strips too: only a measured miss moves one
+    if not f or POS.OnScreen(f) ~= false then return false end
     if posKey then AegisRP_Settings[posKey] = nil end
     POS.Default(f)
     return true
@@ -822,10 +846,14 @@ function AegisRP.NewStrip(key, title)
             end)
         end
         local accum = 0
+        local settled = false
         f:SetScript("OnUpdate", function()
             accum = accum + (arg1 or 0)
             if accum < 0.25 then return end
             accum = 0
+            -- one real on-screen check, made the first time the strip can be
+            -- measured; a cheap comparison on every tick after that
+            if not settled then settled = POS.Settle(f, posKey) end
             S:Refresh()
         end)
         -- Shown BEFORE the first refresh, not after. A button whose refresh

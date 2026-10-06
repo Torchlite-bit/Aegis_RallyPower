@@ -1907,13 +1907,28 @@ function AegisRP_ResetBarPosition()
 end
 
 --=============================================================================
--- MINIMAP BUTTON  (shared with the engine -> works for every class)
+-- MINIMAP BUTTON  (one for every class)
 --
--- The button itself is the engine's (PallyPower/MinimapButton.xml), so
--- everything here is applied from our side at PLAYER_LOGIN rather than by
--- editing the vendored file. Three things are ours: which art it wears, how
--- big it is, and that it can be dragged around the ring.
+-- Built the way Aegis: Pathfinder builds its own: ONE Button, parented straight
+-- to the Minimap and anchored by its CENTER, with the art as a texture inside
+-- it. The engine's button is parked out of sight.
+--
+-- Why not keep dressing the engine's? Its SHAPE, which no dressing changes.
+-- PallyPower/MinimapButton.xml builds a 32px container FRAME with a 32px Button
+-- pinned to the container's TOPLEFT. A minimap-button collector (pfUI's, or a
+-- dedicated addon) takes the container - the Minimap's child - and fits it into
+-- its grid, but the button inside keeps its own 32px and its TOPLEFT pin, so it
+-- spills down and to the right of the slot it was given. That is the "bigger
+-- AND offset" in every report, and why 1.15.0-1.15.2 (resize the frame, scale
+-- it, inset the art) each fixed the size and left the shape.
+--
+-- What stays the engine's: what a click does (PallyPower_MinimapButton_OnClick,
+-- shift-click to change skin included), the tooltip (PallyPower_ShowCredits),
+-- the show/hide setting (PP_PerUser.minimapbuttonshow) and the saved angle
+-- (PP_PerUser.minimapbuttonpos). No SavedVariables change, and every existing
+-- caller - the engine, the options checkbox, /rpc icon - keeps working.
 --=============================================================================
+
 -- Declared up here, not next to its own functions, because ApplyMinimapSkin
 -- below reaches into it: a file-scope local is not in scope for a function
 -- defined above it (hard rule 12), it would silently read a nil global.
@@ -1922,7 +1937,7 @@ local MMB = {}
 AegisRP_MinimapSkins = { "aegis", "blue", "ivory", "white", "gold", "pearl" }
 local SKIN_FILE = {
     aegis = "Minimap_aegis",  -- the Aegis badge; the default since 1.15.0
-    blue  = "Minimap",        -- the old default (also the XML's own fallback)
+    blue  = "Minimap",        -- the old default (also the engine XML's own art)
     ivory = "Minimap_ivory",
     white = "Minimap_white",
     gold  = "Minimap_gold",
@@ -1938,99 +1953,21 @@ function AegisRP_ApplyMinimapSkin(name)
     name = name or AegisRP_Settings.minimapSkin or "aegis"
     if not SKIN_FILE[name] then name = "aegis" end
     AegisRP_Settings.minimapSkin = name
-    local btn = getglobal("PallyPowerMinimapButton")
-    if not btn then return end
-    local base = "Interface\\AddOns\\Aegis_RallyPower\\Icons\\" .. SKIN_FILE[name]
-    btn:SetNormalTexture(base)
-    btn:SetPushedTexture(base .. "_Down")
-    -- The engine's XML highlights with Interface\Minimap\UI-Minimap-ZoomButton-
-    -- Highlight in ADD mode - a blue-white glow built for Blizzard's round zoom
-    -- buttons. Added over a gold-and-red badge it reads as a blue disc behind
-    -- the art, which is what it looks like to a player hovering to read the
-    -- tooltip. It was invisible for eight releases because the legacy skins are
-    -- themselves blue.
-    --
-    -- The skin's OWN art, added back over itself, brightens the button in its
-    -- own colours and carries the right alpha mask for free - so the glow is
-    -- the shape of the disc rather than a square behind it, whichever skin is
-    -- selected.
-    btn:SetHighlightTexture(base, "ADD")
-    local hl = btn.GetHighlightTexture and btn:GetHighlightTexture()
-    if hl then hl:SetAlpha(0.35) end
-    -- Setting a texture resets its anchors to fill the button, so the inset has
-    -- to be re-applied every time, not just at login.
-    MMB.Dress()
+    MMB.Build()
+    if MMB.icon then MMB.icon:SetTexture(MMB.TEX .. SKIN_FILE[name]) end
 end
 
---------------------------------------------------------------------------
--- Size and placement.
---
--- ONE file-scope local for the whole thing (hard rule 9) - the size helpers,
--- the angle maths and the drag driver all hang off MMB.
---
--- SIZE IS THE ART, NEVER THE FRAME. This took three attempts; the first two
--- are worth stating because both look obviously right.
---
--- The engine draws the button at the art's native 32px with no border ring, so
--- the whole 32 reads as icon, while a stock minimap button is a ~20px icon
--- inside a border. Measured from two different players' button bars, every
--- neighbour rendered ~24px and ours rendered 32.
---
---   * Resizing the FRAME (1.15.0) did nothing. A minimap-button bar may re-
---     apply the size it measured, may have been handed the inner button rather
---     than the container, and lays its grid out from a width it read once. Ours
---     still rendered 32.
---   * SCALE (1.15.1) was worse. A scaled frame renders at one size and REPORTS
---     another, so the bar's layout and the pixels disagree by construction -
---     the button overlapped its neighbours. "Extra large and offset" is what
---     that looks like.
---
--- The art is the one thing that is ours alone: nothing else reads it, resizing
--- it moves no layout, and it behaves identically on the minimap ring and in
--- somebody else's grid. So the frame and the button keep whatever size they
--- were given, and the textures are inset inside them.
---
--- Placement keeps the engine's own PP_PerUser.minimapbuttonpos (degrees), so
--- nothing about SavedVariables changes and the engine's own callers still
--- work. What changes is that it is measured off the minimap's real centre
--- rather than the engine's hardcoded 68 (it is 70 on a stock 140px minimap).
---------------------------------------------------------------------------
-
-MMB.DEFAULT_SIZE = 25                 -- measured: neighbours render 24-25 where ours rendered 32
-MMB.MIN_SIZE, MMB.MAX_SIZE = 12, 32   -- 32 is the art's native size, and the button's
-MMB.ART = 32                          -- what the engine's XML builds, in both directions
+MMB.TEX = "Interface\\AddOns\\Aegis_RallyPower\\Icons\\"
+MMB.DEFAULT_SIZE = 26                 -- Pathfinder's, and a stock ring button's outer width
+MMB.MIN_SIZE, MMB.MAX_SIZE = 16, 32
+-- The hover ring's colour: Pathfinder's gold accent (f0b43c), which is also
+-- the badge's own trim.
+MMB.ACCENT = { 0.94, 0.71, 0.24 }
 
 function MMB.Size()
     local n = tonumber(AegisRP_Settings.minimapSize) or MMB.DEFAULT_SIZE
     if n < MMB.MIN_SIZE then n = MMB.MIN_SIZE elseif n > MMB.MAX_SIZE then n = MMB.MAX_SIZE end
     return n
-end
-
--- Centre one texture inside the button at the wanted art size.
---
--- Both corners are anchored, so the art stays centred whatever the button's
--- size is - which is the bit that fixes "offset". The inset is computed from
--- the button's CURRENT width, so a bar that gave us a 24px button gets 24px of
--- art rather than a 25px texture hanging over the edge.
-function MMB.Inset(tex, btn)
-    if not (tex and btn and tex.SetPoint) then return end
-    local bw = btn:GetWidth() or MMB.ART
-    if not (bw > 0) then bw = MMB.ART end
-    local want = MMB.Size()
-    if want > bw then want = bw end        -- never larger than the button itself
-    local k = (bw - want) / 2
-    tex:ClearAllPoints()
-    tex:SetPoint("TOPLEFT", btn, "TOPLEFT", k, -k)
-    tex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -k, k)
-end
-
--- All three states, since SetNormalTexture and friends reset the anchors.
-function MMB.Dress()
-    local btn = getglobal("PallyPowerMinimapButton")
-    if not btn then return end
-    MMB.Inset(btn.GetNormalTexture and btn:GetNormalTexture(), btn)
-    MMB.Inset(btn.GetPushedTexture and btn:GetPushedTexture(), btn)
-    MMB.Inset(btn.GetHighlightTexture and btn:GetHighlightTexture(), btn)
 end
 
 -- math.atan2 is present on this client, but a source that may simply not
@@ -2047,130 +1984,180 @@ function MMB.Atan2(y, x)
     return 0
 end
 
--- The ring the button rides on, in Minimap-TOPLEFT coordinates: centre, and
--- radius. Stock is a 140px minimap, giving centre 70 and radius 80 - the same
--- ring the engine hardcoded, just measured instead of assumed.
-function MMB.Ring()
+-- Distance from the minimap's centre to where its buttons sit: 80 on a stock
+-- 140px minimap - Pathfinder's figure - but measured, so a resized minimap
+-- keeps the button on its own edge.
+function MMB.Radius()
     local mm = getglobal("Minimap")
     local w = mm and mm:GetWidth() or 0
-    local h = mm and mm:GetHeight() or 0
-    if not (w > 0 and h > 0) then w, h = 140, 140 end
-    return w / 2, h / 2, (w / 2) + 10
+    if not (w > 0) then w = 140 end
+    return (w / 2) + 10
 end
 
--- Replaces the engine's PallyPower_MinimapButton_UpdatePosition. Same stored
--- angle, same direction of travel (0 = left of the minimap, 90 = above it),
--- size-aware offsets.
+-- Has a collector taken the button into a grid of its own? Then its position
+-- and its dragging are the collector's, and re-anchoring it here on every
+-- zone change would be a tug of war.
+function MMB.Adopted()
+    local b, mm = MMB.button, getglobal("Minimap")
+    if not (b and mm) then return false end
+    return b:GetParent() ~= mm
+end
+
+-- Anchored by CENTER, so the button's size never enters the arithmetic.
+-- The angle keeps the ENGINE's convention so a saved position still means the
+-- same place: 0 is LEFT of the minimap and 90 is above it (Pathfinder's runs
+-- from the right; ours cannot without moving every existing button).
 function MMB.Position()
-    local f = getglobal("PallyPowerMinimapButtonFrame")
-    if not f then return end
+    local b, mm = MMB.button, getglobal("Minimap")
+    if not (b and mm) or MMB.Adopted() then return end
     local pos = 30                       -- the engine's own default
     if type(PP_PerUser) == "table" and tonumber(PP_PerUser.minimapbuttonpos) then
         pos = tonumber(PP_PerUser.minimapbuttonpos)
     end
-    local cx, cy, r = MMB.Ring()
-    -- the FRAME's size, not the art's: we no longer resize the frame, so this
-    -- is the engine's 32 and the ring offsets have to use it
-    local s = f:GetWidth() or MMB.ART
-    if not (s > 0) then s = MMB.ART end
-    f:ClearAllPoints()
-    f:SetPoint("TOPLEFT", "Minimap", "TOPLEFT",
-        cx - (r * cos(pos)) - (s / 2),
-        (r * sin(pos)) - cy + (s / 2))
+    local r, a = MMB.Radius(), math.rad(pos)
+    b:ClearAllPoints()
+    b:SetPoint("CENTER", mm, "CENTER", -r * math.cos(a), r * math.sin(a))
 end
 
--- Has a minimap-button-collector addon taken this button into a bar of its own?
---
--- Those addons re-parent the button out of the minimap and lay it out in a row.
--- Two things follow, and both were wrong in 1.15.0: the ring placement is no
--- longer ours to apply (the bar owns the position, and re-anchoring to the
--- minimap every PLAYER_ENTERING_WORLD is a tug of war we should not start),
--- and WIDTH is no longer a reliable way to resize - a bar that measured the
--- 32px frame may re-apply that size, or pin the button by anchors, after we
--- have set ours.
---
--- Either the container or the button alone may be the thing adopted, so both
--- are checked.
-function MMB.Adopted()
-    local mm = getglobal("Minimap")
-    local f = getglobal("PallyPowerMinimapButtonFrame")
-    local b = getglobal("PallyPowerMinimapButton")
-    if not (mm and f and f.GetParent) then return false end
-    if f:GetParent() ~= mm then return true end
-    if b and b.GetParent and b:GetParent() ~= f then return true end
-    return false
-end
-
--- Drag: follow the cursor around the ring, writing the engine's angle as we
--- go. A driver frame rather than an OnUpdate on the button itself, so nothing
--- ticks while the button is sitting still.
-MMB.driver = CreateFrame("Frame", "AegisRP_MinimapDrag")
-MMB.driver:Hide()
-MMB.driver:SetScript("OnUpdate", function()
+-- While dragging: the angle from the minimap's centre to the cursor, in the
+-- engine's convention (hence mx - px, not px - mx).
+function MMB.Dragging()
     local mm = getglobal("Minimap")
     if not mm then return end
-    local scale = mm:GetEffectiveScale()
     local mx, my = mm:GetCenter()
+    local scale = mm:GetEffectiveScale()
     local px, py = GetCursorPosition()
-    if not (scale and scale > 0 and mx and my and px and py) then return end
-    px, py = px / scale, py / scale
-    -- The engine's angle runs anticlockwise from the LEFT of the minimap
-    -- (x = -r*cos, y = +r*sin), so the inverse takes -dx.
+    if not (mx and my and px and py and scale and scale > 0) then return end
     PP_PerUser = PP_PerUser or {}
-    PP_PerUser.minimapbuttonpos = math.deg(MMB.Atan2(py - my, mx - px))
+    PP_PerUser.minimapbuttonpos = math.deg(MMB.Atan2(py / scale - my, mx - px / scale))
     MMB.Position()
-end)
-
--- Dragging is ours only while the button is on the minimap. In a collector's
--- bar the bar owns placement, and a second drag handler on the same button is
--- a fight, not a feature.
-function MMB.SetDrag(on)
-    local btn = getglobal("PallyPowerMinimapButton")
-    if not btn then return end
-    if on and not MMB.drag then
-        MMB.drag = true
-        btn:RegisterForDrag("LeftButton")
-        btn:SetScript("OnDragStart", function() MMB.driver:Show() end)
-        btn:SetScript("OnDragStop", function()
-            MMB.driver:Hide()
-            MMB.Position()
-        end)
-    elseif (not on) and MMB.drag then
-        MMB.drag = false
-        MMB.driver:Hide()
-        btn:RegisterForDrag()            -- no buttons = drag off
-        btn:SetScript("OnDragStart", nil)
-        btn:SetScript("OnDragStop", nil)
-    end
 end
 
--- Idempotent: re-applies the art inset, the drag handler and the ring
--- placement. Safe to call again on every PLAYER_ENTERING_WORLD, which is what
--- happens - and which is also how a collector that grabs the button after
--- login gets picked up, since that event fires again on every zone change.
---
--- Note what is NOT here: no SetWidth, no SetHeight, no SetScale, on either
--- frame. The button's geometry belongs to whoever is laying it out - the
--- engine on the minimap, or a button bar - and both earlier attempts to own it
--- from here made things worse rather than better.
-function AegisRP_ApplyMinimapButton()
+-- Pressed: the art sinks a pixel, as a button face would. Both corners are
+-- anchored rather than a CENTER and a fixed size, so the art always fills the
+-- button exactly - including when a collector hands it a different size.
+function MMB.Press(down)
+    local b, icon = MMB.button, MMB.icon
+    if not (b and icon) then return end
+    local d = down and 1 or 0
+    icon:ClearAllPoints()
+    icon:SetPoint("TOPLEFT", b, "TOPLEFT", d, -d)
+    icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", d, -d)
+end
+
+function MMB.Tooltip()
+    -- the engine's credits block (it anchors to `this`, which is our button),
+    -- then what the button does
+    if PallyPower_ShowCredits then PallyPower_ShowCredits()
+    else GameTooltip:SetOwner(this, "ANCHOR_TOPLEFT") end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("Click: show or hide your bar", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("Right-click: options", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("Shift-click: change the icon", 0.8, 0.8, 0.8)
+    if not MMB.Adopted() then
+        GameTooltip:AddLine("Drag: move round the minimap", 0.8, 0.8, 0.8)
+    end
+    GameTooltip:Show()
+end
+
+-- Created once, at file scope, hidden - as Pathfinder does - so it already
+-- exists when a collector scans the Minimap's children at login. Reads no
+-- saved setting here (hard rule 10); size, art and visibility are applied by
+-- AegisRP_ApplyMinimapButton once SavedVariables are in.
+function MMB.Build()
+    if MMB.button then return MMB.button end
+    local mm = getglobal("Minimap")
+    if not mm then return nil end
+    local b = CreateFrame("Button", "AegisRP_MinimapButton", mm)
+    MMB.button = b
+    b:SetWidth(MMB.DEFAULT_SIZE); b:SetHeight(MMB.DEFAULT_SIZE)
+    b:SetFrameStrata("MEDIUM")
+    -- Set once, at creation, on a button with no child FRAMES - only
+    -- textures, which draw with it. That is not the window-raise CLAUDE.md
+    -- prohibits (a raised window lifting itself above its own child buttons).
+    b:SetFrameLevel(mm:GetFrameLevel() + 8)
+    -- Mouse and movement switched on outright rather than left to the client's
+    -- defaults; Pathfinder's button was reported as not dragging until it did.
+    b:EnableMouse(true)
+    b:SetMovable(true)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b:RegisterForDrag("LeftButton")
+    b:Hide()
+
+    MMB.icon = b:CreateTexture(nil, "ARTWORK")
+    MMB.Press(false)
+
+    -- On hover, a gold ring just outside the art's own rim.
+    local ring = b:CreateTexture(nil, "OVERLAY")
+    ring:SetTexture(MMB.TEX .. "MinimapRing")
+    ring:SetVertexColor(MMB.ACCENT[1], MMB.ACCENT[2], MMB.ACCENT[3], 1)
+    ring:SetPoint("TOPLEFT", b, "TOPLEFT", -2, 2)
+    ring:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 2, -2)
+    ring:Hide()
+    MMB.ring = ring
+
+    b:SetScript("OnClick", function()
+        if PallyPower_MinimapButton_OnClick then PallyPower_MinimapButton_OnClick(arg1) end
+    end)
+    b:SetScript("OnMouseDown", function() MMB.Press(true) end)
+    b:SetScript("OnMouseUp", function() MMB.Press(false) end)
+    b:SetScript("OnEnter", function() ring:Show(); MMB.Tooltip() end)
+    b:SetScript("OnLeave", function() ring:Hide(); GameTooltip:Hide() end)
+    b:SetScript("OnDragStart", function()
+        if MMB.Adopted() then return end     -- a collector's grid owns placement
+        GameTooltip:Hide()
+        this:SetScript("OnUpdate", MMB.Dragging)
+    end)
+    b:SetScript("OnDragStop", function()
+        this:SetScript("OnUpdate", nil)
+        MMB.Press(false)
+    end)
+    return b
+end
+
+-- The engine's own button, out of sight for good. Re-parented into a frame
+-- that is never shown, and its Show() shadowed, rather than simply hidden: the
+-- engine calls Show() on it from Init and from its options checkbox, and a
+-- collector that scans the Minimap's children - or already grabbed it - would
+-- otherwise show a second, misshapen RallyPower button.
+function MMB.ParkEngine()
     local f = getglobal("PallyPowerMinimapButtonFrame")
-    local btn = getglobal("PallyPowerMinimapButton")
-    if not (f and btn) then return end
-
-    MMB.Dress()                      -- the art, inside whatever button we were given
-
-    if MMB.Adopted() then
-        MMB.SetDrag(false)           -- the bar owns position and dragging
-        return
+    if not f then return end
+    if not MMB.parking then
+        MMB.parking = CreateFrame("Frame", "AegisRP_MinimapParking")
+        MMB.parking:Hide()
     end
-    MMB.SetDrag(true)
+    if f:GetParent() ~= MMB.parking then f:SetParent(MMB.parking) end
+    f:Hide()
+    f.Show = function() end
+end
+
+MMB.ParkEngine()
+MMB.Build()
+
+-- Idempotent: size, art, visibility and placement. Runs at every
+-- PLAYER_ENTERING_WORLD and whenever the engine's own show/hide path fires.
+function AegisRP_ApplyMinimapButton()
+    MMB.ParkEngine()
+    local b = MMB.Build()
+    if not b then return end
+    if not MMB.Adopted() then
+        -- our own button, so sizing it is ours; inside a collector's grid
+        -- the collector decides, and the art follows whatever it picks
+        local s = MMB.Size()
+        b:SetWidth(s); b:SetHeight(s)
+    end
+    AegisRP_ApplyMinimapSkin()
+    if type(PP_PerUser) == "table" and PP_PerUser.minimapbuttonshow == false then
+        b:Hide()
+    else
+        b:Show()
+    end
     MMB.Position()
 end
 
--- Exposed whole, like AegisRP.StripPos: the ring arithmetic is the kind that
--- is silently wrong rather than visibly broken (a button a few pixels off the
--- ring still looks like a button), so scripts/test_minimap.lua drives it.
+-- Exposed whole, like AegisRP.StripPos, so scripts/test_minimap.lua can drive
+-- the placement and drag arithmetic off-client.
 AegisRP.MinimapButton = MMB
 
 -- Options hook: the size slider.
@@ -2179,12 +2166,24 @@ function AegisRP_ApplyMinimapSize(n)
     AegisRP_ApplyMinimapButton()
 end
 
--- Save-and-replace, not an edit: PallyPower/ stays byte-identical. This is a
--- real global in MinimapButton.lua (not one of the forward-declared file-locals
--- PallyPower.lua is full of), and both of its callers - MinimapButton_Init and
--- the frame's OnEvent - look it up by name at call time, so replacing it here
--- is enough.
+-- Save-and-replace, not edits: PallyPower/ stays byte-identical. All three are
+-- real globals (none of them among the forward-declared file-locals at
+-- PallyPower.lua:104-106), and every caller - the engine's ADDON_LOADED, its
+-- XML OnEvent, and Options' LegacyCheck, which uses getglobal at call time -
+-- looks them up by name, so replacing them here is enough.
 PallyPower_MinimapButton_UpdatePosition = function() MMB.Position() end
+
+local orig_MinimapButton_Init = PallyPower_MinimapButton_Init
+PallyPower_MinimapButton_Init = function()
+    if orig_MinimapButton_Init then orig_MinimapButton_Init() end
+    AegisRP_ApplyMinimapButton()
+end
+
+local orig_MinimapButtonOption = PallyPower_MinimapButtonOption
+PallyPower_MinimapButtonOption = function()
+    if orig_MinimapButtonOption then orig_MinimapButtonOption() end
+    AegisRP_ApplyMinimapButton()
+end
 
 -- One-time move to the new default art.
 --
@@ -2357,10 +2356,10 @@ SlashCmdList["AEGISRP"] = function(msg)
     -- applied and then overwritten by a button-collector addon. The two look
     -- identical and need opposite fixes.
     if msg == "minimap" then
-        local f = getglobal("PallyPowerMinimapButtonFrame")
-        local b = getglobal("PallyPowerMinimapButton")
-        if not (f and b) then
-            DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r the engine's minimap button does not exist.")
+        local M = AegisRP.MinimapButton
+        local b = M and M.button
+        if not b then
+            DEFAULT_CHAT_FRAME:AddMessage("|cffffff00Aegis:|r the minimap button was never built (no Minimap frame?).")
             return
         end
         local function who(fr)
@@ -2369,31 +2368,20 @@ SlashCmdList["AEGISRP"] = function(msg)
             if not p then return "none" end
             return (p.GetName and p:GetName()) or "unnamed"
         end
-        local ad = AegisRP.MinimapButton and AegisRP.MinimapButton.Adopted()
+        local eng = getglobal("PallyPowerMinimapButtonFrame")
         DEFAULT_CHAT_FRAME:AddMessage(string.format(
-            "|cffffff00Aegis:|r minimap button - skin=%s wanted=%d  %s",
-            tostring(AegisRP_Settings.minimapSkin),
-            AegisRP.MinimapButton and AegisRP.MinimapButton.Size() or -1,
-            ad and "|cffff8800adopted by another addon|r" or "on the minimap"))
+            "|cffffff00Aegis:|r minimap button - %s, %s, skin=%s",
+            b:IsShown() and "shown" or "|cffff5555hidden|r",
+            M.Adopted() and ("|cffff8800in " .. who(b) .. "|r") or "on the minimap",
+            tostring(AegisRP_Settings.minimapSkin)))
         DEFAULT_CHAT_FRAME:AddMessage(string.format(
-            "  frame  parent=%s  w=%.1f h=%.1f  scale=%.3f  eff=%.3f",
-            who(f), f:GetWidth() or -1, f:GetHeight() or -1,
-            f:GetScale() or -1, f:GetEffectiveScale() or -1))
-        DEFAULT_CHAT_FRAME:AddMessage(string.format(
-            "  button parent=%s  w=%.1f h=%.1f  scale=%.3f  eff=%.3f",
-            who(b), b:GetWidth() or -1, b:GetHeight() or -1,
-            b:GetScale() or -1, b:GetEffectiveScale() or -1))
-        -- The ART is what a player compares with their other buttons, and it is
-        -- the only thing this addon sets, so it is the number to print.
-        local tex = b.GetNormalTexture and b:GetNormalTexture()
-        DEFAULT_CHAT_FRAME:AddMessage(string.format(
-            "  art    %.1f wide inside a %.1f button; angle=%s",
-            (tex and tex.GetWidth and tex:GetWidth()) or -1,
-            b:GetWidth() or -1,
+            "  size %.1f x %.1f (wanted %d)  scale %.3f  angle=%s",
+            b:GetWidth() or -1, b:GetHeight() or -1, M.Size(),
+            b:GetEffectiveScale() or -1,
             tostring(PP_PerUser and PP_PerUser.minimapbuttonpos)))
-        DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaa(compare the ART width with your other "
-            .. "minimap buttons - the slider is Options > Settings > Minimap icon size. "
-            .. "The button's own size belongs to whoever lays it out.)|r")
+        DEFAULT_CHAT_FRAME:AddMessage("  engine's own button: "
+            .. ((eng and eng:GetParent() == M.parking) and "parked (correct)"
+                or ("|cffff5555NOT parked|r - parent " .. who(eng))))
         return
     end
 
