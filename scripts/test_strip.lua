@@ -82,8 +82,15 @@ local function Frame(left, top, w, h, scale, shown)
     function f:SetPoint(p, rel, rp, x, y)
         self.anchor = { p = p, rel = rel, rp = rp, x = x, y = y }
         -- only a UIParent anchor gives absolute coordinates; a frame-to-frame
-        -- anchor is resolved by the client, so leave our fake position alone
-        if rel == UIParent then self.left, self.top = x, y end
+        -- anchor is resolved by the client, so leave our fake position alone.
+        -- A PENDING frame models the real client at login: anchored, but its
+        -- rect is not readable until it has been laid out.
+        if rel == UIParent and not self.pending then self.left, self.top = x, y end
+    end
+    function f:Layout()
+        self.pending = nil
+        local a = self.anchor
+        if a and a.rel == UIParent then self.left, self.top = a.x, a.y end
     end
     function f:GetPoint()
         local a = self.anchor
@@ -529,9 +536,12 @@ check("fully past the right edge is not", onScreen(Frame(SCREEN_W, 400, W, H)), 
 -- the screen's BOTTOM-LEFT, so the whole frame hangs below the bottom edge
 check("TOPLEFT at the screen's bottom-left is not", onScreen(Frame(0, 0, W, H)), false)
 check("fully above the top edge is not", onScreen(Frame(400, SCREEN_H + H, W, H)), false)
--- an unanchored frame has no position at all, which is not the same as
--- "cannot tell" - it genuinely is not anywhere
-check("an unanchored frame is not on screen", onScreen(Frame(nil, nil, W, H)), false)
+-- An unreadable rect is "cannot tell", NOT "off screen". 1.14.3 asserted the
+-- opposite right here, and that assertion was the bug: at login every strip is
+-- anchored but not yet laid out, so every saved position read as unreachable
+-- and was deleted.
+check("an unreadable rect is 'cannot tell', not 'off screen'",
+      onScreen(Frame(nil, nil, W, H)), nil)
 
 -- EnsureOnScreen: the post-rescale rescue. SetScale does not re-anchor, so the
 -- same stored offsets can be on screen at 1.0 and off it at 1.5.
@@ -574,6 +584,51 @@ check("...and is cleared rather than retried next login", left, nil)
 used, f, left = restore({ p = "TOPLEFT", rel = "BOTTOMLEFT", x = 300, y = 2000 })
 check("a stored position off the top is refused", used, false)
 check("...and is cleared", left, nil)
+
+--------------------------------------------------------------------------
+-- The login path, modelled the way the client actually behaves.
+--
+-- This is the 1.15.3 regression: strips forgot their position on every
+-- reload. Restore runs inside Finish, before the strip is first shown, when
+-- GetLeft() is still nil. Read as "off screen", that deleted every saved
+-- position and parked the strip at the default.
+--------------------------------------------------------------------------
+print("")
+print("strip engine - restoring at login, before layout")
+
+local function Pending()
+    local p = Frame(nil, nil, W, H)
+    p.pending = true
+    return p
+end
+
+AegisRP_Settings.stripPos_login = { p = "TOPLEFT", rel = "BOTTOMLEFT", x = 300, y = 500 }
+local lf = Pending()
+check("a saved position is used before layout", POS.Restore(lf, "stripPos_login"), true)
+check("...at its stored offsets", lf.anchor.x, 300)
+check("...and it is NOT deleted", AegisRP_Settings.stripPos_login ~= nil, true)
+check("settling waits while the rect is unreadable", POS.Settle(lf, "stripPos_login"), false)
+check("...and still leaves it alone", AegisRP_Settings.stripPos_login ~= nil, true)
+lf:Layout()
+check("once laid out, the check is made", POS.Settle(lf, "stripPos_login"), true)
+check("...and a good position survives it", AegisRP_Settings.stripPos_login ~= nil, true)
+check("...where the player left it", lf.anchor.x, 300)
+
+-- the protection still exists for a position that really IS off screen
+AegisRP_Settings.stripPos_lost = { p = "TOPLEFT", rel = "BOTTOMLEFT", x = 300, y = 2000 }
+local lost = Pending()
+check("an unmeasurable bad position is not judged early",
+      POS.Restore(lost, "stripPos_lost"), true)
+lost:Layout()
+check("once measurable it is caught", POS.Settle(lost, "stripPos_lost"), true)
+check("...cleared", AegisRP_Settings.stripPos_lost, nil)
+check("...and moved to the default", lost.anchor.p, "CENTER")
+
+-- the rescale path runs over strips that may not be laid out either
+AegisRP_Settings.stripPos_hidden = { p = "TOPLEFT", rel = "BOTTOMLEFT", x = 300, y = 500 }
+check("a rescale leaves an unmeasurable strip alone",
+      AegisRP.EnsureOnScreen(Pending(), "stripPos_hidden"), false)
+check("...and its saved position with it", AegisRP_Settings.stripPos_hidden ~= nil, true)
 
 -- POS.Save: the single writer both persist sites go through.
 AegisRP_Settings.stripPos_s = nil

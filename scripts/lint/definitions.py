@@ -45,6 +45,14 @@ def defs(text):
 # Entries can be deleted once the removal is in the baseline ref, because from
 # then on the name is not in `was` either.
 REMOVED_ON_PURPOSE = {
+    # The engine's minimap button was dressed from our side in 1.15.0-1.15.2.
+    # 1.15.3 replaces it with a button of our own (built like Aegis:
+    # Pathfinder's), so the helpers that sized and anchored the engine's went.
+    "MMB.Dress":   "v1.15.3 -- the engine's minimap button is parked; ours "
+                   "has one icon texture anchored by both corners",
+    "MMB.Inset":   "v1.15.3 -- with MMB.Dress",
+    "MMB.Ring":    "v1.15.3 -- CENTER anchoring needs only MMB.Radius",
+    "MMB.SetDrag": "v1.15.3 -- drag scripts are set once in MMB.Build",
     "ui.RowsFor": "v1.23.0 -- measured a two-edge-anchored scroll frame, "
                   "which is the trap four separate bugs walked into; "
                   "replaced by ui.ListRowsAt",

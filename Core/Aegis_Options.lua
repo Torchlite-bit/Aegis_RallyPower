@@ -424,13 +424,11 @@ end
 -- 26 matches a stock Blizzard ring button; the old 32 is still reachable.
 local function MinimapSizeEntry()
     return { type = "slider", key = "minimapSize", label = "Minimap icon size",
-      min = 12, max = 32, step = 1, default = 25,
-      tip = "How wide the icon is drawn, in pixels.\nThe art is 32 across, which "
-         .. "is wider than a stock minimap button's icon - 25 is what those "
-         .. "measure.\nThis sizes the ARTWORK, not the button: the button's own "
-         .. "size belongs to the minimap, or to your minimap-button bar if you "
-         .. "use one.\nDrag the button to move it around the ring (not while a "
-         .. "bar owns it).",
+      min = 16, max = 32, step = 1, default = 26,
+      tip = "Width of the minimap button in pixels. 26 matches a stock minimap "
+         .. "button.\nIf a minimap-button bar (pfUI, or a dedicated addon) has "
+         .. "collected it, the bar decides its size instead.\nDrag the button to "
+         .. "move it round the minimap.",
       set = function(v) AegisRP_ApplyMinimapSize(v) end }
 end
 

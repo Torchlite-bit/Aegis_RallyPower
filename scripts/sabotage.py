@@ -326,114 +326,114 @@ SABOTAGES = [
      "strip"),
 
     # ---- minimap button --------------------------------------------------
-    # The button rides a circle by angle. Every formula here carries a
-    # half-size term, and getting one wrong still draws a button - just not
-    # on the ring, or not where the cursor left it.
+    # Since 1.15.3 the button is our own, built like Aegis: Pathfinder's. The
+    # first three releases dressed the engine's and each left its shape - a
+    # 32px container with a 32px button pinned to its TOPLEFT - which every
+    # collector showed spilling down and right. These keep the shape honest.
 
     ("minimap-size-not-clamped", "Core/Aegis_Core.lua",
      "    if n < MMB.MIN_SIZE then n = MMB.MIN_SIZE elseif n > MMB.MAX_SIZE then n = MMB.MAX_SIZE end",
      "",
      "minimap"),
 
-    # The engine's own mistake, restored: a half-size of 16 because its button
-    # was always 32. Any other size then walks off the ring.
-    ("minimap-halfsize-hardcoded", "Core/Aegis_Core.lua",
-     "        cx - (r * cos(pos)) - (s / 2),\n"
-     "        (r * sin(pos)) - cy + (s / 2))",
-     "        cx - (r * cos(pos)) - 16,\n"
-     "        (r * sin(pos)) - cy + 16)",
+    # Back to a container: our button parented to something other than the
+    # Minimap is the engine's shape again, and collectors cannot see it.
+    ("minimap-button-not-minimap-child", "Core/Aegis_Core.lua",
+     '    local b = CreateFrame("Button", "AegisRP_MinimapButton", mm)',
+     '    local b = CreateFrame("Button", "AegisRP_MinimapButton", UIParent)',
      "minimap"),
 
-    # Ring measured off the minimap, not assumed. A UI that resizes the minimap
-    # otherwise gets the button floating somewhere inside or outside it.
+    # TOPLEFT anchoring: the size then enters the arithmetic, and the engine's
+    # hardcoded half-size is exactly where 1.15.0 started.
+    ("minimap-anchored-topleft", "Core/Aegis_Core.lua",
+     '    b:SetPoint("CENTER", mm, "CENTER", -r * math.cos(a), r * math.sin(a))',
+     '    b:SetPoint("TOPLEFT", mm, "CENTER", -r * math.cos(a), r * math.sin(a))',
+     "minimap"),
+
+    # Pathfinder's angle convention instead of the engine's: every saved
+    # button jumps to the mirror-image spot on upgrade.
+    ("minimap-angle-convention-changed", "Core/Aegis_Core.lua",
+     '    b:SetPoint("CENTER", mm, "CENTER", -r * math.cos(a), r * math.sin(a))',
+     '    b:SetPoint("CENTER", mm, "CENTER", r * math.cos(a), r * math.sin(a))',
+     "minimap"),
+
     ("minimap-ring-hardcoded", "Core/Aegis_Core.lua",
-     "    return w / 2, h / 2, (w / 2) + 10",
-     "    return 70, 70, 80",
+     "    return (w / 2) + 10",
+     "    return 80",
      "minimap"),
 
-    # The drag inverse. A flipped sign mirrors the button across the minimap,
-    # so it jumps to the far side the instant you grab it.
+    # A flipped drag inverse: the button jumps to the far side when grabbed.
     ("minimap-drag-angle-mirrored", "Core/Aegis_Core.lua",
-     "    PP_PerUser.minimapbuttonpos = math.deg(MMB.Atan2(py - my, mx - px))",
-     "    PP_PerUser.minimapbuttonpos = math.deg(MMB.Atan2(py - my, px - mx))",
+     "    PP_PerUser.minimapbuttonpos = math.deg(MMB.Atan2(py / scale - my, mx - px / scale))",
+     "    PP_PerUser.minimapbuttonpos = math.deg(MMB.Atan2(py / scale - my, px / scale - mx))",
      "minimap"),
 
-    # A missing angle is the key the PP_PerUser repair exists for. Defaulting
-    # it to 0 moves every upgrading player's button without being asked.
     ("minimap-missing-angle-defaults-zero", "Core/Aegis_Core.lua",
      "    local pos = 30                       -- the engine's own default",
      "    local pos = 0",
      "minimap"),
 
-    # Without the flag the migration runs every login, so a player who picks a
-    # legacy skin back gets overruled on their next reload.
+    # Art anchored by one corner and a fixed size can spill out of a smaller
+    # slot - the overlap again, from the other side.
+    ("minimap-icon-one-corner", "Core/Aegis_Core.lua",
+     '    icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", d, -d)',
+     '    icon:SetWidth(32); icon:SetHeight(32)',
+     "minimap"),
+
+    ("minimap-press-does-not-sink", "Core/Aegis_Core.lua",
+     "    local d = down and 1 or 0",
+     "    local d = 0",
+     "minimap"),
+
+    # The engine's button left on the Minimap: two RallyPower buttons, one of
+    # them the misshapen one.
+    ("minimap-engine-not-parked", "Core/Aegis_Core.lua",
+     "    if f:GetParent() ~= MMB.parking then f:SetParent(MMB.parking) end",
+     "",
+     "minimap"),
+
+    # Hidden but not neutered: the engine's own Init and options checkbox call
+    # Show() on it, and it comes back.
+    ("minimap-engine-show-not-shadowed", "Core/Aegis_Core.lua",
+     "    f.Show = function() end",
+     "",
+     "minimap"),
+
+    # Fighting a collector: sizing and re-anchoring a button it owns.
+    ("minimap-adopted-still-sized", "Core/Aegis_Core.lua",
+     "    if not MMB.Adopted() then\n"
+     "        -- our own button, so sizing it is ours",
+     "    if true then\n"
+     "        -- our own button, so sizing it is ours",
+     "minimap"),
+    ("minimap-adopted-still-placed", "Core/Aegis_Core.lua",
+     "    if not (b and mm) or MMB.Adopted() then return end",
+     "    if not (b and mm) then return end",
+     "minimap"),
+    ("minimap-adopted-still-dragged", "Core/Aegis_Core.lua",
+     "        if MMB.Adopted() then return end     -- a collector's grid owns placement",
+     "",
+     "minimap"),
+
+    # The engine's options checkbox must reach OUR button.
+    ("minimap-option-not-wrapped", "Core/Aegis_Core.lua",
+     "    if orig_MinimapButtonOption then orig_MinimapButtonOption() end\n"
+     "    AegisRP_ApplyMinimapButton()",
+     "    if orig_MinimapButtonOption then orig_MinimapButtonOption() end",
+     "minimap"),
+
+    # Rule 10: shown at file scope, before SavedVariables say whether to.
+    ("minimap-shown-before-settings", "Core/Aegis_Core.lua",
+     "    b:RegisterForDrag(\"LeftButton\")\n"
+     "    b:Hide()",
+     "    b:RegisterForDrag(\"LeftButton\")\n"
+     "    b:Show()",
+     "minimap"),
+
     ("minimap-migration-repeats", "Core/Aegis_Core.lua",
      "    if AegisRP_Settings.minimapSkinAegis then return end\n"
      "    AegisRP_Settings.minimapSkinAegis = true",
      "    AegisRP_Settings.minimapSkinAegis = true",
-     "minimap"),
-
-    # The two shipped mistakes, both restorable in one line each.
-    #
-    # 1.15.0: resize the FRAME. A minimap-button bar re-applies its own size, or
-    # was handed the inner button rather than the container, so ours still
-    # rendered 32 next to neighbours at ~24.
-    ("minimap-sized-by-frame-width", "Core/Aegis_Core.lua",
-     "    MMB.Dress()                      -- the art, inside whatever button we were given",
-     "    f:SetWidth(MMB.Size()); f:SetHeight(MMB.Size())\n"
-     "    btn:SetWidth(MMB.Size()); btn:SetHeight(MMB.Size())",
-     "minimap"),
-
-    # 1.15.1: resize by SCALE. The button then renders at one size and REPORTS
-    # another, so a bar lays it out on the reported width and it overlaps its
-    # neighbours - "extra large and offset".
-    ("minimap-sized-by-scale", "Core/Aegis_Core.lua",
-     "    MMB.Dress()                      -- the art, inside whatever button we were given",
-     "    f:SetScale(MMB.Size() / MMB.ART)",
-     "minimap"),
-
-    # Art wider than the button hangs over the edge of whatever slot a bar gave
-    # us, which is the overlap all over again.
-    ("minimap-art-not-clamped-to-button", "Core/Aegis_Core.lua",
-     "    if want > bw then want = bw end        -- never larger than the button itself",
-     "",
-     "minimap"),
-
-    # Anchoring one corner instead of two puts the art off-centre in the button.
-    ("minimap-art-anchored-one-corner", "Core/Aegis_Core.lua",
-     '    tex:SetPoint("TOPLEFT", btn, "TOPLEFT", k, -k)\n'
-     '    tex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -k, k)',
-     '    tex:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)\n'
-     '    tex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2 * k, 2 * k)',
-     "minimap"),
-
-    # Re-anchoring an adopted button to the minimap ring is a tug of war with
-    # the bar that owns its position.
-    ("minimap-adopted-still-repositioned", "Core/Aegis_Core.lua",
-     "        MMB.SetDrag(false)           -- the bar owns position and dragging\n"
-     "        return",
-     "        MMB.SetDrag(false)\n"
-     "        MMB.Position()\n"
-     "        return",
-     "minimap"),
-
-    # A second drag handler on a button the bar already drags is a fight.
-    ("minimap-drag-kept-while-adopted", "Core/Aegis_Core.lua",
-     "        MMB.SetDrag(false)           -- the bar owns position and dragging",
-     "        MMB.SetDrag(true)",
-     "minimap"),
-
-    # Setting a texture resets its anchors, so a skin change silently undoes the
-    # inset and the icon jumps back to full size.
-    ("minimap-skin-change-loses-inset", "Core/Aegis_Core.lua",
-     "    MMB.Dress()\nend",
-     "end",
-     "minimap"),
-
-    # Placement must follow the FRAME's width; the art size must not move it.
-    ("minimap-placement-follows-art-size", "Core/Aegis_Core.lua",
-     "    local s = f:GetWidth() or MMB.ART",
-     "    local s = MMB.Size()",
      "minimap"),
 
     # ---- saved positions -------------------------------------------------
@@ -443,7 +443,7 @@ SABOTAGES = [
 
     # Applying a stored position without checking where it landed.
     ("pos-restore-unchecked", "Core/Aegis_Strip.lua",
-     "    if not POS.OnScreen(f) then\n"
+     "    if POS.OnScreen(f) == false then\n"
      "        AegisRP_Settings[posKey] = nil\n"
      "        POS.Default(f)\n"
      "        return false\n"
@@ -454,12 +454,33 @@ SABOTAGES = [
      "end",
      "strip"),
 
-    # A frame with no anchor at all reported as fine. GetLeft() is nil there,
-    # and treating that as "cannot tell, so allow it" is the exact reading that
-    # lets an unplaced strip through.
-    ("pos-unanchored-counts-as-onscreen", "Core/Aegis_Strip.lua",
+    # THE 1.15.3 REGRESSION, restored: an unreadable rect read as "off screen".
+    # At login every strip is anchored but not yet laid out, so this deleted
+    # every saved position on every reload. Until 1.15.3 this entry planted the
+    # OPPOSITE and called it the bug - the suite was enforcing the defect.
+    ("pos-unreadable-rect-reads-offscreen", "Core/Aegis_Strip.lua",
+     "    if not (l and t) then return nil end",
      "    if not (l and t) then return false end",
-     "    if not (l and t) then return true end",
+     "strip"),
+
+    # Restore judging a position it cannot measure yet.
+    ("pos-restore-rejects-unmeasured", "Core/Aegis_Strip.lua",
+     "    if POS.OnScreen(f) == false then",
+     "    if not POS.OnScreen(f) then",
+     "strip"),
+
+    # The deferred check never made: a genuinely lost strip stays lost.
+    ("pos-settle-never-checks", "Core/Aegis_Strip.lua",
+     "    if on == false then\n"
+     "        if posKey then AegisRP_Settings[posKey] = nil end",
+     "    if false then\n"
+     "        if posKey then AegisRP_Settings[posKey] = nil end",
+     "strip"),
+
+    # The rescale path wiping positions on strips it cannot measure.
+    ("pos-rescale-rejects-unmeasured", "Core/Aegis_Strip.lua",
+     "    if not f or POS.OnScreen(f) ~= false then return false end",
+     "    if not f or POS.OnScreen(f) then return false end",
      "strip"),
 
     # Only the horizontal half checked - a strip flung off the TOP by a rescale
