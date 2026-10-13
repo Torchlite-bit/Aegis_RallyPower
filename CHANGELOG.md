@@ -14,6 +14,43 @@ earlier predate the rebrand and say "RallyPowerCP" — same addon.)
 
 ## [Unreleased]
 
+## [1.15.4] — 2026-10-13
+### Fixed
+- **The class strip still did not keep its position; the Kick and Taunt strips
+  did.** Reported after 1.15.3. 1.15.3 stopped positions being deleted at
+  login, but a second problem only affects strips whose height changes.
+  - A drag saved whichever anchor point the client gave the frame when the drag
+    ended, not the strip's top. The class strip shows one button per class in
+    the group, so its height follows the roster — and it is built at login
+    before the roster has loaded. A strip saved by any point other than its top
+    brought its title back somewhere else whenever the group differed: dragged
+    into place in a full raid, it returned around the middle of the screen when
+    solo. Rotation strips are always one row, so they were unaffected.
+  - A drag now always saves the strip's **top-left corner**, and the strip is
+    pinned to that corner for the rest of the session, so it grows downward from
+    where it was put as players join and leave.
+- **A position is no longer deleted because of a measurement**, in any path.
+  Twice now a check made at login has been wrong, and deleting turned it into
+  lost layouts for every player. A strip that really is off screen is still
+  brought back on screen for the session; its saved position is only ever
+  replaced by the player's own drag or by Reset Frames.
+- The on-screen check waits until a strip has been shown for two seconds rather
+  than running in the first frames after login.
+
+### Changed
+- `/rpc strips` prints each strip's **saved** position next to its live one,
+  and shows `?` instead of `NO` for a strip that cannot be measured yet.
+
+### Notes
+- A position saved by an earlier version is still in the old form and may come
+  back off once more. Drag the class strip once on 1.15.4 and it stays.
+- New end-to-end test in `scripts/test_strip.lua`: it builds a real strip,
+  drags it in a "raid", rebuilds it shorter in a "solo" relog, and checks the
+  title stays put. It fails against the old save code with the reported
+  symptom. Every earlier position test drove the helpers directly, which is how
+  both this and the 1.14.3 bug got past them. 66 sabotages, all caught.
+- Not yet seen in game.
+
 ## [1.15.3] — 2026-10-06
 ### Fixed
 - **Strips forgot their position on every login and reload.** Introduced in

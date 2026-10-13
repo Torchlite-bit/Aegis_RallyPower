@@ -2411,20 +2411,35 @@ SlashCmdList["AEGISRP"] = function(msg)
                 end
                 local vis = "?"
                 if AegisRP.StripPos then
-                    vis = AegisRP.StripPos.OnScreen(f) and "|cff5be07ayes|r" or "|cffff5555NO|r"
+                    -- three answers since 1.15.3: nil is "cannot measure yet",
+                    -- which is not the same thing as off screen
+                    local o = AegisRP.StripPos.OnScreen(f)
+                    if o == true then vis = "|cff5be07ayes|r"
+                    elseif o == false then vis = "|cffff5555NO|r" end
+                end
+                -- the STORED position next to the live one: a strip that moves
+                -- between sessions shows here as the two disagreeing
+                local sp = AegisRP_Settings["stripPos_" .. k]
+                local saved = "none"
+                if type(sp) == "table" then
+                    saved = string.format("%s %s,%s", tostring(sp.p),
+                        tostring(sp.x and math.floor(sp.x + 0.5)),
+                        tostring(sp.y and math.floor(sp.y + 0.5)))
                 end
                 DEFAULT_CHAT_FRAME:AddMessage(string.format(
-                    "  |cff88ccff%s|r  shown=%s frame=%s onscreen=%s  buttons=%d/%d  scale=%.2f  L=%s T=%s",
+                    "  |cff88ccff%s|r  shown=%s frame=%s onscreen=%s  buttons=%d/%d  scale=%.2f  L=%s T=%s  saved=%s",
                     k,
                     AegisRP.IsStripShown(k) and "yes" or "no",
                     f:IsShown() and "yes" or "|cffff5555no|r",
                     vis, on, table.getn(S.buttons or {}),
                     f:GetScale() or -1,
-                    tostring(f:GetLeft()), tostring(f:GetTop())))
+                    tostring(f:GetLeft() and math.floor(f:GetLeft() + 0.5)),
+                    tostring(f:GetTop() and math.floor(f:GetTop() + 0.5)), saved))
             end
         end
         DEFAULT_CHAT_FRAME:AddMessage("  |cffaaaaaa(shown=yes with frame=no, or "
-            .. "onscreen=NO, is the bug - Reset Frames in the options puts them back)|r")
+            .. "onscreen=NO, is a strip you cannot see. A saved TOPLEFT x,y that "
+            .. "differs from L,T after a relog is a strip that moved.)|r")
         return
     end
 

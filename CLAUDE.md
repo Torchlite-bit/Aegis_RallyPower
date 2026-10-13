@@ -20,7 +20,7 @@ standard is PallyPower 3.3.5 (WotLK)** — reference source:
 `github.com/AznamirWoW/PallyPower` (clone it; `PallyPower_Wrath.xml` +
 `PallyPowerValues.lua` are the spec for frames, colors, dimensions).
 
-Current version: **1.15.3**. See `CHANGELOG.md` for the full history,
+Current version: **1.15.4**. See `CHANGELOG.md` for the full history,
 `docs/ROADMAP.md` for what is done / shipped-but-unverified / planned, and
 `docs/` for the design documents and interactive HTML concepts.
 
@@ -586,6 +586,21 @@ module `optionsInfo` contract so one Buttons tab keeps serving every class.
   CORRECT behaviour and called it the bug. A test frame for anything that runs
   at login must model "anchored, not laid out yet" (`Pending()` in
   `test_strip.lua`).
+  **A drag saves the strip's TOP-LEFT corner, never the client's anchor
+  (1.15.4).** `POS.Save` measures `GetLeft`/`GetTop` and pins the live frame
+  to `TOPLEFT`/`BOTTOMLEFT`. Before, it stored whatever point the client
+  re-anchored to when the drag ended, and the class strip's height follows the
+  roster (one button per class present, built before the roster loads) — so a
+  title saved by any other point came back elsewhere whenever the group
+  differed, while one-row rotation strips never moved. Any strip whose height
+  can change must be saved and anchored by its top.
+  **Nothing deletes a stored position on a measurement**, in any path —
+  `Settle` and `EnsureOnScreen` move the frame for the session and leave the
+  value; only a drag or Reset Frames writes one. Two releases deleted on a
+  wrong login-time measurement and lost every player's layout.
+  **The relog test is the one that counts**: `test_strip.lua` builds a REAL
+  strip, drags it tall, rebuilds it short, and checks the title. Both position
+  regressions passed a suite that only drove the `POS` helpers.
 - **The minimap button is OUR OWN, built the way Aegis: Pathfinder builds
   its (`MinimapButton.lua` in that repo), and the engine's is parked.** One
   Button, `AegisRP_MinimapButton`, a DIRECT child of the Minimap, anchored by

@@ -441,8 +441,36 @@ SABOTAGES = [
     # be seen is Shown, ticking, and invisible, and the Options checkbox reads
     # the flag rather than the frame so it never says otherwise.
 
-    # Applying a stored position without checking where it landed.
-    ("pos-restore-unchecked", "Core/Aegis_Strip.lua",
+    # THE 1.15.4 REGRESSION, restored: save whatever point the client
+    # re-anchored the frame to after a drag. The class strip's height follows
+    # the roster, so a bottom-anchored save brought its title back somewhere
+    # else whenever the group differed. Rotation strips are one row, which is
+    # why only the class strip "would not stay". Caught by the end-to-end relog.
+    ("pos-save-keeps-client-anchor", "Core/Aegis_Strip.lua",
+     "        local l, t = f:GetLeft(), f:GetTop()\n"
+     "        if not (l and t) then return false end   -- cannot measure: keep what is stored\n"
+     "        p, rel, x, y = \"TOPLEFT\", \"BOTTOMLEFT\", l, t\n"
+     "        f:ClearAllPoints()\n"
+     "        f:SetPoint(\"TOPLEFT\", UIParent, \"BOTTOMLEFT\", l, t)",
+     "        local gp, _, grp, gx, gy = f:GetPoint()\n"
+     "        p, rel, x, y = gp, grp, gx, gy",
+     "strip"),
+
+    # Saved by the top-left but the live frame left on the client's anchor:
+    # the title still moves during the session as the roster changes.
+    ("pos-save-not-pinned", "Core/Aegis_Strip.lua",
+     "        f:ClearAllPoints()\n"
+     "        f:SetPoint(\"TOPLEFT\", UIParent, \"BOTTOMLEFT\", l, t)\n"
+     "    end",
+     "    end",
+     "strip"),
+
+    # THE 1.14.3 shape: Restore judging a position at login and deleting it.
+    ("pos-restore-judges-at-login", "Core/Aegis_Strip.lua",
+     "    -- later, from the strip's own ticker.\n"
+     "    return true\n"
+     "end",
+     "    -- later, from the strip's own ticker.\n"
      "    if POS.OnScreen(f) == false then\n"
      "        AegisRP_Settings[posKey] = nil\n"
      "        POS.Default(f)\n"
@@ -450,34 +478,49 @@ SABOTAGES = [
      "    end\n"
      "    return true\n"
      "end",
-     "    return true\n"
-     "end",
+     "strip"),
+
+    # THE 1.14.3 shape, again: THE TRUE COST of both regressions was deleting
+    # on a measurement. Settle must move a lost strip and keep the value.
+    ("pos-settle-deletes", "Core/Aegis_Strip.lua",
+     "    if on == false then POS.Default(f) end",
+     "    if on == false then\n"
+     "        if posKey then AegisRP_Settings[posKey] = nil end\n"
+     "        POS.Default(f)\n"
+     "    end",
+     "strip"),
+
+    # ...and the rescale path the same.
+    ("pos-rescale-deletes", "Core/Aegis_Strip.lua",
+     "    if not f or POS.OnScreen(f) ~= false then return false end\n"
+     "    POS.Default(f)",
+     "    if not f or POS.OnScreen(f) ~= false then return false end\n"
+     "    if posKey then AegisRP_Settings[posKey] = nil end\n"
+     "    POS.Default(f)",
+     "strip"),
+
+    # The deferred check never made: a genuinely lost strip stays lost.
+    ("pos-settle-never-rescues", "Core/Aegis_Strip.lua",
+     "    if on == false then POS.Default(f) end",
+     "    if false then POS.Default(f) end",
+     "strip"),
+
+    # Measured in the first frames after login, which has been wrong once.
+    ("pos-settle-immediate", "Core/Aegis_Strip.lua",
+     "POS.SETTLE_AFTER = 2",
+     "POS.SETTLE_AFTER = 0",
      "strip"),
 
     # THE 1.15.3 REGRESSION, restored: an unreadable rect read as "off screen".
     # At login every strip is anchored but not yet laid out, so this deleted
-    # every saved position on every reload. Until 1.15.3 this entry planted the
-    # OPPOSITE and called it the bug - the suite was enforcing the defect.
+    # every saved position on every reload. Until 1.15.3 an entry here planted
+    # the OPPOSITE and called it the bug - the suite was enforcing the defect.
     ("pos-unreadable-rect-reads-offscreen", "Core/Aegis_Strip.lua",
      "    if not (l and t) then return nil end",
      "    if not (l and t) then return false end",
      "strip"),
 
-    # Restore judging a position it cannot measure yet.
-    ("pos-restore-rejects-unmeasured", "Core/Aegis_Strip.lua",
-     "    if POS.OnScreen(f) == false then",
-     "    if not POS.OnScreen(f) then",
-     "strip"),
-
-    # The deferred check never made: a genuinely lost strip stays lost.
-    ("pos-settle-never-checks", "Core/Aegis_Strip.lua",
-     "    if on == false then\n"
-     "        if posKey then AegisRP_Settings[posKey] = nil end",
-     "    if false then\n"
-     "        if posKey then AegisRP_Settings[posKey] = nil end",
-     "strip"),
-
-    # The rescale path wiping positions on strips it cannot measure.
+    # The rescale path acting on strips it cannot measure.
     ("pos-rescale-rejects-unmeasured", "Core/Aegis_Strip.lua",
      "    if not f or POS.OnScreen(f) ~= false then return false end",
      "    if not f or POS.OnScreen(f) then return false end",
@@ -488,14 +531,6 @@ SABOTAGES = [
     ("pos-vertical-check-dropped", "Core/Aegis_Strip.lua",
      "    if t < vis or t - h > sh - vis then return false end",
      "",
-     "strip"),
-
-    # Rescuing the frame but leaving the bad value stored, so it comes back on
-    # every login and the fix looks like it did not take.
-    ("pos-rescue-keeps-bad-value", "Core/Aegis_Strip.lua",
-     "    if posKey then AegisRP_Settings[posKey] = nil end\n"
-     "    POS.Default(f)",
-     "    POS.Default(f)",
      "strip"),
 
     # Storing a partial table. This is how { p, rel } with no offsets got
