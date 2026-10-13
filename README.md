@@ -1,4 +1,4 @@
-# Aegis: RallyPower (v1.15.3)
+# Aegis: RallyPower (v1.15.4)
 
 **All-class raid buff coordination for Turtle WoW 1.18.1** (1.12 client)
 

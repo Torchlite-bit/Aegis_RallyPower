@@ -558,36 +558,56 @@ function POS.Restore(f, posKey)
     end
     f:ClearAllPoints()
     f:SetPoint(pos.p, UIParent, pos.rel or pos.p, pos.x, pos.y)
-    -- Only a MEASURED miss is rejected. At login the rect is usually not
-    -- readable yet; the stored value has already passed Valid(), so it is
-    -- applied as-is and POS.Settle checks it once the strip is on screen.
-    if POS.OnScreen(f) == false then
-        AegisRP_Settings[posKey] = nil
-        POS.Default(f)
-        return false
-    end
+    -- No on-screen judgement here. This runs inside Finish at login, the one
+    -- moment the strip cannot be measured reliably; POS.Settle makes the check
+    -- later, from the strip's own ticker.
     return true
 end
 
 -- The deferred half of Restore: once the frame can actually be measured, check
 -- it once. Returns true when the check has been made (whatever its outcome),
 -- false while the rect is still unreadable - the caller keeps asking until then.
+--
+-- A strip found off screen is MOVED for this session and its stored value is
+-- left alone. 1.14.3 deleted it "so the rescue need not repeat next login", and
+-- a measurement that was wrong at login turned that into permanent loss of
+-- every player's layout. Repeating a rescue costs nothing; the only writers of
+-- a position are the player's own drag and Reset Frames.
 function POS.Settle(f, posKey)
     local on = POS.OnScreen(f)
     if on == nil then return false end
-    if on == false then
-        if posKey then AegisRP_Settings[posKey] = nil end
-        POS.Default(f)
-    end
+    if on == false then POS.Default(f) end
     return true
 end
 
+-- How long a strip must have been on screen before Settle measures it.
+-- Deliberately late: waiting costs nothing, and a measurement taken in the
+-- first frames after login has already been wrong once in a way the off-client
+-- tests could not see.
+POS.SETTLE_AFTER = 2
+
 -- The one writer. Both persist sites (drag end, and the scale grip's
 -- re-anchor) come through here so neither can store a partial table.
+--
+-- After a drag it stores the strip's TOP-LEFT corner - never whatever point the
+-- client re-anchored the frame to when the drag ended, which is what 1.15.3 and
+-- earlier saved. A strip grows DOWN from its title, and the class strip's height
+-- follows the roster (one button per class present), so a position saved by any
+-- other point moved the title whenever the group changed: dragged into place in
+-- a raid, it came back mid-screen solo. Rotation strips are one row and never
+-- change height, which is why only the class strip would not stay.
+--
+-- The live frame is re-pinned to that corner as well, so growth during the
+-- session goes downward too. Coordinates are the frame's own (GetLeft/GetTop
+-- and SetPoint offsets share its scale) - the same pair SnapStrip and the
+-- scale grip already use.
 function POS.Save(f, posKey, p, rel, x, y)
     if p == nil then
-        local gp, _, grp, gx, gy = f:GetPoint()
-        p, rel, x, y = gp, grp, gx, gy
+        local l, t = f:GetLeft(), f:GetTop()
+        if not (l and t) then return false end   -- cannot measure: keep what is stored
+        p, rel, x, y = "TOPLEFT", "BOTTOMLEFT", l, t
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", l, t)
     end
     local pos = { p = p, rel = rel, x = x, y = y }
     if not POS.Valid(pos) then return false end
@@ -606,8 +626,8 @@ AegisRP.StripPos = POS
 -- scale and off it at another.
 function AegisRP.EnsureOnScreen(f, posKey)
     -- the rescale path runs on hidden strips too: only a measured miss moves one
+    -- like Settle, it moves the frame and leaves the stored value alone
     if not f or POS.OnScreen(f) ~= false then return false end
-    if posKey then AegisRP_Settings[posKey] = nil end
     POS.Default(f)
     return true
 end
@@ -846,14 +866,18 @@ function AegisRP.NewStrip(key, title)
             end)
         end
         local accum = 0
-        local settled = false
+        local settled, shownFor = false, 0
         f:SetScript("OnUpdate", function()
             accum = accum + (arg1 or 0)
             if accum < 0.25 then return end
+            local dt = accum
             accum = 0
-            -- one real on-screen check, made the first time the strip can be
-            -- measured; a cheap comparison on every tick after that
-            if not settled then settled = POS.Settle(f, posKey) end
+            -- one real on-screen check, made once the strip has been shown for
+            -- a while; a cheap comparison on every tick after that
+            if not settled then
+                shownFor = shownFor + dt
+                if shownFor >= POS.SETTLE_AFTER then settled = POS.Settle(f, posKey) end
+            end
             S:Refresh()
         end)
         -- Shown BEFORE the first refresh, not after. A button whose refresh

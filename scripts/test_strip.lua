@@ -554,8 +554,11 @@ check("...and keeps its stored position",
 local flung = Frame(400, SCREEN_H + 200, W, H)
 AegisRP_Settings.stripPos_flung = { p = "TOPLEFT", rel = "BOTTOMLEFT", x = 400, y = 968 }
 check("a strip off the top is rescued", AegisRP.EnsureOnScreen(flung, "stripPos_flung"), true)
-check("...and the bad position is cleared so it stays fixed",
-      AegisRP_Settings.stripPos_flung, nil)
+-- moved for the session, but the player's stored value is never deleted on a
+-- measurement: 1.14.3 did, and a wrong login-time measurement then wiped every
+-- layout permanently
+check("...but its stored position is NOT deleted",
+      AegisRP_Settings.stripPos_flung ~= nil, true)
 check("...and it is re-anchored to the default", flung.anchor.p, "CENTER")
 
 -- POS.Restore: what Finish() does with whatever SavedVariables handed back.
@@ -581,9 +584,11 @@ check("a stored position with no offsets is refused", used, false)
 check("...and falls back to the default", f.anchor.p, "CENTER")
 check("...and is cleared rather than retried next login", left, nil)
 
+-- Restore no longer judges anything: it runs at login, the one moment the
+-- strip cannot be measured reliably. POS.Settle checks later.
 used, f, left = restore({ p = "TOPLEFT", rel = "BOTTOMLEFT", x = 300, y = 2000 })
-check("a stored position off the top is refused", used, false)
-check("...and is cleared", left, nil)
+check("Restore applies a complete position without judging it", used, true)
+check("...and leaves it stored", left ~= nil, true)
 
 --------------------------------------------------------------------------
 -- The login path, modelled the way the client actually behaves.
@@ -621,7 +626,7 @@ check("an unmeasurable bad position is not judged early",
       POS.Restore(lost, "stripPos_lost"), true)
 lost:Layout()
 check("once measurable it is caught", POS.Settle(lost, "stripPos_lost"), true)
-check("...cleared", AegisRP_Settings.stripPos_lost, nil)
+check("...but its stored value is not deleted", AegisRP_Settings.stripPos_lost ~= nil, true)
 check("...and moved to the default", lost.anchor.p, "CENTER")
 
 -- the rescale path runs over strips that may not be laid out either
@@ -630,12 +635,24 @@ check("a rescale leaves an unmeasurable strip alone",
       AegisRP.EnsureOnScreen(Pending(), "stripPos_hidden"), false)
 check("...and its saved position with it", AegisRP_Settings.stripPos_hidden ~= nil, true)
 
--- POS.Save: the single writer both persist sites go through.
+-- POS.Save: the single writer both persist sites go through. It stores the
+-- TOP-LEFT corner it measures, whatever point the frame is anchored by.
 AegisRP_Settings.stripPos_s = nil
 local sf = Frame(120, 400, W, H)
 sf:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", 120, 400)
-check("saving reads the live anchor", POS.Save(sf, "stripPos_s"), true)
-check("...and stores the offsets", AegisRP_Settings.stripPos_s.x, 120)
+check("saving measures the frame", POS.Save(sf, "stripPos_s"), true)
+check("...and stores its left edge", AegisRP_Settings.stripPos_s.x, 120)
+check("...and its TOP edge", AegisRP_Settings.stripPos_s.y, 400)
+
+-- The client re-anchored this one by its BOTTOM-left after a drag. Saving that
+-- point is what let a strip whose height changes come back somewhere else.
+AegisRP_Settings.stripPos_s = nil
+local bf = Frame(150, 500, W, 300)
+bf.anchor = { p = "BOTTOMLEFT", rel = UIParent, rp = "BOTTOMLEFT", x = 150, y = 200 }
+POS.Save(bf, "stripPos_s")
+check("a bottom-anchored frame is stored by its TOP-left", AegisRP_Settings.stripPos_s.p, "TOPLEFT")
+check("...measured from the top, not the bottom", AegisRP_Settings.stripPos_s.y, 500)
+check("...and the live frame is pinned to that corner", bf.anchor.p, "TOPLEFT")
 
 AegisRP_Settings.stripPos_s = nil
 check("saving nil offsets is refused",
@@ -646,6 +663,122 @@ AegisRP_Settings.stripPos_s = nil
 check("saving an unanchored frame is refused",
       POS.Save(Frame(nil, nil, W, H), "stripPos_s"), false)
 check("...and nothing is written", AegisRP_Settings.stripPos_s, nil)
+
+--------------------------------------------------------------------------
+-- END TO END: the real NewStrip / Finish / drag path, across a "relog".
+--
+-- Every test above drives the POS helpers directly, and both position bugs
+-- got past them: the 1.14.3 one because the stub frame was measurable the
+-- instant it was anchored, and the 1.15.3 one because no test had a strip
+-- whose HEIGHT changes. The class strip's does - one button per class in the
+-- group - so a position saved by its bottom brought the title back somewhere
+-- else whenever the roster differed. This section builds a real strip and
+-- models the client: frames are not measurable until laid out, and a drag
+-- ends with the client re-anchoring the frame by its BOTTOM-left.
+--------------------------------------------------------------------------
+print("")
+print("strip engine - a real strip across a relog")
+
+local AutoMT = { __index = function(_, k)
+    if type(k) == "string" and string.find(k, "^%u") then return function() return nil end end
+end }
+
+-- where a frame is, from its single anchor; nil until laid out
+local function Resolve(w)
+    local a = w.pt
+    if w.pending or not a then return nil end
+    local h, ww = w._h or 0, w._w or 0
+    if a.p == "TOPLEFT" and a.rp == "BOTTOMLEFT" then return a.x, a.y end
+    if a.p == "BOTTOMLEFT" and a.rp == "BOTTOMLEFT" then return a.x, a.y + h end
+    if a.p == "CENTER" and a.rp == "CENTER" then
+        return SCREEN_W / 2 + a.x - ww / 2, SCREEN_H / 2 + a.y + h / 2
+    end
+    return nil
+end
+
+local function Wid()
+    local w = setmetatable({ _shown = true, pending = true }, AutoMT)
+    function w:SetWidth(v) self._w = v end
+    function w:SetHeight(v) self._h = v end
+    function w:GetWidth() return self._w or 0 end
+    function w:GetHeight() return self._h or 0 end
+    function w:GetEffectiveScale() return 1 end
+    function w:Show() self._shown = true end
+    function w:Hide() self._shown = false end
+    function w:IsShown() return self._shown end
+    function w:SetScript(k, fn) self["_s" .. k] = fn end
+    function w:GetScript(k) return self["_s" .. k] end
+    function w:GetFrameLevel() return 1 end
+    function w:CreateTexture() return Wid() end
+    function w:CreateFontString() return Wid() end
+    function w:ClearAllPoints() self.pt = nil end
+    function w:SetPoint(p, rel, rp, x, y) self.pt = { p = p, rp = rp or p, x = x or 0, y = y or 0 } end
+    function w:GetPoint() local a = self.pt; if a then return a.p, UIParent, a.rp, a.x, a.y end end
+    function w:GetLeft() local l = Resolve(self); return l end
+    function w:GetTop() local _, t = Resolve(self); return t end
+    -- the client ends a drag by re-anchoring the frame - here, by its BOTTOM-left
+    function w:StopMovingOrSizing()
+        local l, t = Resolve(self)
+        self.pt = { p = "BOTTOMLEFT", rp = "BOTTOMLEFT", x = l, y = t - (self._h or 0) }
+    end
+    return w
+end
+CreateFrame = function() return Wid() end
+
+AegisRP.strips, AegisRP.stripOrder = {}, {}
+AegisRP_Settings = { stripSnap = false }   -- the snap path pins TOPLEFT itself and would hide this
+local present = 3                           -- class buttons shown: 3 in a raid, 1 solo
+
+local function BuildClassStrip()
+    local S = AegisRP.NewStrip("cls", "Class")
+    for i = 1, 3 do
+        local need = i
+        S:AddButton{ key = "c" .. i, visible = function() return present >= need end,
+                     refresh = function() end }
+    end
+    S:Finish()
+    return S
+end
+local function Tick(S, seconds)
+    local fn = S.frame:GetScript("OnUpdate")
+    local n = math.floor(seconds / 0.25 + 0.5)
+    for _ = 1, n do arg1 = 0.25; fn() end
+end
+
+-- session 1: in a raid, the player drags the strip into place
+local s1 = BuildClassStrip()
+s1.frame.pending = nil
+local raidH = s1.frame:GetHeight()
+s1.frame.pt = { p = "TOPLEFT", rp = "BOTTOMLEFT", x = 300, y = 600 }   -- dragged here
+s1.frame:GetScript("OnDragStop")()
+local saved = AegisRP_Settings.stripPos_cls
+check("the drag is saved", saved ~= nil, true)
+check("...by its TOP-left, whatever the client anchored", saved and saved.p, "TOPLEFT")
+check("...at the top the player put it at", saved and saved.y, 600)
+
+-- session 2: solo, so the strip is shorter
+present = 1
+local s2 = BuildClassStrip()
+check("solo, the strip really is shorter", s2.frame:GetHeight() < raidH, true)
+check("at login it cannot be measured yet", s2.frame:GetTop(), nil)
+check("...and its saved position survives the build", AegisRP_Settings.stripPos_cls ~= nil, true)
+s2.frame.pending = nil
+check("laid out, its top is where it was left", s2.frame:GetTop(), 600)
+check("...and so is its left edge", s2.frame:GetLeft(), 300)
+Tick(s2, 3)
+check("after settling it has not moved", s2.frame:GetTop(), 600)
+check("...and the stored position is untouched", AegisRP_Settings.stripPos_cls.y, 600)
+
+-- a stored position that really is off screen is rescued - late, not deleted
+AegisRP.strips, AegisRP.stripOrder = {}, {}
+AegisRP_Settings.stripPos_cls = { p = "TOPLEFT", rel = "BOTTOMLEFT", x = 300, y = 2000 }
+local s3 = BuildClassStrip()
+s3.frame.pending = nil
+Tick(s3, 1)
+check("an off-screen strip is not judged in its first second", s3.frame.pt.p, "TOPLEFT")
+Tick(s3, 2)
+check("after settling it is brought on screen", s3.frame.pt.p, "CENTER")
+check("...and the stored value is still the player's", AegisRP_Settings.stripPos_cls.y, 2000)
 
 --------------------------------------------------------------------------
 print("")
